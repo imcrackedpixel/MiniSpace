@@ -1,0 +1,667 @@
+// PublicNpcManager.js - Manages Public Space NPCs, Central Station Boss, combat AI, and death/despawn handling
+// Pirate types. What spawns is decided by the hull the player entered with (ENTRY_SPAWNS below).
+const PIRATE_TYPES = {
+  frigate: { makeShip: function (x, y) { return new MiningFrigate(x, y); }, name: 'Mining Frigate', marketVal: 150000, hp: 800 },
+  barge: { makeShip: function (x, y) { return new MiningBarge(x, y); }, name: 'Mining Barge', marketVal: 1200000, hp: 5200 },
+  command: { makeShip: function (x, y) { return new CommandShip(x, y); }, name: 'Command Ship', marketVal: 2500000, hp: 6000 },
+  carrier: { makeShip: function (x, y) { return new NpcCarrier(x, y); }, name: 'Carrier', marketVal: 20000000, hp: 25000 },
+  capital: { makeShip: function (x, y) { return new CapitalShip(x, y); }, name: 'Capital', marketVal: 12000000, hp: 35000 },
+  combatFrigate: { makeShip: function (x, y) { return new CombatFrigate(x, y); }, name: 'Combat Frigate', marketVal: 400000, hp: 1500 },
+  explorationFrigate: { makeShip: function (x, y) { return new ExplorationFrigate(x, y); }, name: 'Exploration Frigate', marketVal: 100000, hp: 600 },
+  siegeCruiser: { makeShip: function (x, y) { return new SiegeCruiserShip(x, y); }, name: 'Siege Cruiser', marketVal: 1500000, hp: 0 }, // hp 0 = use the player's hull HP
+  siegeBattleship: { makeShip: function (x, y) { return new SiegeBattleshipShip(x, y); }, name: 'Siege Battleship', marketVal: 3000000, hp: 0 }
+};
+// Combat hulls that take the player's full base HP and deal reduced damage (1 = normal)
+const MATCH_PLAYER_HP = { 'Combat Frigate': true, 'Siege Cruiser': true, 'Siege Battleship': true };
+// Default damage scale per hull. A spawn entry's own `dmg` overrides this.
+const DPS_DAMPEN = { 'Combat Frigate': 0.5, 'Siege Cruiser': 0.5, 'Siege Battleship': 0.75 };
+
+// ---- What spawns, by the hull the player enters with ----
+// Which group each player hull falls into. Anything not listed counts as a frigate.
+const PLAYER_HULL_GROUP = {
+  'Mining Frigate': 'frigate', 'Combat Frigate': 'frigate', 'Exploration Frigate': 'frigate', 'Improved Explorer Frigate': 'frigate',
+  'Explorer Cruiser': 'cruiser', 'Siege Cruiser': 'cruiser', 'Mining Barge': 'cruiser', 'Command Ship': 'cruiser',
+  'Siege Battleship': 'battleship',
+  'Carrier': 'capital', 'Capital': 'capital', 'Mining Capital': 'capital'
+};
+// Hulls that can fight. Any of these spawned in the player's own belt is aggro the moment they enter:
+// it spawns close enough to attack straight away and keeps hunting the player. Everything else mines
+// rocks until the player comes within PEACE_RANGE.
+const COMBAT_HULLS = { 'Combat Frigate': true, 'Siege Cruiser': true, 'Siege Battleship': true, 'Carrier': true, 'Capital': true };
+const COMBAT_SPAWN_MIN = 500;  // combat hulls spawn this far from the gate...
+const NPC_HP_SCALE = 0.6;       // every pirate spawns with this fraction of its shield / armor / structure
+const COMBAT_DPS_SCALE = 0.2;   // every combat ship deals this fraction of its full damage
+const COMBAT_SPAWN_VAR = 300;  // ...plus up to this much more, so they are inside PEACE_RANGE on entry
+// Each entry: t = pirate type ('miners' = random pick from MINER_POOL), n = how many,
+// Damage for combat ships is set by COMBAT_DPS_SCALE; an entry can still carry its own `dmg` for non-combat hulls.
+const ENTRY_SPAWNS = {
+  frigate: [
+    { t: 'combatFrigate', n: 2 },
+    { t: 'frigate', n: 3 }
+  ],
+  cruiser: [
+    { t: 'combatFrigate', n: 3 },
+    { t: 'siegeCruiser', n: 1 }
+  ],
+  battleship: [
+    { t: 'siegeBattleship', n: 1 },
+    { t: 'siegeCruiser', n: 2 },
+    { t: 'combatFrigate', n: 3 },
+    { t: 'miners', n: 2 }
+  ],
+  capital: [
+    { t: 'carrier', n: 1 },
+    { t: 'siegeBattleship', n: 1 },
+    { t: 'siegeCruiser', n: 3 },
+    { t: 'miners', n: 4 }
+  ]
+};
+const MINER_POOL = [{ t: 'frigate', w: 3 }, { t: 'barge', w: 2 }, { t: 'command', w: 1 }];
+
+function playerHullGroup(ship) { return (ship && PLAYER_HULL_GROUP[ship.className]) || 'frigate'; }
+
+// Legacy tier tables, no longer used to decide spawns (kept in case other files reference them)
+const PIRATE_POOLS = {
+  1: [{ t: 'frigate', w: 1 }, { t: 'combatFrigate', w: 1 }, { t: 'explorationFrigate', w: 1 }],
+  2: [{ t: 'frigate', w: 2 }, { t: 'barge', w: 2 }, { t: 'command', w: 1 }, { t: 'combatFrigate', w: 2 }, { t: 'siegeCruiser', w: 1 }, { t: 'siegeBattleship', w: 1 }],
+  3: [{ t: 'command', w: 2 }, { t: 'carrier', w: 2 }, { t: 'capital', w: 1 }, { t: 'combatFrigate', w: 1 }, { t: 'siegeCruiser', w: 2 }, { t: 'siegeBattleship', w: 2 }]
+};
+const PIRATE_COUNTS = { 1: 4, 2: 5, 3: 6 };
+const PIRATE_TIER_OF = {
+  'Mining Frigate': 1, 'Combat Frigate': 1, 'Exploration Frigate': 1,
+  'Mining Barge': 2, 'Command Ship': 2,
+  'Mining Capital': 3, 'Carrier': 3, 'Siege Cruiser': 3, 'Siege Battleship': 3
+};
+
+// ================= MOVEMENT SETTINGS =================
+// All speeds come from Balance.js (maxSpeed per hull). Nothing here is a hardcoded hull speed.
+const PEACE_RANGE = 1000;          // pirates attack the player inside this distance, otherwise they carry on their job
+const MATCH_PLAYER_SPEED = false;  // true = every NPC uses the player's maxSpeed instead of its own row
+const NPC_SPEED_FALLBACK = 2.5;    // used if a hull has no maxSpeed anywhere
+const PATROL_SPEED_FRAC = 0.3;     // patrol cruising speed as a fraction of maxSpeed
+const MINE_SPEED_FRAC = 0.5;       // speed flying in to a rock, as a fraction of maxSpeed
+
+// Hulls that patrol their belt. Every other pirate hull mines rocks when the player is away.
+const PATROL_NAMES = { 'Carrier': true, 'Capital': true, 'Combat Frigate': true, 'Exploration Frigate': true, 'Siege Cruiser': true, 'Siege Battleship': true };
+
+// Ring the attackers hold around the player, as a fraction of their weapon range
+const ORBIT_RANGE_FRAC = 0.9;
+const SIEGE_HULLS = { 'Siege Cruiser': true, 'Siege Battleship': true };
+const SIEGE_RANGE_FRAC = 0.7;      // siege hulls hold 70% of their weapon range
+// The ring is never smaller than this, whatever weaponRange says. These hulls are several hundred units long,
+// so a small ring puts them on top of the player.
+const SIEGE_MIN_RING = { 'Siege Cruiser': 400, 'Siege Battleship': 500 };
+// Real reach of the main weapon when weaponRange is missing or smaller (Battleship missiles reach 800)
+const SIEGE_WEAPON_RANGE = { 'Siege Battleship': 800 };
+// Used when a ship has no usable weaponRange
+const RING_FALLBACK_RANGE = { 'Siege Cruiser': 650, 'Siege Battleship': 800, 'Carrier': 500, 'Capital': 500 };
+const RING_DEFAULT_RANGE = 550;
+// Smallest ring for each hull, whatever its weaponRange says. Short-range hulls (mining lasers, small guns) would
+// otherwise get a tiny ring and fly into the player. Sized to clear each hull's length.
+const RING_MIN_DEFAULT = 350;
+const ORBIT_MIN_RANGE_BY_HULL = {
+  'Combat Frigate': 350, 'Exploration Frigate': 350, 'Mining Frigate': 400,
+  'Mining Barge': 450, 'Command Ship': 500, 'Carrier': 500, 'Capital': 500
+};
+
+const HUNT_CATCHUP = 1.2;          // while chasing or orbiting they move at least this multiple of the player's own speed
+const RING_CORRECTION_GAIN = 0.06; // inward / outward speed per unit of distance from the ring
+const LEAD_FRAMES = 10;            // (legacy, no longer used by the steering)
+const ORBIT_START_FRAC = 1.5;      // start curving into orbit once within this multiple of the ring radius, come straight in before that
+const NPC_ACCEL_FRAC = 0.04;       // most velocity change per frame, as a fraction of maxSpeed (lower = heavier ship)
+const NPC_TURN_RATE = 0.06;        // most heading change per frame, in radians
+const DEBUG_NPC = true;            // logs siege ship state to the console about every 2 seconds
+
+function pirateTier(ship) { return (ship && PIRATE_TIER_OF[ship.className]) || 1; }
+function pickPirate(pool) {
+  const total = pool.reduce(function (sum, p) { return sum + p.w; }, 0);
+  let r = Math.random() * total;
+  for (const p of pool) {
+    r -= p.w;
+    if (r <= 0) return PIRATE_TYPES[p.t];
+  }
+  return PIRATE_TYPES[pool[pool.length - 1].t];
+}
+
+class PublicNpcManager {
+  constructor() {
+    this.publicNpcMiners = [];
+    this.CARRIER_PROXIMITY_AGGRO = 1000;
+    this.CARRIER_AGGRO_MEMORY = 1800;
+    this.CARRIER_HUNT_RANGE = 1200;
+    this.CARRIER_HUNT_SPEED = 2.2;
+    this.CARRIER_IDEAL_DIST = 320;
+    this._dbgFrame = 0;
+  }
+
+  // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
+  init(playerShip, playerSlot = 0) {
+    this.publicNpcMiners = [];
+    const M = PUBLIC_MAP;
+
+    // Rogue station boss at the centre of the map (unchanged)
+    const centralStation = new SpaceStation(M.cx, M.cy, 'Rogue NPC Station');
+    centralStation.structure = 20000;
+    centralStation.maxStructure = 20000;
+    window.centralStationBoss = centralStation;
+
+    const slot = Math.max(0, Math.min(M.spawns.length - 1, playerSlot | 0));
+    this.playerSlot = slot;
+    const sp = M.spawns[slot];
+    const plan = ENTRY_SPAWNS[playerHullGroup(playerShip)];
+
+    // Flatten the plan into one list and shuffle it, so hunters and miners are mixed around the belt
+    const list = [];
+    for (const e of plan) {
+      for (let k = 0; k < e.n; k++) {
+        const cfg = e.t === 'miners' ? pickPirate(MINER_POOL) : PIRATE_TYPES[e.t];
+        list.push({ cfg: cfg, dmg: e.dmg });
+      }
+    }
+    for (let i = list.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = list[i]; list[i] = list[j]; list[j] = tmp;
+    }
+
+    list.forEach((item, i) => {
+      const a = (i / list.length) * Math.PI * 2 + Math.random() * 0.6;
+      const combat = !!COMBAT_HULLS[item.cfg.name];
+      // Combat hulls spawn close to the player so they engage at once; miners sit out on the rock ring
+      const r = combat
+        ? COMBAT_SPAWN_MIN + Math.random() * COMBAT_SPAWN_VAR
+        : M.beltRadius + (Math.random() - 0.5) * 200;
+      this.addPirate(item.cfg, sp.x + Math.cos(a) * r, sp.y + Math.sin(a) * r, 'belt' + slot + '_' + i,
+        { dmg: combat ? COMBAT_DPS_SCALE : item.dmg, aggro: combat, slot: slot });
+    });
+  }
+
+  addPirate(cfg, x, y, id, opts) {
+    opts = opts || {};
+    const scale = opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1);
+    // Instant aggro only for combat-capable hulls that belong to the player's own belt
+    const autoAggro = !!opts.aggro && opts.slot === this.playerSlot;
+    const shipObj = cfg.makeShip(x, y);
+    shipObj.npcDamageScale = scale;
+    shipObj.isPirate = true;   // NPC-owned
+    if (DEBUG_NPC && (SIEGE_HULLS[cfg.name] || cfg.name === 'Carrier')) this.describeShip(cfg.name, shipObj);
+    // Combat hulls get the same base HP as the player's ship of that class; others use their listed HP
+    let hp = MATCH_PLAYER_HP[cfg.name]
+      ? ((shipObj.maxShield || 0) + (shipObj.maxArmor || 0) + (shipObj.maxStructure || 0)) || cfg.hp
+      : cfg.hp;
+    // Combat hulls keep their own shield / armor / structure values so the bars show the true numbers
+    if (!MATCH_PLAYER_HP[cfg.name]) {
+      shipObj.structure = hp;
+      shipObj.maxStructure = hp;
+    }
+    // Scale every layer (max and current) down to NPC_HP_SCALE
+    for (const layer of ['shield', 'armor', 'structure']) {
+      const maxKey = 'max' + layer.charAt(0).toUpperCase() + layer.slice(1);
+      if (shipObj[maxKey] > 0) {
+        shipObj[maxKey] *= NPC_HP_SCALE;
+        shipObj[layer] = (shipObj[layer] || 0) * NPC_HP_SCALE;
+      }
+    }
+    hp *= NPC_HP_SCALE;
+    this.publicNpcMiners.push({
+      id: id,
+      ship: shipObj,
+      className: cfg.name,
+      combat: !!COMBAT_HULLS[cfg.name],
+      bounty: cfg.marketVal * 0.1,
+      maxHp: hp,
+      dpsScale: scale,                       // multiplies the damage this pirate deals
+      autoAggro: autoAggro,                  // hunts the player from the moment they enter
+      beltSlot: opts.slot,                   // which belt it spawned in
+      orbitDir: Math.random() < 0.5 ? 1 : -1, // which way it circles the player
+      orbitJitter: (Math.random() - 0.5) * 0.06, // small spread so several ships do not share one ring
+      isAgro: autoAggro,
+      isAlive: true,
+      respawnTimer: 0,
+      fleeTimer: 0,
+      isAggro: false,
+      aggroTimer: 0,
+      lastHp: hp,
+      role: PATROL_NAMES[cfg.name] ? 'patrol' : 'mine',   // patrol the belt, or mine rocks
+      home: { x: x, y: y },                               // centre of its patrol area
+      pos: { x: x, y: y },                                // authoritative position, owned by this manager
+      patrolPt: null,
+      rock: null
+    });
+  }
+
+  totalHp(ship) {
+    return (ship.shield || 0) + (ship.armor || 0) + (ship.structure || 0);
+  }
+
+  // ================= MOVEMENT (rebuilt) =================
+  // The manager is the only thing that decides where a pirate goes. Each frame it:
+  //   1. remembers the ship's position,
+  //   2. lets the ship's own update() run (weapons, missiles, drones, animation),
+  //   3. puts the ship back where it was (undoing whatever movement update() did),
+  //   4. moves it with the code below.
+
+  // Current speed of the player's ship (0 if it has no velocity fields)
+  playerSpeed(player) {
+    const s = Math.hypot((player && player.vx) || 0, (player && player.vy) || 0);
+    return isFinite(s) ? s : 0;
+  }
+
+  // Top speed for a pirate, read from Balance.js. With MATCH_PLAYER_SPEED on, the player's maxSpeed is used instead.
+  npcSpeed(npc, player) {
+    let s;
+    if (MATCH_PLAYER_SPEED && player && player.maxSpeed > 0) {
+      s = player.maxSpeed;
+    } else {
+      const row = window.Balance && window.Balance.TABLE && window.Balance.TABLE[npc.className];
+      s = (row && row.maxSpeed) || (npc.ship && npc.ship.maxSpeed);
+    }
+    return isFinite(s) && s > 0 ? s : NPC_SPEED_FALLBACK;
+  }
+
+  // Radius of the ring this pirate holds around the player. weaponRange is read with Number() and must be
+  // above 0, so a missing or non-numeric value falls back to a default instead of producing NaN.
+  ringRadius(npc) {
+    const jitter = 1 + (npc.orbitJitter || 0);
+    const wr = Number(npc.ship.weaponRange);
+    if (SIEGE_HULLS[npc.className]) {
+      const range = Math.max(wr > 0 ? wr : 0, SIEGE_WEAPON_RANGE[npc.className] || 0) || RING_FALLBACK_RANGE[npc.className] || RING_DEFAULT_RANGE;
+      return Math.max(range * SIEGE_RANGE_FRAC, SIEGE_MIN_RING[npc.className] || 0) * jitter;
+    }
+    const range = wr > 0 ? wr : (RING_FALLBACK_RANGE[npc.className] || RING_DEFAULT_RANGE);
+    return Math.max(range * ORBIT_RANGE_FRAC, ORBIT_MIN_RANGE_BY_HULL[npc.className] || RING_MIN_DEFAULT) * jitter;
+  }
+
+  // Debug: what kind of property is ship.x, and what the ship reports for range and speed
+  describeShip(name, ship) {
+    const kind = function (obj) {
+      let o = obj, depth = 0;
+      while (o && depth < 6) {
+        const d = Object.getOwnPropertyDescriptor(o, 'x');
+        if (d) return (depth === 0 ? 'own ' : 'inherited ') + (d.get || d.set ? 'accessor' + (d.set ? '' : ' (NO SETTER)') : (d.writable ? 'data' : 'data (READ-ONLY)'));
+        o = Object.getPrototypeOf(o); depth++;
+      }
+      return 'missing';
+    };
+    console.log('[NPC] spawned', name, '| x is', kind(ship), '| weaponRange', ship.weaponRange,
+      '| maxSpeed', ship.maxSpeed, '| has update()', typeof ship.update === 'function',
+      '| class', ship.constructor && ship.constructor.name,
+      '| orientation fields', Object.keys(ship).filter(function (k) { return /angle|heading|rot|facing|dir/i.test(k); }));
+  }
+
+  // Writes a pirate's position. Refuses NaN / Infinity, which would lose the ship for good.
+  setPos(ship, x, y) {
+    if (!isFinite(x) || !isFinite(y)) return;
+    ship.x = x;
+    ship.y = y;
+    // If the write did not stick, the ship's x / y are not plain properties. Say so once.
+    if (DEBUG_NPC && !ship._warnedWrite && (ship.x !== x || ship.y !== y)) {
+      ship._warnedWrite = true;
+      console.warn('[NPC] position write ignored for ' + ship.className + ': wanted', x, y, 'got', ship.x, ship.y);
+    }
+  }
+
+  // Moves a ship up to `speed` units straight toward a point, and faces the way it is going.
+  flyTo(ship, pt, speed) {
+    const dx = pt.x - ship.x, dy = pt.y - ship.y, d = Math.hypot(dx, dy);
+    if (!isFinite(d) || d < 0.5) { ship.vx = 0; ship.vy = 0; ship._vel = { x: 0, y: 0 }; return; }
+    const step = Math.min(speed, d);
+    // Accelerate toward the wanted velocity instead of jumping to it (no sudden speed or direction changes)
+    const vel = ship._vel || (ship._vel = { x: ship.vx || 0, y: ship.vy || 0 });   // the manager's own copy, so ship.update() cannot overwrite it
+    const accel = Math.max(speed * 0.15, 0.03);
+    let sx = (dx / d) * step - vel.x, sy = (dy / d) * step - vel.y;
+    const sm = Math.hypot(sx, sy);
+    if (sm > accel) { sx = sx / sm * accel; sy = sy / sm * accel; }
+    vel.x += sx; vel.y += sy;
+    if (!isFinite(vel.x) || !isFinite(vel.y)) { vel.x = 0; vel.y = 0; }
+    ship.vx = vel.x; ship.vy = vel.y;
+    this.setPos(ship, ship.x + vel.x, ship.y + vel.y);
+    // Face the direction of travel, turning gradually
+    if (Math.hypot(vel.x, vel.y) > 0.05) this.turnToward(ship, Math.atan2(vel.y, vel.x));
+  }
+
+  // Turns a ship's heading toward `want` by at most NPC_TURN_RATE per frame (no instant snapping).
+  turnToward(ship, want) {
+    let diff = want - (ship.angle || 0);
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    ship.angle = (ship.angle || 0) + Math.max(-NPC_TURN_RATE, Math.min(NPC_TURN_RATE, diff));
+  }
+
+  // Attack movement, steered like a player: fly in toward the ring, then circle it.
+  // No teleporting: speed and heading both change gradually, and the ship faces its direction of travel.
+  engagePlayer(npc, player) {
+    const ship = npc.ship;
+    const ring = this.ringRadius(npc);
+    const base = this.npcSpeed(npc, player);
+    // While the player is moving, keep pace with them instead of falling behind
+    const maxSpd = Math.max(base, this.playerSpeed(player) * HUNT_CATCHUP);
+    const accel = base * NPC_ACCEL_FRAC;
+
+    const vel = ship._vel || (ship._vel = { x: ship.vx || 0, y: ship.vy || 0 });
+
+    let dx = ship.x - player.x, dy = ship.y - player.y, d = Math.hypot(dx, dy);
+    if (!isFinite(d) || d < 1) { dx = 1; dy = 0; d = 1; }   // exactly on top of the player: pick a direction
+    const rx = dx / d, ry = dy / d;                         // outward from the player
+    const dir = npc.orbitDir || 1;
+    const tx = -ry * dir, ty = rx * dir;                    // sideways, the way it circles
+
+    // Inward / outward speed grows with distance from the ring (negative = toward the player)
+    const err = d - ring;
+    const vr = Math.max(-maxSpd, Math.min(maxSpd, -err * RING_CORRECTION_GAIN));
+    // Sideways speed fades in as it nears the ring, so it comes straight in then curves into orbit
+    const near = Math.max(0, Math.min(1, (ring * ORBIT_START_FRAC - d) / (ring * (ORBIT_START_FRAC - 1))));
+    const vt = base * near;
+
+    // Desired velocity, plus the player's own velocity so the ring follows them
+    let wx = rx * vr + tx * vt + (player.vx || 0) * near;
+    let wy = ry * vr + ty * vt + (player.vy || 0) * near;
+    const wm = Math.hypot(wx, wy);
+    if (wm > maxSpd) { wx = wx / wm * maxSpd; wy = wy / wm * maxSpd; }
+
+    // Accelerate toward it, limited per frame
+    let sx = wx - vel.x, sy = wy - vel.y;
+    const sm = Math.hypot(sx, sy);
+    if (sm > accel) { sx = sx / sm * accel; sy = sy / sm * accel; }
+    vel.x += sx; vel.y += sy;
+    if (!isFinite(vel.x) || !isFinite(vel.y)) { vel.x = 0; vel.y = 0; }
+
+    this.setPos(ship, ship.x + vel.x, ship.y + vel.y);
+    ship.vx = vel.x; ship.vy = vel.y;
+
+    // Face the direction of travel, turning gradually
+    if (Math.hypot(vel.x, vel.y) > 0.05) {
+      const want = Math.atan2(vel.y, vel.x);
+      let diff = want - (ship.angle || 0);
+      while (diff > Math.PI) diff -= Math.PI * 2;
+      while (diff < -Math.PI) diff += Math.PI * 2;
+      ship.angle = (ship.angle || 0) + Math.max(-NPC_TURN_RATE, Math.min(NPC_TURN_RATE, diff));
+    }
+  }
+
+  // Peaceful movement while the player is away: patrol the area, or mine the nearest rock with the laser showing.
+  peacefulBehaviour(npc, belt) {
+    const ship = npc.ship;
+    const speed = this.npcSpeed(npc);
+
+    if (npc.role === 'patrol') {
+      if (!npc.patrolPt || Math.hypot(npc.patrolPt.x - ship.x, npc.patrolPt.y - ship.y) < 80) {
+        const a = Math.random() * Math.PI * 2;
+        const r = 150 + Math.random() * 450;
+        npc.patrolPt = { x: npc.home.x + Math.cos(a) * r, y: npc.home.y + Math.sin(a) * r };
+      }
+      this.flyTo(ship, npc.patrolPt, speed * PATROL_SPEED_FRAC);
+      ship.currentTarget = null;
+      return;
+    }
+
+    // Mining: keep the current rock until it is used up, otherwise pick the nearest one in range
+    const rocks = belt && typeof belt.getEntities === 'function' ? belt.getEntities() : [];
+    if (!npc.rock || !(npc.rock.oreYield > 0)) {
+      npc.rock = null;
+      let best = null, bd = 1400;
+      for (const r of rocks) {
+        if (!r || !(r.oreYield > 0)) continue;
+        const d = Math.hypot(r.x - ship.x, r.y - ship.y);
+        if (d < bd) { bd = d; best = r; }
+      }
+      npc.rock = best;
+    }
+
+    if (!npc.rock) {
+      // no rocks nearby: drift back to its area
+      this.flyTo(ship, npc.home, speed * PATROL_SPEED_FRAC);
+      ship.currentTarget = null;
+      return;
+    }
+
+    const rock = npc.rock;
+    const parkDist = 220;
+    const dx = rock.x - ship.x, dy = rock.y - ship.y, d = Math.hypot(dx, dy);
+    if (d > parkDist + 20) {
+      // fly in from the side it is already on
+      const a = Math.atan2(ship.y - rock.y, ship.x - rock.x);
+      this.flyTo(ship, { x: rock.x + Math.cos(a) * parkDist, y: rock.y + Math.sin(a) * parkDist }, speed * MINE_SPEED_FRAC);
+      ship.currentTarget = null;
+    } else {
+      // in position: hold, face the rock and show the mining laser
+      ship.vx = 0;
+      ship.vy = 0;
+      ship._vel = { x: 0, y: 0 };
+      ship.angle = Math.atan2(dy, dx);
+      ship.currentTarget = rock;
+    }
+  }
+
+  // Runs the ship's own update() for weapons, missiles, drones and animation. It is called every frame for combat
+  // hulls, even when the player is out of range, so their missiles keep flying instead of freezing in space.
+  // `enemies` is empty unless the ship is engaged, so it only fires when it should.
+  runShipUpdate(npc, player, playerPresent, engaged) {
+    const ship = npc.ship;
+    if (typeof ship.update !== 'function') return;
+    // Only hand the ship the player as a target while it is actually fighting. Passing it when the player is away
+    // leaves a Carrier's drones locked onto a target that is out of reach, parked at the end of their tether.
+    const target = playerPresent && engaged ? player : null;
+    const enemies = engaged && playerPresent ? [player] : [];
+    // The ship's own update() may turn the hull toward its target. The manager decides heading
+    // (direction of travel), so remember it and put it back afterwards, or the two fight each frame.
+    const keepAngle = ship.angle;
+    try {
+      if (npc.className === 'Carrier') {
+        ship.update(null, target, null, false, enemies, true);
+      } else if (npc.className === 'Siege Battleship') {
+        // No move target: its own steering would fly straight at the player. The manager does the moving.
+        ship.update(null, null, false, enemies);
+      } else {
+        ship.update(target, null, false, enemies);
+      }
+    } catch (err) {
+      if (!npc._warnedUpdate) {
+        npc._warnedUpdate = true;
+        console.warn('[NPC] ' + npc.className + ' update() threw:', err);
+      }
+    }
+    if (typeof keepAngle === 'number' && isFinite(keepAngle)) ship.angle = keepAngle;
+  }
+
+  // One readable line per problem (message + stack), once per ship, so a single failing ship can never stop
+  // the game loop and the cause is visible even in a small mobile console.
+  reportError(npc, where, err) {
+    const key = '_err_' + where;
+    if (npc[key]) return;
+    npc[key] = true;
+    console.error('[NPC] ' + npc.className + ' ' + where + ' error: ' + (err && err.message) + '\n' + (err && err.stack));
+  }
+
+  update(currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession, debrisField) {
+    if (currentMapId !== 'public_space') return;
+
+    // Check if player is shooting the station boss
+    if (window.centralStationBoss && window.centralStationBoss.structure > 0 && playerShip && !playerShip.docked) {
+      let dist = Math.hypot(playerShip.x - window.centralStationBoss.x, playerShip.y - window.centralStationBoss.y);
+      if (dist < 500) {
+        let dmg = playerShip.className === 'Combat Frigate' ? 3.0 : 1.2;
+        window.centralStationBoss.structure -= dmg;
+      }
+    }
+
+    this._dbgFrame++;
+
+    // Update all active NPC pirate ships
+    this.publicNpcMiners.forEach(npc => {
+      try {
+      if (!npc.isAlive || !npc.ship) return;
+      const ship = npc.ship;
+
+      // Check if NPC was killed
+      if (ship.structure <= 0) {
+        npc.isAlive = false;
+        if (playerData && playerData.isk !== undefined) {
+          playerData.isk += Math.floor(npc.bounty);
+        }
+        if (typeof window.showCorpNotification === 'function') {
+          window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' ISK');
+        }
+        // Spawn loot wreckage
+        if (typeof DebrisField !== 'undefined' && debrisField && debrisField.entities) {
+          debrisField.entities.push({
+            x: ship.x,
+            y: ship.y,
+            radius: 40,
+            oreYield: 8000,
+            oreType: 'debris_t3'
+          });
+        }
+        return;
+      }
+
+      // The manager owns every pirate's position. Anything another system did to ship.x / ship.y since the
+      // last frame (collision push, its own steering, a controller) is undone here, so nothing can drag a
+      // pirate onto the player.
+      if (npc.pos) {
+        if (DEBUG_NPC && !npc._warnedMoved && Math.hypot(ship.x - npc.pos.x, ship.y - npc.pos.y) > 3) {
+          npc._warnedMoved = true;
+          console.warn('[NPC] ' + npc.className + ' was moved by something else: manager had',
+            Math.round(npc.pos.x), Math.round(npc.pos.y), 'found', Math.round(ship.x), Math.round(ship.y));
+        }
+        this.setPos(ship, npc.pos.x, npc.pos.y);
+      }
+
+      const playerPresent = !!(playerShip && !playerShip.docked);
+      const distToPlayer = playerPresent
+        ? Math.hypot(playerShip.x - ship.x, playerShip.y - ship.y)
+        : Infinity;
+
+      // Engaged = attacking the player: close enough, or an auto-aggro combat hull hunting them across the belt
+      const hunting = npc.autoAggro && playerPresent;
+      const engaged = playerPresent && (distToPlayer < PEACE_RANGE || hunting);
+
+      if (DEBUG_NPC && this._dbgFrame % 120 === 0 && SIEGE_HULLS[npc.className]) {
+        console.log('[NPC]', npc.className, 'dist', Math.round(distToPlayer), 'ring', Math.round(this.ringRadius(npc)),
+          'weaponRange', ship.weaponRange, 'speed', this.npcSpeed(npc, playerShip).toFixed(2),
+          'pos', Math.round(ship.x), Math.round(ship.y), 'engaged', engaged);
+      }
+
+      // 1-3. Let the ship's own update() run, then undo whatever movement it made.
+      // Combat hulls always run it (so missiles keep moving); other hulls only when engaged.
+      if (npc.combat || engaged) {
+        const keepX = ship.x, keepY = ship.y;
+        this.runShipUpdate(npc, playerShip, playerPresent, engaged);
+        this.setPos(ship, keepX, keepY);
+      }
+
+      // 4. Movement
+      if (engaged) {
+        npc.isAgro = true;
+        this.engagePlayer(npc, playerShip);
+
+        // Deal damage to the player if inside weapon range (or on the ring, whichever is further)
+        const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
+        if (distToPlayer <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
+          if (typeof playerShip.takeDamage === 'function') {
+            playerShip.takeDamage(0.35 * (npc.dpsScale || 1));
+          } else {
+            playerShip.structure -= 0.35 * (npc.dpsScale || 1);
+          }
+        }
+      } else {
+        // Player is away: patrol or mine in the belt
+        npc.isAgro = false;
+        this.peacefulBehaviour(npc, asteroidBelt);
+      }
+
+      // Debug: engaged but not getting anywhere? Report once with everything needed to see why.
+      if (DEBUG_NPC && engaged && npc.pos) {
+        const moved = Math.hypot(ship.x - npc.pos.x, ship.y - npc.pos.y);
+        const ringErr = Math.abs(Math.hypot(ship.x - playerShip.x, ship.y - playerShip.y) - this.ringRadius(npc));
+        npc._still = (moved < 0.01 && ringErr > 30) ? (npc._still || 0) + 1 : 0;
+        if (npc._still === 120 && !npc._warnedStill) {
+          npc._warnedStill = true;
+          console.warn('[NPC] ' + npc.className + ' has not moved for 120 frames while engaged:',
+            { dist: Math.round(Math.hypot(ship.x - playerShip.x, ship.y - playerShip.y)), ring: Math.round(this.ringRadius(npc)),
+              speed: this.npcSpeed(npc, playerShip), vx: ship.vx, vy: ship.vy, x: ship.x, y: ship.y, aliveFlag: npc.isAlive });
+        }
+      }
+
+      // Remember where the manager put it
+      npc.pos = { x: ship.x, y: ship.y };
+      } catch (err) {
+        this.reportError(npc, 'update', err);
+      }
+    });
+
+    // Filter out dead NPCs
+    this.publicNpcMiners = this.publicNpcMiners.filter(n => n.isAlive);
+  }
+
+  // Shield, armor and hull bars, each showing the ship's real current / max values
+  drawBars(ctx, npc) {
+    const s = npc.ship;
+    const bw = 70, bh = 6;
+    const bx = s.x - 35;
+    const rows = [
+      { label: 'SH', val: s.shield, max: s.maxShield, color: '#38bdf8', y: s.y - 40 },
+      { label: 'AR', val: s.armor, max: s.maxArmor, color: '#d29922', y: s.y - 32 },
+      { label: 'HL', val: s.structure, max: s.maxStructure, color: '#3fb950', y: s.y - 24 }
+    ];
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (const r of rows) {
+      if (!(r.max > 0)) continue;   // this hull has no such layer
+      const v = Math.max(0, r.val || 0);
+      const frac = Math.max(0, Math.min(1, v / r.max));
+      ctx.fillStyle = '#0d1117';
+      ctx.fillRect(bx - 1, r.y - 1, bw + 2, bh + 2);
+      ctx.fillStyle = '#21262d';
+      ctx.fillRect(bx, r.y, bw, bh);
+      ctx.fillStyle = r.color;
+      ctx.fillRect(bx, r.y, bw * frac, bh);
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 6px "Courier New"';
+      ctx.fillText(r.label + ' ' + Math.ceil(v).toLocaleString() + ' / ' + Math.ceil(r.max).toLocaleString(), s.x, r.y + bh - 1);
+    }
+    ctx.restore();
+  }
+
+  draw(ctx, currentMapId) {
+    if (currentMapId !== 'public_space') return;
+
+    // Draw Central Station Boss and its health bar
+    if (window.centralStationBoss && typeof window.centralStationBoss.draw === 'function') {
+      window.centralStationBoss.draw(ctx);
+      let frac = Math.max(0, Math.min(1, window.centralStationBoss.structure / window.centralStationBoss.maxStructure));
+      ctx.save();
+      ctx.fillStyle = '#f85149';
+      ctx.font = '10px "Courier New"';
+      ctx.textAlign = 'center';
+      ctx.fillText('⚡ ROGUE STATION BOSS ⚡ [HP: ' + Math.floor(window.centralStationBoss.structure) + '/' + window.centralStationBoss.maxStructure + ']', window.centralStationBoss.x, window.centralStationBoss.y - 85);
+
+      ctx.fillStyle = '#21262d';
+      ctx.fillRect(window.centralStationBoss.x - 40, window.centralStationBoss.y - 75, 80, 6);
+      ctx.fillStyle = '#f85149';
+      ctx.fillRect(window.centralStationBoss.x - 40, window.centralStationBoss.y - 75, 80 * frac, 6);
+      ctx.restore();
+    }
+
+    // Draw all live NPC pirate ships, health bars, and labels
+    this.publicNpcMiners.forEach(npc => {
+      try {
+      if (npc.isAlive && npc.ship && typeof npc.ship.draw === 'function') {
+        // Draw at the manager's position, in case something moved the ship after update()
+        if (npc.pos) this.setPos(npc.ship, npc.pos.x, npc.pos.y);
+        npc.ship.draw(ctx);
+
+        ctx.save();
+        ctx.fillStyle = '#f85149';
+        ctx.font = '8px "Courier New"';
+        ctx.textAlign = 'center';
+        ctx.fillText('[PIRATE] ' + npc.className, npc.ship.x, npc.ship.y - 48);
+        ctx.restore();
+
+        this.drawBars(ctx, npc);
+      }
+      } catch (err) {
+        this.reportError(npc, 'draw', err);
+      }
+    });
+  }
+}

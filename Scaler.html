@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0d1117">
+<title>Fleet Scale Tester</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #0d1117; color: #c9d1d9;
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 16px; line-height: 1.4;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Sticky top bar with the main actions, always within thumb reach */
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    background: #010409; border-bottom: 1px solid #30363d;
+    padding: 10px 12px; padding-top: calc(10px + env(safe-area-inset-top, 0px));
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar h1 { font-size: 18px; color: #58a6ff; margin: 0; flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  button {
+    font: inherit; font-size: 15px; color: #c9d1d9; background: #21262d;
+    border: 1px solid #30363d; border-radius: 8px;
+    min-height: 44px; min-width: 44px; padding: 0 14px; cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:active { background: #30363d; }
+  button.primary { color: #0d1117; background: #58a6ff; border-color: #58a6ff; font-weight: bold; }
+  button.stepper { font-size: 22px; min-width: 52px; padding: 0; }
+
+  main { padding: 12px; display: flex; flex-direction: column; gap: 14px; max-width: 720px; margin: 0 auto; }
+
+  .panel {
+    background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 12px;
+  }
+  .panel h2 { font-size: 15px; color: #58a6ff; margin: 0 0 8px; }
+  .hint { font-size: 13px; color: #8b949e; margin: 0 0 10px; }
+
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .grow { flex: 1; min-width: 0; }
+
+  /* Compare canvas: full width, no sideways scroll */
+  .compare-wrap { background: #010409; border-radius: 8px; overflow: hidden; border: 1px solid #30363d; }
+  .compare-wrap canvas { display: block; width: 100%; }
+  .zoom-line { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+  .zoom-line label { font-size: 14px; color: #8b949e; white-space: nowrap; }
+
+  /* Ship cards */
+  .ship-card { background: #161b22; border: 1px solid #30363d; border-radius: 10px; padding: 12px; }
+  .ship-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .ship-name { font-size: 16px; color: #c9d1d9; font-weight: bold; min-width: 0; overflow-wrap: anywhere; }
+  .ship-value { font-size: 16px; color: #3fb950; white-space: nowrap; }
+
+  .controls { display: flex; align-items: center; gap: 8px; }
+  input[type="range"] {
+    flex: 1; min-width: 0; height: 44px; margin: 0; cursor: pointer;
+    accent-color: #58a6ff; touch-action: pan-y;
+  }
+  input[type="number"] {
+    width: 96px; min-height: 44px; font: inherit; font-size: 16px; text-align: center;
+    background: #0d1117; color: #fff; border: 1px solid #30363d; border-radius: 8px; padding: 0 6px;
+  }
+  .card-canvas-wrap { margin-top: 10px; background: #010409; border-radius: 8px; overflow: hidden; border: 1px solid #30363d; }
+  .card-canvas-wrap canvas { display: block; width: 100%; height: 150px; }
+  .preview-note { font-size: 12px; color: #8b949e; margin-top: 4px; }
+
+  .toast {
+    position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%); background: #21262d; border: 1px solid #58a6ff; color: #c9d1d9;
+    padding: 10px 14px; border-radius: 8px; font-size: 14px; opacity: 0; pointer-events: none;
+    transition: opacity .2s; max-width: 90vw; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Fleet Scale Tester</h1>
+  <button id="btn-reset" type="button">Reset</button>
+  <button id="btn-copy" class="primary" type="button">Copy</button>
+</div>
+
+<main>
+  <section class="panel">
+    <h2>Compare (shared scale)</h2>
+    <p class="hint">All ships on one scale, so you can judge their size against each other. Drag the zoom to see more or less.</p>
+    <div class="compare-wrap"><canvas id="compare"></canvas></div>
+    <div class="zoom-line">
+      <label for="zoom">Zoom</label>
+      <input id="zoom" type="range" min="0.05" max="2" step="0.01" value="1" class="grow">
+      <button id="btn-fit" type="button">Fit</button>
+    </div>
+  </section>
+
+  <section>
+    <h2 style="font-size:15px;color:#58a6ff;margin:4px 2px 8px;">Ships</h2>
+    <div id="cards" style="display:flex;flex-direction:column;gap:12px;"></div>
+  </section>
+</main>
+
+<div id="toast" class="toast"></div>
+
+<script>
+  // Default scales. Matches the values in ShipArt.js.
+  const DEFAULTS = [
+    { name: 'Siege Capital',              file: 'siege_capital.png',            scale: 0.25 },
+    { name: 'Carrier',                    file: 'carrier.png',                  scale: 1.0 },
+    { name: 'Mining Capital',             file: 'mining_capital.png',           scale: 1.0 },
+    { name: 'Command Ship',               file: 'command_ship.png',             scale: 1.0 },
+    { name: 'Mining Barge',               file: 'mining_barge.png',             scale: 1.0 },
+    { name: 'Combat Frigate',             file: 'combat_frigate.png',           scale: 1.0 },
+    { name: 'Mining Frigate',             file: 'mining_frigate.png',           scale: 0.25 },
+    { name: 'Exploration Frigate',        file: 'exploration_frigate.png',      scale: 0.5 },
+    { name: 'Improved Explorer',          file: 'improved_explorer_frigate.png', scale: 0.125 }
+  ];
+  const MIN_SCALE = 0.05, MAX_SCALE = 2.0;
+
+  const ships = DEFAULTS.map(d => ({ ...d, img: new Image(), ok: false, els: null }));
+  let compareZoom = 1;
+
+  const $ = id => document.getElementById(id);
+  const compareCanvas = $('compare');
+  const cards = $('cards');
+
+  function clamp(v) {
+    v = Number(v);
+    if (!isFinite(v)) return null;
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, v));
+  }
+  function fmt(v) { return Number(v).toFixed(3); }
+
+  // Size a canvas to its CSS box at device pixel ratio, returns a 2D context in CSS pixels
+  function prepCanvas(canvas, cssH) {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = canvas.clientWidth;
+    if (cssH !== undefined) canvas.style.height = cssH + 'px';
+    const h = cssH !== undefined ? cssH : canvas.clientHeight;
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(h * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, h);
+    return { ctx, w: cssW, h };
+  }
+
+  function shipSize(s) {
+    return { w: s.img.naturalWidth * s.scale, h: s.img.naturalHeight * s.scale };
+  }
+
+  function drawShipAt(ctx, s, x, y, zoom, label) {
+    const { w, h } = shipSize(s);
+    const dw = w * zoom, dh = h * zoom;
+    ctx.save();
+    ctx.strokeStyle = '#30363d';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - dw / 2, y - dh / 2, dw, dh);
+    ctx.drawImage(s.img, x - dw / 2, y - dh / 2, dw, dh);
+    ctx.fillStyle = '#58a6ff';
+    ctx.font = '13px ui-monospace, Menlo, Consolas, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label || s.name, x, y + dh / 2 + 18);
+    ctx.fillStyle = '#3fb950';
+    ctx.fillText('scale ' + fmt(s.scale), x, y + dh / 2 + 34);
+    ctx.restore();
+  }
+
+  // Compare: wrap ships into rows that fit the canvas width
+  function drawCompare() {
+    const loaded = ships.filter(s => s.ok);
+    const pad = 16, labelH = 40;
+    const { ctx: probe } = { ctx: null };
+    // First pass: compute layout to know the canvas height
+    const cssW = compareCanvas.clientWidth || 320;
+    const rows = [];
+    let row = [], rowW = 0;
+    for (const s of loaded) {
+      const { w, h } = shipSize(s);
+      const dw = w * compareZoom;
+      if (row.length && rowW + dw + pad > cssW - pad) { rows.push(row); row = []; rowW = 0; }
+      row.push({ s, dw, dh: h * compareZoom });
+      rowW += dw + pad;
+    }
+    if (row.length) rows.push(row);
+
+    let totalH = pad;
+    for (const r of rows) {
+      const rowH = Math.max(40, ...r.map(i => i.dh)) + labelH;
+      totalH += rowH + pad;
+    }
+    const { ctx, w, h } = prepCanvas(compareCanvas, Math.max(totalH, 120));
+
+    let y = pad;
+    for (const r of rows) {
+      const rowH = Math.max(40, ...r.map(i => i.dh));
+      const rowWidth = r.reduce((a, i) => a + i.dw, 0) + pad * (r.length - 1);
+      let x = (w - rowWidth) / 2;
+      for (const item of r) {
+        const cx = x + item.dw / 2;
+        const cy = y + rowH / 2;
+        drawShipAt(ctx, item.s, cx, cy, compareZoom, item.s.name);
+        x += item.dw + pad;
+      }
+      y += rowH + labelH + pad;
+    }
+    if (!loaded.length) {
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '14px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Loading ship art…', w / 2, 40);
+    }
+  }
+
+  // Card preview: that one ship, fitted to the card, with a note if it had to be shrunk to fit
+  function drawCard(s) {
+    if (!s.els) return;
+    const canvas = s.els.canvas;
+    const { ctx, w, h } = prepCanvas(canvas, 150);
+    if (!s.ok) {
+      ctx.fillStyle = '#8b949e';
+      ctx.font = '14px ui-monospace, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('Loading…', w / 2, h / 2);
+      return;
+    }
+    const sz = shipSize(s);
+    const f = Math.min(1, (w - 40) / Math.max(sz.w, 1), (h - 40) / Math.max(sz.h, 1));
+    const z = f;
+    drawShipAt(ctx, s, w / 2, h / 2 - 8, z, s.name);
+    s.els.note.textContent = f < 1
+      ? 'Preview shown at ' + (f * 100).toFixed(0) + '% so it fits. Real size is scale ' + fmt(s.scale) + '.'
+      : 'Preview at full size (scale ' + fmt(s.scale) + ').';
+  }
+
+  function setScale(s, value, source) {
+    const v = clamp(value);
+    if (v === null) return;
+    s.scale = v;
+    if (s.els) {
+      if (source !== 'range') s.els.range.value = v;
+      if (source !== 'number') s.els.number.value = v.toFixed(3);
+      s.els.value.textContent = fmt(v);
+    }
+    drawCard(s);
+    drawCompare();
+  }
+
+  function buildCards() {
+    for (const s of ships) {
+      const card = document.createElement('div');
+      card.className = 'ship-card';
+
+      const head = document.createElement('div');
+      head.className = 'ship-head';
+      const name = document.createElement('div');
+      name.className = 'ship-name';
+      name.textContent = s.name;
+      const value = document.createElement('div');
+      value.className = 'ship-value';
+      value.textContent = 'scale ' + fmt(s.scale);
+      head.append(name, value);
+
+      const controls = document.createElement('div');
+      controls.className = 'controls';
+      const minus = document.createElement('button');
+      minus.type = 'button'; minus.className = 'stepper'; minus.textContent = '−'; minus.setAttribute('aria-label', 'Smaller');
+      const plus = document.createElement('button');
+      plus.type = 'button'; plus.className = 'stepper'; plus.textContent = '+'; plus.setAttribute('aria-label', 'Bigger');
+      const range = document.createElement('input');
+      range.type = 'range'; range.min = MIN_SCALE; range.max = MAX_SCALE; range.step = 0.01; range.value = s.scale;
+      range.setAttribute('aria-label', s.name + ' scale');
+      const number = document.createElement('input');
+      number.type = 'number'; number.min = MIN_SCALE; number.max = MAX_SCALE; number.step = 0.01; number.value = fmt(s.scale);
+      number.setAttribute('inputmode', 'decimal');
+      number.setAttribute('aria-label', s.name + ' scale value');
+      controls.append(minus, range, plus, number);
+
+      const previewWrap = document.createElement('div');
+      previewWrap.className = 'card-canvas-wrap';
+      const canvas = document.createElement('canvas');
+      previewWrap.appendChild(canvas);
+      const note = document.createElement('div');
+      note.className = 'preview-note';
+
+      card.append(head, controls, previewWrap, note);
+      cards.appendChild(card);
+
+      s.els = { canvas, note, range, number, value };
+
+      const step = d => setScale(s, Math.round((s.scale + d) * 100) / 100, 'button');
+      minus.addEventListener('click', () => step(-0.01));
+      plus.addEventListener('click', () => step(0.01));
+      range.addEventListener('input', () => setScale(s, range.value, 'range'));
+      number.addEventListener('change', () => {
+        const v = clamp(number.value);
+        if (v === null) number.value = fmt(s.scale); else setScale(s, v, 'number');
+      });
+      // Long-press the value header to type an exact number on phones too
+      value.addEventListener('click', () => number.focus());
+    }
+  }
+
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toast._h);
+    toast._h = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+
+  function copyValues() {
+    const out = {};
+    for (const s of ships) out[s.name] = Number(fmt(s.scale));
+    const text = JSON.stringify(out, null, 2);
+    const done = () => toast('Copied scales');
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, () => { prompt('Copy these scales:', text); });
+    } else {
+      prompt('Copy these scales:', text);
+    }
+  }
+
+  function resetAll() {
+    DEFAULTS.forEach((d, i) => setScale(ships[i], d.scale, 'reset'));
+    compareZoom = 1;
+    $('zoom').value = 1;
+    drawCompare();
+    toast('Reset to defaults');
+  }
+
+  function fitZoom() {
+    const loaded = ships.filter(s => s.ok);
+    if (!loaded.length) return;
+    const cssW = compareCanvas.clientWidth || 320;
+    const maxW = Math.max(...loaded.map(s => shipSize(s).w));
+    compareZoom = Math.min(2, Math.max(0.05, (cssW - 40) / maxW));
+    $('zoom').value = compareZoom.toFixed(2);
+    drawCompare();
+  }
+
+  $('zoom').addEventListener('input', e => { compareZoom = Number(e.target.value); drawCompare(); });
+  $('btn-fit').addEventListener('click', fitZoom);
+  $('btn-reset').addEventListener('click', resetAll);
+  $('btn-copy').addEventListener('click', copyValues);
+
+  // Redraw on rotation or resize, since canvases are sized to their CSS width
+  let rz;
+  window.addEventListener('resize', () => {
+    clearTimeout(rz);
+    rz = setTimeout(() => { drawCompare(); ships.forEach(drawCard); }, 120);
+  });
+
+  buildCards();
+
+  ships.forEach(s => {
+    const done = () => { s.ok = true; drawCard(s); drawCompare(); };
+    s.img.onload = done;
+    s.img.onerror = () => { s.ok = false; if (s.els) s.els.note.textContent = 'Missing image: ' + s.file; };
+    s.img.src = s.file;
+  });
+
+  drawCompare();
+</script>
+</body>
+</html>
