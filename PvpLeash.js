@@ -129,13 +129,16 @@
         if (ship.structure <= 0) {
           npc.isAlive = false;
           if (playerData && playerData.isk !== undefined) playerData.isk += Math.floor(npc.bounty);
+          if (typeof window.awardPlayerXP === 'function') window.awardPlayerXP('combat', 75, '3v3 pirate destroyed');
           if (typeof window.showCorpNotification === 'function') {
-            window.showCorpNotification('🏴‍☠️ Pirate ' + npc.className + ' destroyed! Bounty: +' +
+            window.showCorpNotification('ARENA PIRATE DESTROYED · +75 XP · BOUNTY: +' +
               Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals');
           }
           if (debrisField && debrisField.entities) {
             debrisField.entities.push({ x: ship.x, y: ship.y, radius: 40, oreYield: 8000, oreType: 'debris_t3' });
           }
+          if (typeof updateStationUI === 'function') updateStationUI();
+          if (typeof saveGameSession === 'function') saveGameSession();
           return;
         }
 
