@@ -33,4 +33,5 @@ Do not skip ahead or rerun older migrations to fix a newer feature. Each migrati
 - Market and GM actions are authenticated RPCs that use `auth.uid()` to identify the pilot.
 - Browser clients do not receive or use the service-role key.
 - GM access is checked against the private `minispace_gm_accounts` table; hiding the GM button is not the security boundary.
+- **Economy trust limitation:** the current game still sends browser-side wallet/private-hangar snapshots through `market_sync_game_state`, and corporation cargo originates in the browser save. Authenticated users can tamper with those client-supplied values. The pooled market stores balances and stock in the database, but this is not yet a full anti-cheat economy. Before competitive/public launch, progression rewards, build costs, corp storage, and shipment cargo need to be written or verified by a trusted server.
 - The WebSocket multiplayer service is separate from the Supabase market and save functions.
