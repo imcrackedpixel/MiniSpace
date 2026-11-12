@@ -13,7 +13,9 @@ Run each SQL file once in Supabase → SQL Editor, in this order:
 5. `market_game_sync.sql` — one-time bootstrap and ongoing sync between the game wallet/private hangar and the secure market records.
 6. `market_transfer_to_private.sql` — allows bought Trade Hub goods to be moved back to Private High-Sec for shipbuilding.
 7. `market_corp_supply.sql` — allows the Corporation Transport Manager to add its full shipments to shared market stock. Shipment IDs make retries safe and prevent duplicate stock.
-8. `gm_setup.sql` — optional GM permissions and tools. Run this only if you want the GM panel enabled.
+8. `market_transport_sales.sql` — supports player-initiated Transport Manager sales from the Private High-Sec hangar, including the 10% commission. Run after `market_corp_supply.sql`.
+9. `gm_setup.sql` — optional GM permissions. Run this before the next file if you want the GM panel enabled.
+10. `gm_admin_commands.sql` — optional GM inspect, ban/unban, wallet and item adjustment commands. Run after `gm_setup.sql`.
 
 Do not skip ahead or rerun older migrations to fix a newer feature. Each migration is designed to be additive or replace its own RPC functions.
 
