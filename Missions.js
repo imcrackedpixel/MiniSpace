@@ -57,12 +57,10 @@ class MissionManager {
       const angle=(Math.PI*2*i/m.targetCount)+Math.random()*0.22, dist=spawnRadius+Math.random()*180;
       const x=playerShip.x+Math.cos(angle)*dist, y=playerShip.y+Math.sin(angle)*dist;
       let enemy=profile.make(x,y);
-      // Keep mission capital-ship escorts very small to prevent mobile
-      // browsers freezing under combined carrier and drone effects.
-      // The player's own Carrier retains its full six-drone wing.
+      // Mission NPC Carriers keep their complete six-drone wing.
+      // Exhaust effects remain disabled on these NPC escorts to limit
+      // rendering cost while testing the full drone count.
       if (profile.tier===3 && Array.isArray(enemy.drones)) {
-        const escortCount=m.difficulty==='Easy'?0:(m.difficulty==='Medium'?1:2);
-        enemy.drones=enemy.drones.slice(0,escortCount);
         enemy.drones.forEach(entry => {
           if (entry && entry.ship) {
             entry.ship.disableThrusterEffects = true;
