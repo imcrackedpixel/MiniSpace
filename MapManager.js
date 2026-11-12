@@ -292,23 +292,18 @@ const FRONTIER_SYSTEMS = (function () {
     }
     rings.push(nodes);
   });
-  rings.forEach((nodes, ri) => {
-    nodes.forEach((node, i) => {
-      node.links.push(nodes[(i + 1) % nodes.length].id, nodes[(i + nodes.length - 1) % nodes.length].id);
-      if (ri === 0) node.links.push('private_highsec');
-      if (ri > 0) {
-        const inner = rings[ri - 1];
-        const target = Math.round(i * inner.length / nodes.length) % inner.length;
-        node.links.push(inner[target].id);
-        inner[target].links.push(node.id);
-      }
-      if (ri < rings.length - 1) {
-        const outer = rings[ri + 1];
-        const target = Math.round(i * outer.length / nodes.length) % outer.length;
-        node.links.push(outer[target].id);
-      }
+  rings.forEach(nodes => nodes.forEach((node, i) => {
+    node.links.push(nodes[(i + 1) % nodes.length].id, nodes[(i + nodes.length - 1) % nodes.length].id);
+  }));
+  rings[0].forEach(node => node.links.push('private_highsec'));
+  for (let ri = 1; ri < rings.length; ri++) {
+    const inner = rings[ri - 1], outer = rings[ri];
+    outer.forEach((node, i) => {
+      const target = Math.floor(i * inner.length / outer.length) % inner.length;
+      node.links.push(inner[target].id);
+      inner[target].links.push(node.id);
     });
-  });
+  }
   rings.forEach(nodes => nodes.forEach(node => { node.links = Array.from(new Set(node.links)); }));
   return rings.flat();
 })();
