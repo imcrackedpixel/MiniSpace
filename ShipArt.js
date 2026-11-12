@@ -12,7 +12,7 @@
         'Improved Explorer Frigate': { file: 'improved_explorer_frigate.png', length: 70, size: [41, 66] },
         'Mining Barge': { file: 'mining_barge.png', length: 100, size: [200, 100] },
         'Mining Frigate': { file: 'mining_frigate.png', length: 110, size: [75, 120] },
-        'Transport Capital': { file: 'transport_capital.png', length: 480, rot: Math.PI, size: [420, 200] }
+        'Transport Capital': { file: 'Transport_Capital.png', length: 480, rot: Math.PI, size: [420, 200] }
     };
 
     const cache = {};
