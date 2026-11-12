@@ -1532,9 +1532,11 @@ window.loadHangarItemToShip = function(itemKey) {
   window.showCorpNotification('Loaded ' + moved.toLocaleString() + ' ' + itemLabel(itemKey) + ' into your active ' + playerShip.className + '.');
 };
 
-window.sellHangarItemViaTransport = async function(itemKey) {
+window.sellHangarItemViaTransport = async function(itemKey, requestedQty) {
   const input = document.getElementById('hangar-qty-' + itemKey);
-  const qty = Math.floor(Number(input && input.value) || 0);
+  const qty = requestedQty === undefined
+    ? Math.floor(Number(input && input.value) || 0)
+    : Math.floor(Number(requestedQty) || 0);
   const available = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[itemKey]) || 0));
   const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
   const saleStates = ['sell_to_trade_gate', 'sell_to_market', 'sell_to_return_gate', 'sell_returning'];
@@ -1593,21 +1595,23 @@ window.sellHangarItemViaTransport = async function(itemKey) {
       return sum + Object.keys(order.items || {}).reduce(function (n, key) { return n + Math.max(0, Math.floor(Number(order.items[key]) || 0)); }, 0);
     }, 0);
     window.showCorpNotification('Deposited ' + deposited.toLocaleString() + ' ' + itemLabel(itemKey) + ' in ' + Math.ceil(deposited / capacity) + ' cargo batch(es). ' + waiting.toLocaleString() + ' goods are waiting for delivery.');
+    return { success: true, deposited: deposited };
   } catch (error) {
     if (deposited > 0 && window.MINISPACE_MARKET && typeof window.MINISPACE_MARKET.applyToGame === 'function') window.MINISPACE_MARKET.applyToGame(playerData);
     if (manager.playerSaleQueue.length && typeof window.saveGameSession === 'function') window.saveGameSession();
     updateStationUI();
     updateCorpUI();
     window.showCorpNotification('Transport deposit stopped after ' + (typeof deposited === 'number' ? deposited.toLocaleString() : '0') + ' items: ' + (error.message || error) + '. Any batches already accepted remain queued.');
+    return { success: false, deposited: deposited, error: error.message || String(error) };
   }
 };
 
 window.sellAllHangarViaTransport = async function() {
   const keys = Object.keys(GAME_ITEM_LABELS);
-  const available = keys.filter(function(key) {
-    return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
-  });
-  if (!available.length) {
+  const stock = keys.map(function(key) {
+    return { key: key, qty: Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) };
+  }).filter(function(entry) { return entry.qty > 0; });
+  if (!stock.length) {
     window.showCorpNotification('Your Private High-Sec hangar is empty.');
     return;
   }
@@ -1616,16 +1620,27 @@ window.sellAllHangarViaTransport = async function() {
     window.showCorpNotification('Dock at your Private High-Sec station to sell your hangar through the Transport Manager.');
     return;
   }
-  let total = 0;
-  for (const key of available) {
-    const qty = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0));
-    if (qty < 1) continue;
-    const input = document.getElementById('hangar-qty-' + key);
-    if (input) input.value = String(qty);
-    await window.sellHangarItemViaTransport(key);
-    total += qty;
+  const manager = botManager && botManager.bots ? botManager.bots.find(function (b) {
+    return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className);
+  }) : null;
+  if (!manager || manager.transportTask ||
+      !(['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState))) {
+    window.showCorpNotification('Your Transport Manager cannot accept a Sell All order right now.');
+    return;
   }
-  window.showCorpNotification('Sell All submitted ' + total.toLocaleString() + ' goods to the Transport Manager. He will deliver them in cargo-sized trips.');
+  let total = 0;
+  for (const entry of stock) {
+    const result = await window.sellHangarItemViaTransport(entry.key, entry.qty);
+    if (result && result.deposited) total += result.deposited;
+    if (!result || !result.success) {
+      window.showCorpNotification('Sell All stopped. Transport accepted ' + total.toLocaleString() +
+        ' goods; ' + entry.qty.toLocaleString() + ' ' + itemLabel(entry.key) +
+        ' could not be fully transferred. ' + (result && result.error ? result.error : 'Check the Transport Manager and try again.'));
+      return;
+    }
+  }
+  window.showCorpNotification('Sell All transferred ' + total.toLocaleString() +
+    ' goods into the Transport Manager sale queue. He will deliver them in cargo-sized trips.');
 };
 
 function updateStationUI() {
