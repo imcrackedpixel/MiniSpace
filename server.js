@@ -298,7 +298,6 @@ wss.on('connection',ws=>{
         if (p.roomId && !p.invisible) broadcastRoom(p.roomId,{type:'player',player:publicPlayer(p)},ws);
         return;
       }
-      helloProcessed=true;
       const token=safeText(m.resumeToken,100);
 
       if(!helloProcessed && token) {
@@ -332,6 +331,7 @@ wss.on('connection',ws=>{
         resumeTokens.set(token,p.id);
       }
 
+      helloProcessed=true;
       p.name=safeText(m.name,16)||p.name||'Pilot';
       const identity=await verifyPilotToken(m.accessToken);
       p.accountId=identity ? identity.accountId : null;
