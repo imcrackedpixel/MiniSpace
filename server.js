@@ -6,6 +6,35 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const MAX_PUBLIC_PLAYERS = 20;
 const RECONNECT_GRACE_MS = 60000;
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://fatejbbzgfeeebzkgcao.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_zfoeW5SNimEZynC-bobT4g_5sGyOtfX';
+
+async function verifyPilotToken(accessToken) {
+  if (typeof accessToken !== 'string' || accessToken.length < 40 || accessToken.length > 5000) return null;
+  try {
+    const response = await fetch(SUPABASE_URL + '/auth/v1/user', {
+      method: 'GET', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + accessToken }
+    });
+    if (!response.ok) return null;
+    const user = await response.json();
+    if (!user || typeof user.id !== 'string') return null;
+    let isGM = false;
+    try {
+      const gmResponse = await fetch(SUPABASE_URL + '/rest/v1/rpc/gm_is_authorized', {
+        method: 'POST',
+        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: '{}'
+      });
+      if (gmResponse.ok) isGM = (await gmResponse.json()) === true;
+    } catch (error) {
+      console.warn('GM permission check unavailable:', error.message || error);
+    }
+    return { accountId: user.id, isGM };
+  } catch (error) {
+    console.warn('Pilot authentication check failed:', error.message || error);
+    return null;
+  }
+}
 
 const PUBLIC_MAPS = new Set([
   'public_trade_hub',
@@ -248,7 +277,7 @@ wss.on('connection',ws=>{
     zones
   });
 
-  ws.on('message',buf=>{
+  ws.on('message',async buf=>{
     let m;
 
     try {
@@ -258,6 +287,12 @@ wss.on('connection',ws=>{
     }
 
     if(m.type==='hello') {
+      if (helloProcessed) {
+        p.name=safeText(m.name,16)||p.name||'Pilot';
+        if (p.roomId && !p.invisible) broadcastRoom(p.roomId,{type:'player',player:publicPlayer(p)},ws);
+        return;
+      }
+      helloProcessed=true;
       const token=safeText(m.resumeToken,100);
 
       if(!helloProcessed && token) {
@@ -292,29 +327,13 @@ wss.on('connection',ws=>{
       }
 
       p.name=safeText(m.name,16)||p.name||'Pilot';
-
-      if(helloProcessed) {
-        if(p.roomId) {
-          broadcastRoom(p.roomId,{
-            type:'player',
-            player:publicPlayer(p)
-          },ws);
-        }
-        return;
-      }
-
-      helloProcessed=true;
-
-      send(ws,{
-        type:'welcome',
-        id:p.id,
-        players:[],
-        zones,
-        resumed:!!p.roomId
-      });
-
+      const identity=await verifyPilotToken(m.accessToken);
+      p.accountId=identity ? identity.accountId : null;
+      p.isGM=!!(identity && identity.isGM);
+      p.authenticated=!!identity;
+      send(ws,{type:'welcome',id:p.id,players:[],zones,resumed:!!p.roomId,authenticated:p.authenticated,isGM:p.isGM});
+      send(ws,{type:'auth-status',authenticated:p.authenticated,isGM:p.isGM});
       if(p.roomId)sendRoomSnapshot(p);
-
       return;
     }
 
