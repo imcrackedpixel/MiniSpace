@@ -379,10 +379,10 @@ class MapManager {
   const gateCount=system.links.filter(id=>id!=='private_highsec').length;
   const gateRotation=gateRandom()*Math.PI*2;
   const gateRadius=2750+gateRandom()*550;
-  const returnAngle=gateRotation+Math.PI+(gateRandom()-0.5)*0.55;
+  const returnAngle=gateRotation;
   this.frontierReturnGate={x:cx+Math.cos(returnAngle)*gateRadius,y:cy+Math.sin(returnAngle)*gateRadius,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','RETURN TO HIGH-SEC','#34d399');}};
   this.frontierGates=system.links.filter(id=>id!=='private_highsec').map((id,i,all)=>{
-    const a=gateRotation+(2*Math.PI*i/Math.max(1,all.length))+(gateRandom()-0.5)*0.28;
+    const a=gateRotation+(2*Math.PI*(i+1)/(all.length+1))+(gateRandom()-0.5)*0.16;
     const distance=gateRadius+(gateRandom()-0.5)*420;
     const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:90,destinationId:id};
     g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};
