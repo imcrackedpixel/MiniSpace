@@ -14,7 +14,7 @@ class CombatFrigate {
     this.friction = 0.93;  
   
     this.cargo = 0;  
-    this.maxCargo = 100;  
+    this.maxCargo = 200;  
     this.weaponRange = 550;  
     this.missileDamage = 15;  
     this.scramblerRange = 550;  
