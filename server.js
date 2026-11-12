@@ -209,6 +209,8 @@ function joinRoom(p,mapId) {
 
 function sendRoomSnapshot(p) {
   if(!p.roomId)return;
+  const room=publicRooms.get(p.roomId);
+  if(room&&String(p.mapId).indexOf('frontier_')===0)send(p.ws,{type:'frontier-npc-state',mapId:p.mapId,deadNpcs:[...room.deadNpcs.entries()].map(([npcId,respawnAt])=>({npcId,respawnAt}))});
 
   send(p.ws,{
     type:'room-joined',
