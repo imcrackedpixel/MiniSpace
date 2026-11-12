@@ -409,6 +409,9 @@
    }
    if(message.type==='player'&&message.player&&message.player.id)state.remotePlayers[message.player.id]=message.player;
    if(message.type==='player-left'&&message.id)delete state.remotePlayers[message.id];
+   if(message.type==='frontier-npc-state'||message.type==='frontier-npc-killed'||message.type==='frontier-npc-respawn'){
+    window.dispatchEvent(new CustomEvent('minispace-'+message.type,{detail:message}));
+   }
 if(message.type==='chat'){
     log('['+message.channel+'] '+message.from+': '+message.text);
    }
