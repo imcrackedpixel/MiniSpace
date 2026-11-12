@@ -9,6 +9,7 @@
   authenticated:false,
   authFailed:false,
   accountBanned:false,
+  accountKicked:false,
   isGM:false,
   roomId:null,
   reconnectTimer:null,
@@ -293,7 +294,7 @@
 
  function connect(){
   panel();
-  if(!state.authReady||state.authFailed||state.accountBanned)return;
+  if(!state.authReady||state.authFailed||state.accountBanned||state.accountKicked)return;
 
   if(state.socket&&(
    state.socket.readyState===WebSocket.OPEN||
@@ -335,7 +336,7 @@
    state.connected=false;
    state.socket=null;
    state.roomId=null;
-   if(!state.authFailed&&!state.accountBanned)scheduleReconnect();
+   if(!state.authFailed&&!state.accountBanned&&!state.accountKicked)scheduleReconnect();
   };
 
   socket.onerror=()=>{
@@ -375,6 +376,7 @@
    if(message.type==='gm-teleport')window.dispatchEvent(new CustomEvent('minispace-gm-teleport',{detail:message}));
    if(message.type==='gm-unstick')window.dispatchEvent(new CustomEvent('minispace-gm-unstick',{detail:message}));
    if(message.type==='account-banned'){state.accountBanned=true;log(message.message||'This account has been banned.');setTimeout(()=>window.location.reload(),900);}
+   if(message.type==='account-kicked'){state.accountKicked=true;log(message.message||'Your pilot data was updated.');setTimeout(()=>window.location.reload(),900);}
 
    if(message.type==='gm-online-list'){
     state.gmPlayers=Array.isArray(message.players)?message.players:[];
