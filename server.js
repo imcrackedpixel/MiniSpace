@@ -466,7 +466,7 @@ wss.on('connection',ws=>{
       if(remaining>0)target.structure=Math.max(0,(target.structure||0)-remaining);
       send(target.ws,{type:'pvp-hit',mapId:mapId,attackerId:p.id,damage:Math.min(500,Number(m.damage)||0),
         shield:target.shield,armor:target.armor,structure:target.structure});
-      broadcastRoom(p.roomId,{type:'player',player:publicPlayer(target)},null);
+      broadcastRoom(p.roomId,{type:'player',player:publicPlayer(target)},target.ws);
       return;
     }
 
