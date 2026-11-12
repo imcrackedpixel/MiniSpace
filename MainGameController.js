@@ -830,13 +830,32 @@ window.setHangarView=function(view){
     row.style.display=view==='items'?(isItem?'':'none'):(view==='ships'?(isItem?'none':''):'none');
   });
 };
+const MODULE_UPGRADE_ORE = {
+  laser:'pyroxeres', guns:'pyroxeres', missiles:'pyroxeres',
+  shield:'scordite', shieldPlating:'scordite', shieldExtender:'scordite',
+  shieldRecharge:'scordite', resistance:'scordite',
+  cargo:'veldspar', propulsion:'veldspar',
+  dronesTether:'omber', droneTether:'omber',
+  cloaking:'debris_t1', hacking:'debris_t1', scrambler:'debris_t2'
+};
+function upgradeOreRequirement(mod, level) {
+  const key = MODULE_UPGRADE_ORE[mod] || 'scordite';
+  return { key: key, qty: Math.ceil((250 + Math.max(1, Number(level) || 1) * 150) * getShipTierMultiplier()) };
+}
 window.upgradeFrigateModule = function(mod) {
   if (!playerShip || !playerShip.moduleLevels) return;
   let lvl = playerShip.moduleLevels[mod] || 1;
   if (lvl >= getCap(mod)) return;
   let cost = upgradeCostAt(lvl);
+  const ore = upgradeOreRequirement(mod, lvl);
+  const availableOre = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[ore.key]) || 0));
+  if (availableOre < ore.qty) {
+    window.showCorpNotification('Upgrade needs ' + ore.qty.toLocaleString() + ' ' + itemLabel(ore.key) + ' (' + availableOre.toLocaleString() + ' in your Private hangar). Buy it at Trade Hub or mine it.');
+    return;
+  }
   if (playerData.isk < cost) { window.showCorpNotification('Not enough Scrap Metals (' + fmtISK(cost) + ' needed)'); return; }
   playerData.isk -= cost;
+  playerData.stationOre[ore.key] = availableOre - ore.qty;
   playerShip.moduleLevels[mod] = lvl + 1;
   applyDesign(playerShip);
   playerShip._pilotTalentMult = null;
@@ -1952,7 +1971,9 @@ function updateStationUI() {
       fit+='<div class="fitting-module-grid">';
       for(const mod of Object.keys(playerShip.moduleLevels)){
         const level=Number(playerShip.moduleLevels[mod])||1,cap=getCap(mod,playerShip.className);
-        const nextCost=level>=cap?null:upgradeCostAt(level); fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+'</span><strong>LV '+level+' / '+cap+'</strong><small>'+(cap>5?'Chip-extended maximum':'Standard maximum')+'</small><button onclick="window.upgradeFrigateModule(\''+mod+'\')" '+(!nextCost?'disabled':'')+'>'+(nextCost?'UPGRADE · '+fmtISK(nextCost):'MAX LEVEL')+'</button></div>';
+        const nextCost=level>=cap?null:upgradeCostAt(level);
+        const oreNeed=nextCost?upgradeOreRequirement(mod,level):null;
+        fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+'</span><strong>LV '+level+' / '+cap+'</strong><small>'+(cap>5?'Chip-extended maximum':'Standard maximum')+'</small><button onclick="window.upgradeFrigateModule(\''+mod+'\')" '+(!nextCost?'disabled':'')+'>'+(nextCost?'UPGRADE · '+fmtISK(nextCost)+' + '+fmtISK(oreNeed.qty)+' '+itemLabel(oreNeed.key):'MAX LEVEL')+'</button></div>';
       }
       fit+='</div>';
     }else fit+='<p>Board a ship to view its module slots.</p>';
