@@ -1979,3 +1979,39 @@ gameLoop();
 window.getMiniSpaceMapId = function() {
   return mapManager?.currentMapId || 'private_highsec';
 };
+
+// MISSION DEATH FIX
+// Failing a mission on death clears the ship-change lock.
+window.handlePlayerDeath = function() {
+  let destroyed = playerShip ? playerShip.className : 'Ship';
+
+  if (missionManager && missionManager.activeMission) {
+    window.showCorpNotification('Ship destroyed! Mission failed. You can choose another ship and try again.');
+    missionManager.activeMission = null;
+    missionManager.generateMissions();
+  } else {
+    window.showCorpNotification(destroyed + ' and its upgrades destroyed! Returning to base.');
+  }
+
+  playerData.activeMission = null;
+
+  if (playerData.upgrades) delete playerData.upgrades[destroyed];
+  if (playerData.hullDesigns) delete playerData.hullDesigns[destroyed];
+  if (playerData.builtHulls) delete playerData.builtHulls[destroyed];
+
+  if (playerShip) playerShip.moduleLevels = {};
+
+  playerShip = sessionManager.setShipClass(playerShip, 'Mining Frigate', 200, 3.4);
+  applyDesign(playerShip);
+  playerShip.cargo = 0;
+  playerShip.structure = playerShip.maxStructure;
+  playerShip.docked = false;
+
+  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+
+  window.jumpToPrivateSec();
+  performDock();
+
+  updateMissionsUI();
+  saveGameSession();
+};
