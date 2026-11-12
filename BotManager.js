@@ -81,7 +81,9 @@ class BotManager {
       wallet: 0,
       stock: {},
       hasCruiserBlueprint: false,
-      cruiserBuilt: false
+      cruiserBuilt: false,
+      transportState: ship.className === 'Transport Capital' ? 'loading' : null,
+      transportMapId: ship.className === 'Transport Capital' ? 'private_highsec' : null
     };
     ship.corpBot = bot;
 
@@ -125,7 +127,9 @@ class BotManager {
         moduleLevels: ship.moduleLevels ? Object.assign({}, ship.moduleLevels) : null,
         cargo: ship.cargo || 0,
         oreType: ship.oreType || null,
-        cargoByOre: Object.assign({}, (window.ensureOreCargo ? window.ensureOreCargo(ship) : ship.cargoByOre) || {})
+        cargoByOre: Object.assign({}, (window.ensureOreCargo ? window.ensureOreCargo(ship) : ship.cargoByOre) || {}),
+        transportState: b.transportState || null,
+        transportMapId: b.transportMapId || null
       };
     });
   }
@@ -153,6 +157,8 @@ class BotManager {
       bot.haulProgress = Math.max(0, Number(s.haulProgress) || 0);
       bot.hasCruiserBlueprint = !!s.hasCruiserBlueprint;
       bot.cruiserBuilt = !!s.cruiserBuilt;
+      bot.transportState = s.transportState || (String(s.className).toLowerCase().includes('transport') ? 'loading' : null);
+      bot.transportMapId = s.transportMapId || (bot.transportState ? 'private_highsec' : null);
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
         for (const m in s.moduleLevels) {
@@ -502,8 +508,7 @@ class BotManager {
   }
 
   oreKey(k) {
-    const so = this.playerData && this.playerData.stationOre;
-    return k && so && so[k] !== undefined ? k : 'veldspar';
+    return k && typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[k] !== undefined ? k : 'veldspar';
   }
 
   creditMinerShare(bot, key, amount) {
@@ -512,7 +517,8 @@ class BotManager {
     const unitPrice = (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[key]) ? ITEM_PRICES[key] : 2;
 
     if (!this.nextMinerUpgrade(bot)) {
-      this.playerData.stationOre[key] = (this.playerData.stationOre[key] || 0) + amount;
+      this.playerData.corpStationOre = this.playerData.corpStationOre || {};
+      this.playerData.corpStationOre[key] = (this.playerData.corpStationOre[key] || 0) + amount;
       return;
     }
 
@@ -585,7 +591,8 @@ class BotManager {
         const take = Math.floor(q * share);
         if (take <= 0) continue;
         bot.stock[k] = q - take;
-        this.playerData.stationOre[k] = (this.playerData.stationOre[k] || 0) + take;
+        this.playerData.corpStationOre = this.playerData.corpStationOre || {};
+        this.playerData.corpStationOre[k] = (this.playerData.corpStationOre[k] || 0) + take;
         itemsPaid += take;
       }
     }
@@ -789,142 +796,155 @@ class BotManager {
       const ship = bot.ship;
       if (!ship) return;
 
-      if (ship.className === 'Transport Capital' || ship.className === 'Industrial Hauler' || ship.className === 'Freighter') {
-        if (!bot.transportState) bot.transportState = 'seeking';
-        const maxC = ship.maxCargo || 50000;
-        const SF = window.TransportSiphon;
-        ship.siphonFeed = [];
+      if (
+        ship.className === 'Transport Capital' ||
+        ship.className === 'Industrial Hauler' ||
+        ship.className === 'Freighter'
+      ) {
+        if (!bot.transportState) bot.transportState = 'loading';
+        if (!bot.transportMapId) bot.transportMapId = 'private_highsec';
+
+        const maxCargo = Math.max(1, ship.maxCargo || 50000);
+        const inventory = this.playerData.corpStationOre ||
+          (this.playerData.corpStationOre = {});
+        ship.cargoByOre = ship.cargoByOre || {};
+
+        const moveTo = function (x, y) {
+          ship.docked = false;
+          ship.update({ x: x, y: y }, null, false);
+        };
+
+        if (bot.transportState === 'loading') {
+          ship.docked = true;
+          ship.vx = 0;
+          ship.vy = 0;
+
+          let room = Math.max(0, maxCargo - (ship.cargo || 0));
+          const keys = Object.keys(inventory).sort();
+          for (const key of keys) {
+            if (room <= 0) break;
+            const available = Math.max(0, Math.floor(Number(inventory[key]) || 0));
+            if (!available) continue;
+            const loaded = Math.min(available, room);
+            inventory[key] = available - loaded;
+            ship.cargoByOre[key] = (ship.cargoByOre[key] || 0) + loaded;
+            ship.cargo += loaded;
+            room -= loaded;
+          }
+
+          // Never depart with a partial load. Wait for the corporation hangar
+          // to contain enough goods to fill the transport ship completely.
+          if ((ship.cargo || 0) >= maxCargo) {
+            bot.transportState = 'to_trade_gate';
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('Transport Manager loaded to 100% and is departing for the Trade Hub.');
+            }
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+
+        if (bot.transportState === 'to_trade_gate') {
+          const gateX = 4200, gateY = 2500;
+          if (Math.hypot(gateX - ship.x, gateY - ship.y) > 110) {
+            moveTo(gateX, gateY);
+          } else {
+            bot.transportMapId = 'public_trade_hub';
+            ship.x = 880;
+            ship.y = 3500;
+            ship.vx = 0;
+            ship.vy = 0;
+            bot.transportState = 'to_market';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+
+        if (bot.transportState === 'to_market') {
+          const marketX = 3500, marketY = 3500;
+          if (Math.hypot(marketX - ship.x, marketY - ship.y) > 850) {
+            moveTo(marketX, marketY);
+          } else {
+            const marketStock = this.playerData.marketStock ||
+              (this.playerData.marketStock = {});
+            let proceeds = 0;
+            const sold = [];
+
+            for (const key of Object.keys(ship.cargoByOre)) {
+              const qty = Math.max(0, Math.floor(Number(ship.cargoByOre[key]) || 0));
+              if (!qty) continue;
+              const unitPrice =
+                (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[key]) || 0;
+              if (!unitPrice) continue;
+              marketStock[key] = (marketStock[key] || 0) + qty;
+              proceeds += qty * unitPrice;
+              sold.push(qty.toLocaleString() + ' ' + key);
+            }
+
+            this.playerData.corpIsk =
+              (this.playerData.corpIsk || 0) + proceeds;
+            this.playerData.marketSales =
+              Array.isArray(this.playerData.marketSales)
+                ? this.playerData.marketSales
+                : [];
+            this.playerData.marketSales.push({
+              source: 'corporation_transport',
+              items: sold,
+              proceeds: proceeds,
+              time: Date.now()
+            });
+            if (this.playerData.marketSales.length > 100) {
+              this.playerData.marketSales.splice(0, this.playerData.marketSales.length - 100);
+            }
+
+            ship.cargo = 0;
+            ship.cargoByOre = {};
+            bot.transportState = 'to_return_gate';
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification(
+                'Transport Manager sold the corporation shipment for ' +
+                proceeds.toLocaleString() + ' ISK.'
+              );
+            }
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+
+        if (bot.transportState === 'to_return_gate') {
+          const gateX = 700, gateY = 3500;
+          if (Math.hypot(gateX - ship.x, gateY - ship.y) > 110) {
+            moveTo(gateX, gateY);
+          } else {
+            bot.transportMapId = 'private_highsec';
+            ship.x = 4200;
+            ship.y = 2500;
+            ship.vx = 0;
+            ship.vy = 0;
+            bot.transportState = 'returning';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
 
         if (bot.transportState === 'returning') {
-          const dx = this.station.x - ship.x;
-          const dy = this.station.y - ship.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist > 80) {
-            ship.update({ x: this.station.x, y: this.station.y }, null, false);
+          if (Math.hypot(this.station.x - ship.x, this.station.y - ship.y) > 110) {
+            moveTo(this.station.x, this.station.y);
           } else {
-            this.deliver(bot);
-          }
-          return;
-        }
-
-        if ((ship.cargo || 0) >= maxC * 0.95) {
-          bot.transportState = 'returning';
-          bot.targetMiner = null;
-          return;
-        }
-
-        let activeMiners = [];
-        if (playerShip && !playerShip.docked && !isExplorerShip(playerShip) && SF.hasLoad(playerShip, 10)) activeMiners.push(playerShip);
-        // Corp mining ships are valid sources too; skip explorers and all transport hulls.
-        this.bots.forEach(function (candidate) {
-          if (!candidate || candidate === bot || !candidate.ship) return;
-          const minerShip = candidate.ship;
-          const name = minerShip.className || candidate.className || '';
-          if (isExplorerBot(candidate) || isExplorerShip(minerShip)) return;
-          if (name === 'Transport Capital' || name === 'Industrial Hauler' || name === 'Freighter') return;
-          if (!minerShip.docked && SF.hasLoad(minerShip, 10)) activeMiners.push(minerShip);
-        });
-
-        if (!bot.targetMiner || activeMiners.indexOf(bot.targetMiner) === -1 || !SF.hasLoad(bot.targetMiner, 5) || (bot.targetMiner.docked)) {
-          let nearestMiner = null;
-          let minD = Infinity;
-          activeMiners.forEach(m => {
-            const d = Math.hypot(m.x - ship.x, m.y - ship.y);
-            if (d < minD) { minD = d; nearestMiner = m; }
-          });
-          bot.targetMiner = nearestMiner;
-        }
-
-        if (bot.targetMiner) {
-          const miner = bot.targetMiner;
-          const aim = SF.aimPoint(miner, ship);
-          const STAND = SF.STANDOFF || 720;
-          const GAP = SF.MIN_GAP || 430;
-
-          if (bot.parkFor !== miner || bot.parkAng == null) {
-            bot.parkFor = miner;
-            bot.parkAng = Math.atan2(ship.y - aim.y, ship.x - aim.x);
-            if (!isFinite(bot.parkAng)) bot.parkAng = 0;
-          }
-          const park = { x: aim.x + Math.cos(bot.parkAng) * STAND, y: aim.y + Math.sin(bot.parkAng) * STAND };
-          const dist = Math.hypot(aim.x - ship.x, aim.y - ship.y);
-          const parkDist = Math.hypot(park.x - ship.x, park.y - ship.y);
-
-          if (!bot.siphoning && dist > STAND * 2) bot.parkAng = Math.atan2(ship.y - aim.y, ship.x - aim.x);
-
-          if (bot.siphoning) { if (dist > STAND + 1100) bot.siphoning = false; }
-          else if (dist < STAND + 220) bot.siphoning = true;
-
-          const pushAway = function () {
-            const others = [];
-            if (playerShip && !playerShip.docked) others.push(playerShip);
-            activeMiners.forEach(function (m) { others.push(m); });
-            bots_all.forEach(function (b) { if (b.ship) others.push(b.ship); });
-            // Transport ships keep clearance from ships only; drones are not logistics targets.
-            others.forEach(function (o) {
-              if (o === ship) return;
-              const ox = ship.x - o.x, oy = ship.y - o.y;
-              const od = Math.hypot(ox, oy);
-              if (od < GAP) {
-                const nx = od > 0.001 ? ox / od : 1, ny = od > 0.001 ? oy / od : 0;
-                const f = (1 - od / GAP) * 0.12;
-                ship.vx += nx * f; ship.vy += ny * f;
-              }
-            });
-          };
-          const bots_all = this.bots;
-
-          if (!bot.siphoning) {
-            ship.update({ x: park.x, y: park.y }, null, false);
-            pushAway();
-          } else {
-            if (parkDist > 260) {
-              ship.update({ x: park.x, y: park.y }, null, false);
-            } else {
-              ship.vx *= 0.9; ship.vy *= 0.9;
-              ship.x += ship.vx; ship.y += ship.vy;
-              ship.thrust = 0;
-              ship.updateParticles();
+            bot.transportState = 'loading';
+            ship.docked = true;
+            ship.vx = 0;
+            ship.vy = 0;
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('Transport Manager returned to High-Sec and is ready to load the next shipment.');
             }
-            pushAway();
-
-            let room = maxC - (ship.cargo || 0);
-
-            const self = this;
-            const sources = [miner];
-
-            sources.forEach(function (src) {
-              if ((src.cargo || 0) > 0 && room > 0 && Math.hypot(src.x - ship.x, src.y - ship.y) <= SF.SHIP_RANGE) {
-                const siphonRate = Math.max(1, src.cargo * 0.00083);
-                const transferred = Math.min(siphonRate, src.cargo, room);
-                if (transferred > 0) {
-                  const siphonKey = self.oreKey(src.oreType);
-                  if (window.removeOreFromCargo) window.removeOreFromCargo(src, siphonKey, transferred);
-                  else src.cargo -= transferred;
-                  if (window.addOreToCargo) window.addOreToCargo(ship, siphonKey, transferred);
-                  else { ship.cargo = (ship.cargo || 0) + transferred; ship.oreType = siphonKey; }
-                  self.recordSiphon(ship, src, siphonKey, transferred);
-                  room -= transferred;
-                  ship.siphonFeed.push({ ref: src, kind: 'ship' });
-                }
-              }
-
-              // Deliberately ship-only: never inspect or transfer cargo from drones.
-            });
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
-        } else {
-          const hasBelt = asteroidBelt && isFinite(asteroidBelt.x) && isFinite(asteroidBelt.y);
-          const homeX = hasBelt ? asteroidBelt.x : this.station.x + 300;
-          const homeY = hasBelt ? asteroidBelt.y : this.station.y + 300;
-          if (Math.hypot(homeX - ship.x, homeY - ship.y) > 150) {
-            ship.update({ x: homeX, y: homeY }, null, false);
-          } else {
-            ship.vx *= 0.9; ship.vy *= 0.9;
-            ship.x += ship.vx; ship.y += ship.vy;
-            ship.thrust = 0;
-            ship.updateParticles();
-          }
+          return;
         }
+
+        bot.transportState = 'loading';
         return;
       }
 
