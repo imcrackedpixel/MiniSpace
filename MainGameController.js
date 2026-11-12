@@ -804,40 +804,6 @@ function payDesignCost(cost) {
   return true;
 }
 
-function showMissingOrePrompt(key) {
-  const d = DESIGNS[key];
-  const missing = Math.ceil(d.cost.items - hangarItemValue());
-  const unit = itemPrices.omber || 10;
-  const units = Math.ceil(missing / unit);
-  const price = units * unit;
-  let ov = document.getElementById('missing-ore-prompt');
-  if (ov) ov.remove();
-  ov = document.createElement('div');
-  ov.id = 'missing-ore-prompt';
-  ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:6000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
-  ov.innerHTML = '<div style="background:#12161b;border:1px solid #3a525c;border-radius:3px;padding:16px;max-width:360px;width:100%;color:#d3dade;font-size:14px;">' +
-    '<div style="font-weight:bold;margin-bottom:8px;">Missing materials</div>' +
-    '<div style="margin-bottom:12px;line-height:1.4;">' + d.label + ' needs ' + fmtISK(d.cost.items) + ' worth of ore and components. You are short ' + fmtISK(missing) + '.<br>Would you like to buy the missing materials (' + units.toLocaleString() + ' ' + itemLabel('omber') + ') for ' + fmtISK(price) + ' Scrap Metals?</div>' +
-    '<div id="missing-ore-msg" style="color:#b5605a;margin-bottom:10px;min-height:0;"></div>' +
-    '<div style="display:flex;gap:8px;">' +
-    '<button id="missing-ore-yes" style="flex:1;min-height:40px;">Yes</button>' +
-    '<button id="missing-ore-no" style="flex:1;min-height:40px;">No</button></div></div>';
-  document.body.appendChild(ov);
-  document.getElementById('missing-ore-no').onclick = function () { ov.remove(); };
-  document.getElementById('missing-ore-yes').onclick = function () {
-    const needed = price + d.cost.isk;
-    if (playerData.isk < needed) {
-      document.getElementById('missing-ore-msg').innerText = 'Not enough Scrap Metals: you need ' + fmtISK(needed) + ' (' + fmtISK(price) + ' for materials + ' + fmtISK(d.cost.isk) + ' for the build) and have ' + fmtISK(playerData.isk) + '.';
-      return;
-    }
-    ov.remove();
-    playerData.isk -= price;
-    playerData.stationOre.omber = (playerData.stationOre.omber || 0) + units;
-    window.showCorpNotification('Bought ' + units.toLocaleString() + ' ' + itemLabel('omber') + ' for ' + fmtISK(price) + ' Scrap Metals');
-    updateStationUI();
-    window.buildDesign(key);
-  };
-}
 
 window.buildDesign = function(key) {
   const d = DESIGNS[key];
@@ -867,7 +833,7 @@ window.buildDesign = function(key) {
 
 // ===== SHIPYARD =====
 // Ships are built from specific ore and components (recipes live in Market.js).
-// Nothing here costs Scrap Metals unless the player chooses to buy missing materials.
+// Ship recipes require real materials already present in the Private High-Sec hangar.
 function recipeFor(key) {
   return SHIP_RECIPES[String(key).toLowerCase()] || null;
 }
@@ -895,50 +861,6 @@ function missingMaterialsMessage(short) {
   }).join(', ');
 }
 
-// Total market price of everything in the shortfall list.
-function missingMaterialsCost(short) {
-  let total = 0;
-  for (const s of short) total += (s.need - s.have) * (itemPrices[s.item] || 10);
-  return total;
-}
-
-// Shows what is missing and offers to buy it with Scrap Metals, then retries the build.
-function showBuyMissingPrompt(title, short, retryBuild) {
-  const cost = missingMaterialsCost(short);
-  let ov = document.getElementById('missing-ore-prompt');
-  if (ov) ov.remove();
-  ov = document.createElement('div');
-  ov.id = 'missing-ore-prompt';
-  ov.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:6000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;padding:16px;';
-  const lines = short.map(function (s) {
-    return (s.need - s.have).toLocaleString() + ' ' + itemLabel(s.item) +
-      ' <span style="color:#8b949e;">(' + fmtISK((s.need - s.have) * (itemPrices[s.item] || 10)) + ')</span>';
-  }).join('<br>');
-  ov.innerHTML = '<div style="background:#12161b;border:1px solid #3a525c;border-radius:3px;padding:16px;max-width:360px;width:100%;color:#d3dade;font-size:14px;">' +
-    '<div style="font-weight:bold;margin-bottom:8px;">Missing materials for ' + title + '</div>' +
-    '<div style="margin-bottom:12px;line-height:1.4;">' + lines + '</div>' +
-    '<div style="margin-bottom:12px;">Buy all missing materials for <b>' + fmtISK(cost) + '</b> Scrap Metals and build?</div>' +
-    '<div id="missing-ore-msg" style="color:#b5605a;margin-bottom:10px;"></div>' +
-    '<div style="display:flex;gap:8px;">' +
-    '<button id="missing-ore-yes" style="flex:1;min-height:40px;">Buy Missing</button>' +
-    '<button id="missing-ore-no" style="flex:1;min-height:40px;">Cancel</button></div></div>';
-  document.body.appendChild(ov);
-  document.getElementById('missing-ore-no').onclick = function () { ov.remove(); };
-  document.getElementById('missing-ore-yes').onclick = function () {
-    if (playerData.isk < cost) {
-      document.getElementById('missing-ore-msg').innerText =
-        'Not enough Scrap Metals: need ' + fmtISK(cost) + ', have ' + fmtISK(playerData.isk) + '.';
-      return;
-    }
-    ov.remove();
-    playerData.isk -= cost;
-    for (const s of short) {
-      playerData.stationOre[s.item] = (playerData.stationOre[s.item] || 0) + (s.need - s.have);
-    }
-    window.showCorpNotification('Bought missing materials for ' + fmtISK(cost) + ' Scrap Metals');
-    retryBuild();
-  };
-}
 
 window.buildShip = function(unlockKey, className) {
   if (!playerShip || !playerShip.docked) { window.showCorpNotification('Dock at the station to build ships.'); return; }
@@ -989,16 +911,23 @@ window.minispaceTestShips = function() {
 };
 
 window.buildTransportManager = function() {
-  if ((playerData.transportManagerPurchased || 0) > 0) return;
+  if (!playerShip || !playerShip.docked) {
+    window.showCorpNotification('Dock at your Private High-Sec station to build the Transport Manager.');
+    return false;
+  }
+  if ((playerData.transportManagerPurchased || 0) > 0) return false;
   const recipe = recipeFor('transportcapital');
   if (!recipe) {
     window.showCorpNotification('No recipe found for Transport Manager.');
-    return;
+    return false;
   }
   const short = recipeShortfall(recipe);
   if (short.length > 0) {
-    showBuyMissingPrompt('Transport Manager', short, function () { window.buildTransportManager(); });
-    return;
+    window.showCorpNotification(
+      'Transport Manager cannot be built. ' + missingMaterialsMessage(short) +
+      '. Buy real stock through the Trade Hub and move it into your Private High-Sec hangar first.'
+    );
+    return false;
   }
   consumeRecipe(recipe);
   playerData.transportManagerPurchased = 1;
@@ -1006,6 +935,7 @@ window.buildTransportManager = function() {
   saveGameSession();
   updateStationUI();
   updateCorpUI();
+  return true;
 };
 
 window.donateCruiserIsk = function(amount) {
