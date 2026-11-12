@@ -537,7 +537,18 @@ class PublicNpcManager {
       if (this.totalHp(ship) <= 0 && !npc.rewarded) {
         npc.rewarded = true;
         npc.isAlive = false;
-        if (npc.ship._minispaceNpcDamageAt && !npc.ship._minispacePlayerTagged) return;
+        // Arena pirates can be damaged by other NPCs as well as the player.
+        // Still grant the local pilot combat XP for a 3v3 arena kill, even if an
+        // NPC delivered the final blow; keep bounty and module drops player-tagged.
+        if (npc.ship._minispaceNpcDamageAt && !npc.ship._minispacePlayerTagged) {
+          if (currentMapId === 'public_space' && typeof window.awardPlayerXP === 'function') {
+            window.awardPlayerXP('combat', 75, '3v3 pirate destroyed');
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('ARENA PIRATE DESTROYED · +75 XP');
+            }
+          }
+          return;
+        }
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
         }
