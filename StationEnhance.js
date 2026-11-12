@@ -13,7 +13,7 @@
     'explorer cruiser': 'explorer_cruiser.png',
     'siege cruiser': 'siege_cruiser.png',
     'siege battleship': 'siege_battleship.png',
-    'siege capital': 'Siege_Capital.png'
+    'siege capital': 'siege_battleship.png'
   };
   const SHIP_KEYS = Object.keys(SHIP_IMG).sort((a, b) => b.length - a.length);
   // Pictures drawn sideways get turned so every ship points up. 90 = turn clockwise, -90 = counter-clockwise.
