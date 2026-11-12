@@ -253,9 +253,16 @@ class PublicNpcManager {
     else if (system.ring <= 6) plan = ['siegeCruiser','combatFrigate','combatFrigate','frigate','frigate','frigate'];
     else plan = ['siegeBattleship','siegeCruiser','combatFrigate','combatFrigate','combatFrigate','carrier'];
     const hpScale = system.ring >= 9 ? 0.42 : (system.ring >= 7 ? 0.48 : 0.6);
+    let seed = 0;
+    for (let k = 0; k < id.length; k++) seed = (seed * 33 + id.charCodeAt(k)) >>> 0;
+    const seeded = index => {
+      let value = (seed + (index + 1) * 1013904223) >>> 0;
+      value = (value * 1664525 + 1013904223) >>> 0;
+      return value / 4294967296;
+    };
     state.guardDefs = plan.map((type, i) => {
-      const angle = (i / plan.length) * Math.PI * 2 + Math.random() * 0.3;
-      const radius = 720 + Math.random() * 650;
+      const angle = (i / plan.length) * Math.PI * 2 + seeded(i * 2) * 0.3;
+      const radius = 720 + seeded(i * 2 + 1) * 650;
       return {
         id: 'station_guard_' + id + '_' + i, type: type,
         x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius,
