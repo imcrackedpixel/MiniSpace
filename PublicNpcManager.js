@@ -145,7 +145,7 @@ class PublicNpcManager {
       for(let g=0;g<groups;g++){const count=1+Math.floor(Math.random()*5),a=2*Math.PI*g/groups+Math.random()*.3,r=1100+g*500,gx=c+Math.cos(a)*r,gy=c+Math.sin(a)*r;
         for(let i=0;i<count;i++){let cfg,combat=false,elite=false;
           if(system.kind==='Mining Fleet')cfg=pickPirate(MINER_POOL);
-          else if(level===5){elite=system.id==='frontier_blackstar'?Math.random()<.45:Math.random()<.12;cfg=elite?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
+          else if(level===5){elite=system.id==='frontier_blackstar'?Math.random()<.45:(system.id==='frontier_crypt'?Math.random()<.28:Math.random()<.12);cfg=elite?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
           else if(level===4){cfg=Math.random()<.25?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;combat=true;}
           else if(level===3){cfg=Math.random()<.5?PIRATE_TYPES.siegeCruiser:PIRATE_TYPES.siegeBattleship;combat=true;}
           else if(system.kind==='Mixed Fleets'&&Math.random()<.45)cfg=pickPirate(MINER_POOL);
@@ -158,7 +158,18 @@ class PublicNpcManager {
   applyFrontierState(d){if(!d||d.mapId!==this.frontierMapId)return;(d.deadNpcs||[]).forEach(x=>this.applyFrontierDeath(x));}
   applyFrontierDeath(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n){n.isAlive=false;n.respawnAt=Number(d.respawnAt)||Date.now()+90000;}}
   applyFrontierRespawn(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n&&!n.isAlive)this.reviveFrontierNpc(n);}
-  reviveFrontierNpc(n){if(!n||!n.cfg)return;let cfg=n.cfg;let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;const oldRandom=Math.random;let st=seed||1;Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};try{if(n.frontierKind!=='Mining Fleet'&&n.frontierLevel<=3&&Math.random()<.3)cfg=pickPirate(MINER_POOL);}finally{Math.random=oldRandom;}const old=this.publicNpcMiners;this.publicNpcMiners=[];this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:n.elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind});const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;if(fresh)Object.assign(n,fresh);}
+  reviveFrontierNpc(n){if(!n||!n.cfg)return;let cfg=n.cfg;let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;const oldRandom=Math.random;let st=seed||1;Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};try{if(n.frontierKind!=='Mining Fleet'&&n.frontierLevel<=3&&Math.random()<.3)cfg=pickPirate(MINER_POOL);}finally{Math.random=oldRandom;}const old=this.publicNpcMiners;this.publicNpcMiners=[];const deadEnd=String(this.frontierMapId||'').includes('blackstar')||String(this.frontierMapId||'').includes('crypt');
+    const roll=Math.random(),rarity=deadEnd?(roll<.38?'common':roll<.68?'uncommon':roll<.88?'rare':'elite'):(roll<.58?'common':roll<.83?'uncommon':roll<.96?'rare':'elite');
+    const level=n.frontierLevel||1;
+    if(n.frontierKind!=='Mining Fleet'){
+      if(level>=5)cfg=rarity==='elite'?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
+      else if(level>=4)cfg=rarity==='elite'?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;
+      else if(level>=3)cfg=rarity==='rare'||rarity==='elite'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
+      else if(rarity==='rare'||rarity==='elite')cfg=PIRATE_TYPES.siegeCruiser;
+      else if(Math.random()<.30)cfg=pickPirate(MINER_POOL);
+    }else if(rarity==='rare'||rarity==='elite')cfg=pickPirate([{t:'barge',w:2},{t:'command',w:1}]);
+    const elite=rarity==='elite'&&level>=4&&n.frontierKind!=='Mining Fleet';
+    this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity});const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;if(fresh)Object.assign(n,fresh);}
 
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
@@ -236,6 +247,7 @@ class PublicNpcManager {
       elite: !!opts.elite,
       frontierLevel: Number(opts.frontierLevel)||0,
       frontierKind: opts.frontierKind || '',
+      frontierRarity: opts.frontierRarity || (opts.elite ? 'elite' : 'common'),
       ship: shipObj,
       className: cfg.name,
       combat: !!COMBAT_HULLS[cfg.name],
@@ -532,10 +544,13 @@ class PublicNpcManager {
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
         }
-        if(npc.elite&&npc.frontierLevel===5&&playerData){
-          if(!Array.isArray(playerData.purpleModules))playerData.purpleModules=[];
-          playerData.purpleModules.push({id:'elite-'+npc.id+'-'+Date.now(),name:'Unidentified Purple Module',rarity:'purple',source:'Level 5 Elite Pirate'});
-          if(typeof window.showCorpNotification==='function')window.showCorpNotification('✦ ELITE DROP: Purple Module recovered!');
+        if(npc.elite&&npc.frontierLevel>=4&&playerData){
+          const hull=npc.className||'Combat Frigate';
+          const keys=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Capital':['guns','shield','resistance','propulsion'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
+          const module=keys[Math.floor(Math.random()*keys.length)];
+          if(!Array.isArray(playerData.skillChips))playerData.skillChips=[];
+          playerData.skillChips.push({id:'chip-'+npc.id+'-'+Date.now(),hull:hull,module:module,rarity:'purple',name:'Purple '+hull+' Skill Chip',source:'Elite Frontier Pirate'});
+          if(typeof window.showCorpNotification==='function')window.showCorpNotification('✦ PURPLE SKILL CHIP: '+hull+' · '+module+' max level +1 when fitted');
           if(typeof saveGameSession==='function')saveGameSession();
         }
         if (typeof window.showCorpNotification === 'function') {
