@@ -13,10 +13,7 @@ const PUBLIC_MAPS = new Set([
   'public_nullsec'
 ]);
 
-// Existing 3v3 Station Loot arena stays unchanged.
-const MATCH_MAPS = new Set([
-  'public_space'
-]);
+const MATCH_MAPS = new Set(['public_space']);
 
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
@@ -107,10 +104,7 @@ function leaveRoom(p) {
   }
 
   for(const other of players.values()) {
-    if(
-      other.id!==p.id &&
-      other.roomId===oldRoomId
-    ) {
+    if(other.id!==p.id && other.roomId===oldRoomId) {
       send(other.ws,{
         type:'player-left',
         id:p.id
@@ -211,11 +205,7 @@ function publicPlayer(p) {
 
 function broadcastRoom(roomId,obj,except) {
   for(const p of players.values()) {
-    if(
-      p.roomId===roomId &&
-      p.ws &&
-      p.ws!==except
-    ) {
+    if(p.roomId===roomId && p.ws && p.ws!==except) {
       send(p.ws,obj);
     }
   }
@@ -228,6 +218,8 @@ function broadcastAll(obj,except) {
 }
 
 wss.on('connection',ws=>{
+  let helloProcessed=false;
+
   let p={
     id:crypto.randomUUID(),
     ws,
@@ -268,9 +260,7 @@ wss.on('connection',ws=>{
     if(m.type==='hello') {
       const token=safeText(m.resumeToken,100);
 
-      // Reattach to the previous pilot if it is
-      // still inside the reconnect grace period.
-      if(token) {
+      if(!helloProcessed && token) {
         const oldId=resumeTokens.get(token);
         const oldPlayer=oldId ? players.get(oldId) : null;
 
@@ -302,6 +292,19 @@ wss.on('connection',ws=>{
       }
 
       p.name=safeText(m.name,16)||p.name||'Pilot';
+
+      // Only send welcome and room data once per connection.
+      if(helloProcessed) {
+        if(p.roomId) {
+          broadcastRoom(p.roomId,{
+            type:'player',
+            player:publicPlayer(p)
+          },ws);
+        }
+        return;
+      }
+
+      helloProcessed=true;
 
       send(ws,{
         type:'welcome',
@@ -461,13 +464,10 @@ wss.on('connection',ws=>{
   });
 
   ws.on('close',()=>{
-    // Ignore an old socket closing after the pilot
-    // has already reconnected on a newer socket.
     if(p.ws!==ws)return;
 
     p.ws=null;
 
-    // Keep the pilot and room reserved for 60 seconds.
     p.graceTimer=setTimeout(()=>{
       if(p.ws)return;
 
