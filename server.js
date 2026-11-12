@@ -5,6 +5,7 @@ const crypto = require('crypto');
 
 const PORT = Number(process.env.PORT || 8080);
 const MAX_PUBLIC_PLAYERS = 20;
+const RECONNECT_GRACE_MS = 60000;
 
 const PUBLIC_MAPS = new Set([
   'public_trade_hub',
@@ -12,8 +13,7 @@ const PUBLIC_MAPS = new Set([
   'public_nullsec'
 ]);
 
-// Existing 3v3 Station Loot map.
-// Keep it shared, but separate from the new public worlds.
+// Existing 3v3 Station Loot arena stays unchanged.
 const MATCH_MAPS = new Set([
   'public_space'
 ]);
@@ -36,46 +36,22 @@ const wss = new WebSocket.Server({server});
 const players = new Map();
 const friends = new Map();
 const publicRooms = new Map();
+const resumeTokens = new Map();
 
 const zones = [
-  {
-    id:'high-sec',
-    name:'High Security',
-    x:0,
-    y:0,
-    radius:1800,
-    pvp:false
-  },
-  {
-    id:'low-sec',
-    name:'Low Security',
-    x:2600,
-    y:0,
-    radius:1800,
-    pvp:true
-  },
-  {
-    id:'null-sec',
-    name:'Frontier',
-    x:0,
-    y:2600,
-    radius:2200,
-    pvp:true
-  }
+  {id:'high-sec',name:'High Security',x:0,y:0,radius:1800,pvp:false},
+  {id:'low-sec',name:'Low Security',x:2600,y:0,radius:1800,pvp:true},
+  {id:'null-sec',name:'Frontier',x:0,y:2600,radius:2200,pvp:true}
 ];
 
 function zoneAt(x,y) {
   return zones.find(z =>
     Math.hypot(x-z.x,y-z.y)<=z.radius
-  ) || {
-    id:'deep-space',
-    name:'Deep Space',
-    pvp:true
-  };
+  ) || {id:'deep-space',name:'Deep Space',pvp:true};
 }
 
 function send(ws,obj) {
-  if(ws.readyState===WebSocket.OPEN) {
+  if(ws && ws.readyState===WebSocket.OPEN) {
     ws.send(JSON.stringify(obj));
   }
 }
@@ -149,24 +125,19 @@ function joinRoom(p,mapId) {
   if(p.mapId===mapId && p.roomId)return;
 
   leaveRoom(p);
-
   p.mapId=mapId;
 
   if(PUBLIC_MAPS.has(mapId)) {
     const room=publicRoomFor(mapId);
-
     room.players.add(p.id);
     p.roomId=room.id;
     p.roomType='public';
 
   } else if(MATCH_MAPS.has(mapId)) {
-    // All players in the existing Station Loot map
-    // share this match room.
     p.roomId='match:station-loot';
     p.roomType='match';
 
   } else {
-    // Private High-Sec and mission instances.
     p.roomId='private:'+p.id;
     p.roomType='private';
   }
@@ -181,11 +152,38 @@ function joinRoom(p,mapId) {
       : (p.roomType==='match' ? 6 : 1)
   });
 
-  // Send existing occupants to the player who just joined.
   for(const other of players.values()) {
     if(
       other.id!==p.id &&
-      other.roomId===p.roomId
+      other.roomId===p.roomId &&
+      other.ws
+    ) {
+      send(p.ws,{
+        type:'player',
+        player:publicPlayer(other)
+      });
+    }
+  }
+}
+
+function sendRoomSnapshot(p) {
+  if(!p.roomId)return;
+
+  send(p.ws,{
+    type:'room-joined',
+    mapId:p.mapId,
+    roomId:p.roomId,
+    roomType:p.roomType,
+    capacity:p.roomType==='public'
+      ? MAX_PUBLIC_PLAYERS
+      : (p.roomType==='match' ? 6 : 1)
+  });
+
+  for(const other of players.values()) {
+    if(
+      other.id!==p.id &&
+      other.roomId===p.roomId &&
+      other.ws
     ) {
       send(p.ws,{
         type:'player',
@@ -215,6 +213,7 @@ function broadcastRoom(roomId,obj,except) {
   for(const p of players.values()) {
     if(
       p.roomId===roomId &&
+      p.ws &&
       p.ws!==except
     ) {
       send(p.ws,obj);
@@ -224,15 +223,13 @@ function broadcastRoom(roomId,obj,except) {
 
 function broadcastAll(obj,except) {
   for(const p of players.values()) {
-    if(p.ws!==except)send(p.ws,obj);
+    if(p.ws && p.ws!==except)send(p.ws,obj);
   }
 }
 
 wss.on('connection',ws=>{
-  const id=crypto.randomUUID();
-
-  const p={
-    id,
+  let p={
+    id:crypto.randomUUID(),
     ws,
     name:'Pilot',
     x:0,
@@ -244,15 +241,17 @@ wss.on('connection',ws=>{
     roomId:null,
     roomType:'private',
     zone:'high-sec',
-    last:Date.now()
+    last:Date.now(),
+    resumeToken:null,
+    graceTimer:null
   };
 
-  players.set(id,p);
-  friends.set(id,new Set());
+  players.set(p.id,p);
+  friends.set(p.id,new Set());
 
   send(ws,{
     type:'welcome',
-    id,
+    id:p.id,
     players:[],
     zones
   });
@@ -267,7 +266,53 @@ wss.on('connection',ws=>{
     }
 
     if(m.type==='hello') {
-      p.name=safeText(m.name,16)||'Pilot';
+      const token=safeText(m.resumeToken,100);
+
+      // Reattach to the previous pilot if it is
+      // still inside the reconnect grace period.
+      if(token) {
+        const oldId=resumeTokens.get(token);
+        const oldPlayer=oldId ? players.get(oldId) : null;
+
+        if(
+          oldPlayer &&
+          oldPlayer!==p &&
+          !oldPlayer.ws &&
+          oldPlayer.graceTimer
+        ) {
+          clearTimeout(oldPlayer.graceTimer);
+
+          players.delete(p.id);
+          friends.delete(p.id);
+
+          p=oldPlayer;
+          p.ws=ws;
+          p.graceTimer=null;
+          p.last=Date.now();
+        }
+      }
+
+      if(token) {
+        if(p.resumeToken && p.resumeToken!==token) {
+          resumeTokens.delete(p.resumeToken);
+        }
+
+        p.resumeToken=token;
+        resumeTokens.set(token,p.id);
+      }
+
+      p.name=safeText(m.name,16)||p.name||'Pilot';
+
+      send(ws,{
+        type:'welcome',
+        id:p.id,
+        players:[],
+        zones,
+        resumed:!!p.roomId
+      });
+
+      if(p.roomId)sendRoomSnapshot(p);
+
       return;
     }
 
@@ -365,7 +410,6 @@ wss.on('connection',ws=>{
         }
 
       } else {
-        // Global chat works across every room.
         broadcastAll({
           type:'chat',
           from:p.name,
@@ -383,7 +427,7 @@ wss.on('connection',ws=>{
         safeText(m.name,16).toLowerCase()
       );
 
-      if(target&&target.id!==id) {
+      if(target&&target.id!==p.id) {
         send(target.ws,{
           type:'friend-request',
           from:p.name
@@ -400,8 +444,8 @@ wss.on('connection',ws=>{
       );
 
       if(other) {
-        friends.get(id).add(other.id);
-        friends.get(other.id)?.add(id);
+        friends.get(p.id)?.add(other.id);
+        friends.get(other.id)?.add(p.id);
 
         send(ws,{
           type:'friend-added',
@@ -417,9 +461,24 @@ wss.on('connection',ws=>{
   });
 
   ws.on('close',()=>{
-    leaveRoom(p);
-    players.delete(id);
-    friends.delete(id);
+    // Ignore an old socket closing after the pilot
+    // has already reconnected on a newer socket.
+    if(p.ws!==ws)return;
+
+    p.ws=null;
+
+    // Keep the pilot and room reserved for 60 seconds.
+    p.graceTimer=setTimeout(()=>{
+      if(p.ws)return;
+
+      leaveRoom(p);
+      players.delete(p.id);
+      friends.delete(p.id);
+
+      if(p.resumeToken) {
+        resumeTokens.delete(p.resumeToken);
+      }
+    },RECONNECT_GRACE_MS);
   });
 });
 
@@ -427,7 +486,7 @@ setInterval(()=>{
   const now=Date.now();
 
   for(const p of players.values()) {
-    if(now-p.last>45000) {
+    if(p.ws && now-p.last>45000) {
       send(p.ws,{type:'ping'});
     }
   }
