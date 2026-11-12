@@ -48,7 +48,7 @@
     <button id="online-collapse">−</button>
    </header>
    <div id="online-content">
-    <div id="online-count">0 pilots nearby</div>
+    <div id="online-count">0 pilots online</div>
     <div id="online-roster"></div>
     <div class="online-actions">
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
@@ -146,9 +146,6 @@
   if(!$('online-roster'))return;
 
   const players=[...state.players.values()];
-
-  $('online-count').textContent=
-   players.length+' pilots online';
 
   $('online-roster').replaceChildren();
 
@@ -339,6 +336,14 @@
     return;
    }
 
+   if(message.type==='online-count'){
+    const count=$('online-count');
+
+    if(count){
+     count.textContent=message.count+' pilots online';
+    }
+   }
+
    if(message.type==='welcome'){
     state.id=message.id;
     render();
@@ -440,22 +445,6 @@
   setInterval(tick,250);
  }
 })();
-
-// TEMPORARY MULTIPLAYER MOVEMENT TEST
-setInterval(function(){
- const online=window.MinispaceOnline;
- if(!online)return;
-
- const players=[...online.state.players.values()];
- const other=players.find(p=>p.id!==online.state.id);
- const count=document.getElementById('online-count');
-
- if(count&&other){
-  count.textContent=
-   'Other pilot: X '+Math.round(other.x)+
-   ' · Y '+Math.round(other.y);
- }
-},500);
 
 // USE THE GAME'S REAL PILOT NAME
 setInterval(function(){
