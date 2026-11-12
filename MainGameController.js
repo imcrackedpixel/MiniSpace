@@ -66,6 +66,31 @@ window.ensureOreCargo = ensureOreCargo;
 window.addOreToCargo = addOreToCargo;
 window.removeOreFromCargo = removeOreFromCargo;
 
+window.addEventListener('minispace-gm-teleport',function(event){
+  const data=event.detail||{};
+  if(!playerShip||!mapManager||data.mapId!==mapManager.currentMapId)return;
+  playerShip.x=Number(data.x)||0;
+  playerShip.y=Number(data.y)||0;
+  playerShip.vx=0;playerShip.vy=0;
+  playerShip.docked=false;
+  targetMovePos=null;lockedTarget=null;isDockingRequested=false;
+  if(typeof saveGameSession==='function')saveGameSession();
+  if(window.showCorpNotification)window.showCorpNotification('GM teleport: arrived near '+String(data.name||'target pilot')+'.');
+});
+window.addEventListener('minispace-gm-unstick',function(event){
+  if(!playerShip||!mainStation||typeof window.jumpToPrivateSec!=='function')return;
+  window.jumpToPrivateSec();
+  playerShip.docked=false;
+  playerShip.x=mainStation.x+250;
+  playerShip.y=mainStation.y+250;
+  playerShip.vx=0;playerShip.vy=0;
+  targetMovePos=null;lockedTarget=null;isDockingRequested=false;
+  const stationUi=document.getElementById('station-ui');
+  if(stationUi)stationUi.style.display='none';
+  if(typeof saveGameSession==='function')saveGameSession();
+  if(window.showCorpNotification)window.showCorpNotification(event.detail?.message||'A Game Master returned your ship to Private High-Sec.');
+});
+
 // Short Scrap Metals format: 1.5m, 2.25b, 3t. Amounts under a million show in full.
 function fmtISK(n) {
   n = Math.floor(Number(n) || 0);
