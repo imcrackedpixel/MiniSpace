@@ -52,8 +52,10 @@ try {
 } catch (e) {}
 </script>
 
-<button id="minispace-ui-toggle" type="button" onclick="window.toggleMiniSpaceHud(this)">HIDE UI</button>
+<div id="minispace-top-controls">
 <button id="minispace-fullscreen-btn" type="button" onclick="window.toggleMiniSpaceFullscreen()">FULL SCREEN</button>
+<button id="minispace-ui-toggle" type="button" onclick="window.toggleMiniSpaceHud(this)">HIDE UI</button>
+</div>
 
 <div id="ui-layer">
 <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -91,6 +93,7 @@ try {
 <button type="button" class="nearby-tab active" data-nearby-tab="tears" onclick="window.setNearbySpaceTab('tears')">TEARS</button>
 <button type="button" class="nearby-tab" data-nearby-tab="pirates" onclick="window.setNearbySpaceTab('pirates')">PIRATES</button>
 <button type="button" class="nearby-tab" data-nearby-tab="ore" onclick="window.setNearbySpaceTab('ore')">ORE</button>
+<button type="button" class="nearby-tab" data-nearby-tab="players" onclick="window.setNearbySpaceTab('players')">PLAYERS</button>
 </div>
 <div id="nearby-space-list" aria-live="polite"><div class="nearby-empty">Scanning space…</div></div>
 </div>
