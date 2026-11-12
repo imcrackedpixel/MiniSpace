@@ -507,11 +507,11 @@ class PublicNpcManager {
     try {
       if (npc.className === 'Carrier') {
         ship.update(null, target, null, false, enemies, true);
-      } else if (npc.className === 'Siege Battleship') {
-        // No move target: its own steering would fly straight at the player. The manager does the moving.
-        ship.update(null, null, false, enemies);
+      } else if (npc.className === 'Siege Battleship' || npc.className === 'Siege Cruiser' || npc.className === 'Combat Frigate') {
+        // Give combat hulls an explicit targetEnemy; the manager remains responsible for movement.
+        ship.update(null, target, false, enemies, true);
       } else {
-        ship.update(target, null, false, enemies);
+        ship.update(null, target, false, enemies);
       }
     } catch (err) {
       if (!npc._warnedUpdate) {
@@ -559,6 +559,12 @@ class PublicNpcManager {
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
         }
+        const frontierXP = npc.frontierLevel
+          ? Math.round(90 + npc.frontierLevel * 65 + (npc.elite ? 350 : 0))
+          : 45;
+        if (typeof window.awardPlayerXP === 'function') {
+          window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
+        }
         if(npc.elite&&npc.frontierLevel===5&&playerData){
           const hull=npc.className==='Capital'?'Siege Capital':(npc.className||'Combat Frigate');
           const keys=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
@@ -569,8 +575,10 @@ class PublicNpcManager {
           if(typeof saveGameSession==='function')saveGameSession();
         }
         if (typeof window.showCorpNotification === 'function') {
-          window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals');
+          window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + frontierXP + ' XP');
         }
+        if (typeof updateStationUI === 'function') updateStationUI();
+        if (typeof saveGameSession === 'function') saveGameSession();
         // Spawn loot wreckage
         if (typeof DebrisField !== 'undefined' && debrisField && debrisField.entities) {
           debrisField.entities.push({
@@ -628,9 +636,9 @@ class PublicNpcManager {
         const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
         if (distToPlayer <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
           if (typeof playerShip.takeDamage === 'function') {
-            playerShip.takeDamage(0.35 * (npc.dpsScale || 1));
+            playerShip.takeDamage(0.85 * (npc.dpsScale || 1));
           } else {
-            playerShip.structure -= 0.35 * (npc.dpsScale || 1);
+            playerShip.structure -= 0.85 * (npc.dpsScale || 1);
           }
         }
       } else {
