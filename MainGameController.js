@@ -902,8 +902,19 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
     if (!findManager()) window.buildTransportManager();
     const transport = findManager();
     if (!transport || !transport.ship) throw new Error('The free Transport Manager could not be deployed.');
-    if (transport.transportTask || !['loading', null].includes(transport.transportState) ||
-        (transport.ship.cargo || 0) > 0) throw new Error('Transport Manager is busy. Let it finish its current delivery first.');
+    if (transport.transportTask || !['loading', null].includes(transport.transportState)) {
+      throw new Error('Transport Manager is busy. Let it finish its current delivery first.');
+    }
+    // Return any partial corporation load to its hangar before taking a personal order.
+    if ((transport.ship.cargo || 0) > 0) {
+      const corpInventory = playerData.corpStationOre || (playerData.corpStationOre = {});
+      const carried = transport.ship.cargoByOre || {};
+      Object.keys(carried).forEach(function(key) {
+        corpInventory[key] = (Number(corpInventory[key]) || 0) + Math.max(0, Math.floor(Number(carried[key]) || 0));
+      });
+      transport.ship.cargo = 0;
+      transport.ship.cargoByOre = {};
+    }
 
     const state = window.MINISPACE_MARKET.state();
     const items = short.map(function(entry) {
