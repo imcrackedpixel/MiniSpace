@@ -260,15 +260,15 @@ function drawPortalLabel(ctx, x, y, radius, title, subtitle, accent) {
 
 
 const FRONTIER_SYSTEMS=[
-{id:'frontier_ashen',name:'Ashen Reach',level:1,kind:'Mining Fleet',links:['frontier_iron','frontier_vanta']},
-{id:'frontier_iron',name:'Ironwake',level:2,kind:'Pirate Patrols',links:['frontier_ashen','frontier_cinder','frontier_umbra']},
-{id:'frontier_vanta',name:'Vanta Expanse',level:2,kind:'Mining Fleet',links:['frontier_ashen','frontier_nexus']},
-{id:'frontier_cinder',name:'Cinder Drift',level:3,kind:'Mixed Fleets',links:['frontier_iron','frontier_redline']},
-{id:'frontier_umbra',name:'Umbra Verge',level:4,kind:'Pirate Armada',links:['frontier_iron','frontier_blackstar']},
-{id:'frontier_nexus',name:'Nexus Scar',level:4,kind:'Mixed Fleets',links:['frontier_vanta','frontier_redline','frontier_crypt']},
-{id:'frontier_redline',name:'Redline Abyss',level:5,kind:'Elite Pirate Fleet',links:['frontier_cinder','frontier_nexus']},
-{id:'frontier_blackstar',name:'Blackstar End',level:5,kind:'Elite Carrier Territory',links:['frontier_umbra']},
-{id:'frontier_crypt',name:'The Crypt',level:5,kind:'Relic Graveyard',links:['frontier_nexus']}
+{id:'frontier_ashen',name:'Ashen Reach',level:1,kind:'Mining Fleet',recommendedShip:'Frigate',shipIcon:'🚀',links:['frontier_iron','frontier_vanta']},
+{id:'frontier_iron',name:'Ironwake',level:2,kind:'Pirate Patrols',recommendedShip:'Frigate',shipIcon:'🚀',links:['frontier_ashen','frontier_cinder','frontier_umbra']},
+{id:'frontier_vanta',name:'Vanta Expanse',level:2,kind:'Mining Fleet',recommendedShip:'Cruiser',shipIcon:'🛡️',links:['frontier_ashen','frontier_nexus']},
+{id:'frontier_cinder',name:'Cinder Drift',level:3,kind:'Mixed Fleets',recommendedShip:'Cruiser',shipIcon:'🛡️',links:['frontier_iron','frontier_redline']},
+{id:'frontier_umbra',name:'Umbra Verge',level:4,kind:'Pirate Armada',recommendedShip:'Battleship',shipIcon:'⚔️',links:['frontier_iron','frontier_blackstar']},
+{id:'frontier_nexus',name:'Nexus Scar',level:4,kind:'Mixed Fleets',recommendedShip:'Battleship',shipIcon:'⚔️',links:['frontier_vanta','frontier_redline','frontier_crypt']},
+{id:'frontier_redline',name:'Redline Abyss',level:5,kind:'Elite Pirate Fleet',recommendedShip:'Battleship',shipIcon:'⚔️',links:['frontier_cinder','frontier_nexus']},
+{id:'frontier_blackstar',name:'Blackstar End',level:5,kind:'Elite Carrier Territory',recommendedShip:'Carrier',shipIcon:'🛸',links:['frontier_umbra']},
+{id:'frontier_crypt',name:'The Crypt',level:5,kind:'Relic Graveyard',recommendedShip:'Carrier',shipIcon:'🛸',links:['frontier_nexus']}
 ];
 window.MINISPACE_UNIVERSE_SYSTEMS=FRONTIER_SYSTEMS;
 
