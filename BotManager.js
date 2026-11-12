@@ -62,7 +62,8 @@ class BotManager {
     ship.isTargetable = false;
     ship.docked = false;
     ship.cargo = 0;
-    ship.maxCargo = ship.maxCargo || 50000;
+    const isTransportHull = ship.className === 'Transport Capital' || ship.className === 'Industrial Hauler' || ship.className === 'Freighter';
+    ship.maxCargo = isTransportHull ? 5000 : (ship.maxCargo || 50000);
 
     // Corp carrier drones keep combat behaviour but emit no exhaust smoke.
     if (Array.isArray(ship.drones)) {
@@ -96,8 +97,13 @@ class BotManager {
       hasCruiserBlueprint: false,
       cruiserBuilt: false,
       transportState: ship.className === 'Transport Capital' ? 'loading' : null,
-      transportMapId: ship.className === 'Transport Capital' ? 'private_highsec' : null
+      transportMapId: ship.className === 'Transport Capital' ? 'private_highsec' : null,
+      transportLevel: ship.className === 'Transport Capital' ? 1 : null
     };
+    if (ship.className === 'Transport Capital') {
+      bot.transportLevel = 1;
+      ship.maxCargo = 5000;
+    }
     ship.corpBot = bot;
 
     // Set corp explorers to have max level items by default
@@ -122,6 +128,33 @@ class BotManager {
 
   addTransportBot() {
     return this.addBot('Transport Capital');
+  }
+
+  transportUpgradeCost(bot) {
+    const level = Math.max(1, Math.floor(Number(bot && bot.transportLevel) || 1));
+    return 25000 * level;
+  }
+
+  upgradeTransportManager() {
+    const bot = this.bots.find(function (entry) {
+      return entry && entry.ship && entry.ship.className === 'Transport Capital';
+    });
+    if (!bot || !bot.ship) return { success: false, message: 'Transport Manager not found.' };
+    if (bot.transportTask || !['loading', null].includes(bot.transportState)) {
+      return { success: false, message: 'The Transport Manager must finish its current trip before upgrading.' };
+    }
+    const level = Math.max(1, Math.floor(Number(bot.transportLevel) || 1));
+    const cost = this.transportUpgradeCost(bot);
+    if ((Number(this.playerData.isk) || 0) < cost) {
+      return { success: false, message: 'Need ' + cost.toLocaleString() + ' Scrap Metals for the next cargo upgrade.' };
+    }
+    this.playerData.isk -= cost;
+    bot.transportLevel = level + 1;
+    bot.ship.maxCargo = 5000 * bot.transportLevel;
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    if (typeof window.updateStationUI === 'function') window.updateStationUI();
+    if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+    return { success: true, level: bot.transportLevel, capacity: bot.ship.maxCargo, cost: cost };
   }
 
   // Keep corporation logistics moving while the pilot is visiting the public Trade Hub,
@@ -161,7 +194,8 @@ class BotManager {
         transportState: b.transportState || null,
         transportMapId: b.transportMapId || null,
         transportShipmentId: b.transportShipmentId || null,
-        transportTask: b.transportTask ? JSON.parse(JSON.stringify(b.transportTask)) : null
+        transportTask: b.transportTask ? JSON.parse(JSON.stringify(b.transportTask)) : null,
+        transportLevel: b.transportLevel || null
       };
     });
   }
@@ -193,6 +227,7 @@ class BotManager {
       bot.transportMapId = s.transportMapId || (bot.transportState ? 'private_highsec' : null);
       bot.transportShipmentId = s.transportShipmentId || null;
       bot.transportTask = s.transportTask ? JSON.parse(JSON.stringify(s.transportTask)) : null;
+      bot.transportLevel = String(s.className).toLowerCase().includes('transport') ? Math.max(1, Math.floor(Number(s.transportLevel) || 1)) : null;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
@@ -202,6 +237,7 @@ class BotManager {
         if (typeof ship.applyStats === 'function') ship.applyStats();
       }
       if (ship) {
+        if (ship.className === 'Transport Capital') ship.maxCargo = 5000 * (bot.transportLevel || 1);
         ship.cargo = s.cargo || 0;
         if (s.oreType) ship.oreType = s.oreType;
         ship.cargoByOre = s.cargoByOre && typeof s.cargoByOre === 'object' ? Object.assign({}, s.cargoByOre) : null;
