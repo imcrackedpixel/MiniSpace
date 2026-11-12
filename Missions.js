@@ -139,7 +139,8 @@ class MissionManager {
   }
   claimReward(playerData){
     if(!this.activeMission||!this.activeMission.completed||!this.activeMission.returned)return 0;
-    const reward=Math.round(this.activeMission.rewardIsk*(typeof window.getMissionRewardTalentMultiplier==='function'?window.getMissionRewardTalentMultiplier():1));playerData.isk=(playerData.isk||0)+reward;
+    const autoplayFactor=this.activeMission.autoplayContract?0.35:1;
+    const reward=Math.round(this.activeMission.rewardIsk*autoplayFactor*(typeof window.getMissionRewardTalentMultiplier==='function'?window.getMissionRewardTalentMultiplier():1));playerData.isk=(playerData.isk||0)+reward;
     // The station boss level-up chip is also a rare mission reward: exactly a 1-in-20 roll.
     const chipDrop=Math.random()<0.05;if(chipDrop)playerData.chips=(playerData.chips||0)+1;
     this.activeMission=null;this.generateMissions();return {reward:reward,chip:chipDrop};
