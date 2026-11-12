@@ -372,6 +372,8 @@
     else if(state.isGM)log('GAME MASTER permissions verified by server.');
    }
    if(message.type==='gm-command-result')window.dispatchEvent(new CustomEvent('minispace-gm-result',{detail:String(message.message||'Command complete.')}));
+   if(message.type==='gm-teleport')window.dispatchEvent(new CustomEvent('minispace-gm-teleport',{detail:message}));
+   if(message.type==='gm-unstick')window.dispatchEvent(new CustomEvent('minispace-gm-unstick',{detail:message}));
    if(message.type==='account-banned'){state.accountBanned=true;log(message.message||'This account has been banned.');setTimeout(()=>window.location.reload(),900);}
 
    if(message.type==='gm-online-list'){
@@ -420,7 +422,7 @@
     angle:Number(ship.angle)||0,
     ship:ship.className||ship.type||'Ship',
     system:$('system-text')?.textContent||'Unknown',
-    mapId:window.getMiniSpaceMapId?.()||'private_highsec'
+    mapId:window.mapManager?.currentMapId||window.getMiniSpaceMapId?.()||'private_highsec'
    });
   }
  }
