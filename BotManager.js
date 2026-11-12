@@ -160,7 +160,8 @@ class BotManager {
         cargoByOre: Object.assign({}, (window.ensureOreCargo ? window.ensureOreCargo(ship) : ship.cargoByOre) || {}),
         transportState: b.transportState || null,
         transportMapId: b.transportMapId || null,
-        transportShipmentId: b.transportShipmentId || null
+        transportShipmentId: b.transportShipmentId || null,
+        transportTask: b.transportTask ? JSON.parse(JSON.stringify(b.transportTask)) : null
       };
     });
   }
@@ -191,6 +192,7 @@ class BotManager {
       bot.transportState = s.transportState || (String(s.className).toLowerCase().includes('transport') ? 'loading' : null);
       bot.transportMapId = s.transportMapId || (bot.transportState ? 'private_highsec' : null);
       bot.transportShipmentId = s.transportShipmentId || null;
+      bot.transportTask = s.transportTask ? JSON.parse(JSON.stringify(s.transportTask)) : null;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
@@ -877,6 +879,71 @@ class BotManager {
           ship.docked = false;
           ship.update({ x: x, y: y }, null, false);
         };
+
+        // Visible round trip for player shipyard supply orders.
+        if (bot.transportState === 'buy_to_trade_gate') {
+          const gateX = 4200, gateY = 2500;
+          if (Math.hypot(gateX - ship.x, gateY - ship.y) > 110) moveTo(gateX, gateY);
+          else {
+            bot.transportMapId = 'public_trade_hub';
+            ship.x = 880; ship.y = 3500; ship.vx = 0; ship.vy = 0;
+            bot.transportState = 'buy_to_market';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+        if (bot.transportState === 'buy_to_market') {
+          const marketX = 3500, marketY = 3500;
+          if (Math.hypot(marketX - ship.x, marketY - ship.y) > 300) { moveTo(marketX, marketY); return; }
+          if (bot._materialPickupPending) return;
+          bot._materialPickupPending = true;
+          if (!window.completeTransportMaterialPickup) {
+            bot._materialPickupPending = false;
+            bot.transportTask.status = 'failed';
+            bot.transportTask.message = 'Shipyard pickup service unavailable.';
+            bot.transportState = 'buy_to_return_gate';
+            return;
+          }
+          window.completeTransportMaterialPickup(bot).then((result) => {
+            bot.transportTask.status = result && result.success ? 'delivered' : 'failed';
+            bot.transportTask.message = result && result.message ? result.message : '';
+            bot._materialPickupPending = false;
+            bot.transportState = 'buy_to_return_gate';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }).catch((error) => {
+            bot.transportTask.status = 'failed';
+            bot.transportTask.message = error.message || String(error);
+            bot._materialPickupPending = false;
+            bot.transportState = 'buy_to_return_gate';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          });
+          return;
+        }
+        if (bot.transportState === 'buy_to_return_gate') {
+          const gateX = 700, gateY = 3500;
+          if (Math.hypot(gateX - ship.x, gateY - ship.y) > 110) moveTo(gateX, gateY);
+          else {
+            bot.transportMapId = 'private_highsec';
+            ship.x = 4200; ship.y = 2500; ship.vx = 0; ship.vy = 0;
+            bot.transportState = 'buy_returning';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+        if (bot.transportState === 'buy_returning') {
+          if (Math.hypot(this.station.x - ship.x, this.station.y - ship.y) > 110) moveTo(this.station.x, this.station.y);
+          else {
+            ship.docked = true; ship.vx = 0; ship.vy = 0;
+            const task = bot.transportTask;
+            const result = { success: !!(task && task.status === 'delivered'), message: task && task.message };
+            bot.transportTask = null;
+            bot.transportState = 'loading';
+            if (typeof window.finishTransportShipBuild === 'function') window.finishTransportShipBuild(task, result);
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+          }
+          return;
+        }
 
         if (bot.transportState === 'loading') {
           ship.docked = true;
