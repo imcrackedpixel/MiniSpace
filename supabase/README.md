@@ -14,6 +14,18 @@ This is the persistent database foundation for the shared Trade Hub market.
 
 Do not add these values to `index.html`, `OnlineClient.js`, or any committed file.
 
+## Pooled market upgrade
+
+After running `market.sql` and `pilot_saves.sql`, run all of `market_pool.sql` in a new SQL Editor query. This upgrades the starter market to a pooled shared-stock model:
+
+- Player sales add goods to shared stock and player market volume.
+- Buyers purchase from one shared pool; the interface can show one quote per material instead of individual tiny listings.
+- Prices move with available stock, bounded between 50% and 150% of each material's baseline.
+- NPC liquidity starts with a small 10-unit buffer per material. Further NPC supply is capped at 10% of player-supplied market volume.
+- A one-time authenticated import function moves the old pilot wallet and private hangar quantities into the secure market wallet/inventory. The game client will call this during the integration step.
+
+Do not delete or rerun the original tables manually. The upgrade is additive and replaces the market buy/sell RPCs.
+
 ## What the schema provides
 
 - One shared stock and unit price for each material across all pilots.
