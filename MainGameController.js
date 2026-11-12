@@ -3209,7 +3209,7 @@ if (
             maxCargo.toLocaleString() + ' (' + percent + '%)';
           if (row.cells[2]) {
             const upgradeCost = 25000 * level;
-            const busy = !!manager.transportTask || !['loading', null].includes(manager.transportState);
+            const busy = !!manager.transportTask || !!manager.playerSaleTask || !['loading', null].includes(manager.transportState);
             row.cells[2].innerHTML = '<button onclick="window.upgradeTransportManager()" ' +
               (busy ? 'disabled title="Wait until the Transport Manager returns to High-Sec"' : '') +
               '>UPGRADE CARGO · ' + fmtISK(upgradeCost) + ' Scrap Metals</button>';
