@@ -17,7 +17,7 @@
     maxShield: 1200,
     maxArmor: 800,
     maxStructure: 600,
-    maxCargo: 400
+    maxCargo: 500
   };
 
   const CFG = {
