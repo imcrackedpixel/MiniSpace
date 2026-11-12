@@ -394,6 +394,9 @@
     state.roomId=message.roomId;
     log('Entered '+message.mapId+' ('+message.roomType+' instance)');
    }
+   if(message.type==='frontier-npc-state')window.dispatchEvent(new CustomEvent('minispace-frontier-npc-state',{detail:message}));
+   if(message.type==='frontier-npc-killed')window.dispatchEvent(new CustomEvent('minispace-frontier-npc-death',{detail:message}));
+   if(message.type==='frontier-npc-respawn')window.dispatchEvent(new CustomEvent('minispace-frontier-npc-respawn',{detail:message}));
 
    if(message.type==='chat'){
     log('['+message.channel+'] '+message.from+': '+message.text);
