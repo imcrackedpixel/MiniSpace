@@ -653,13 +653,15 @@ window.switchTab = function(tabName, btnElement) {
     parentContainer.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
   }
   btnElement.classList.add('active');
-  ['hangar', 'upgrades', 'corp', 'market', 'missions'].forEach(function(s) {
+  ['hangar', 'upgrades', 'corp', 'market', 'missions', 'trade-market', 'trade-hangar'].forEach(function(s) {
     let secEl = document.getElementById('tab-' + s);
     if (secEl) secEl.style.display = (s === tabName) ? 'block' : 'none';
   });
   if (tabName === 'corp') updateCorpUI();
   if (tabName === 'missions') updateMissionsUI();
   if (tabName === 'upgrades' || tabName === 'hangar') updateStationUI();
+  if (tabName === 'trade-market') window.refreshTradeMarket();
+  if (tabName === 'trade-hangar') window.refreshTradeHangars();
 };
 
 function updateMissionsUI() {
@@ -1307,8 +1309,122 @@ const SHIP_CATALOG = {
   'Exploration Frigate': { cargo: 150,    speed: 6.0,  unlock: 'explorationFrigate' }
 };
 
+// CLOUD PLAYER MARKET: only visible while docked in the public Trade Hub.
+const TRADE_ITEM_LABELS = {
+  veldspar:'Veldspar', scordite:'Scordite', pyroxeres:'Pyroxeres', omber:'Omber',
+  debris_t1:'T1 Resistor', debris_t2:'T2 Capacitor', debris_t3:'T3 Circuit Board',
+  debris_t4:'T4 Microchip', debris_t5:'T5 Processor'
+};
+function tradeMarketState() {
+  return window.MINISPACE_MARKET && window.MINISPACE_MARKET.state
+    ? window.MINISPACE_MARKET.state() : {wallet:null,hangars:[],items:[]};
+}
+function tradeQuantity(station, key, state) {
+  const row = (state.hangars || []).find(x => x.station_id === station && x.item_key === key);
+  return row ? Number(row.quantity) || 0 : 0;
+}
+function tradeEsc(value) {
+  return String(value == null ? '' : value).replace(/[&<>"']/g, function(ch) {
+    return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]);
+  });
+}
+function renderTradeMarket() {
+  const state = tradeMarketState();
+  const wallet = document.getElementById('trade-market-wallet');
+  if (wallet) wallet.textContent = 'Cloud wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  const body = document.getElementById('trade-market-list');
+  if (!body) return;
+  const rows = (state.items || []).map(function(item) {
+    const key = item.item_key;
+    const label = TRADE_ITEM_LABELS[key] || key;
+    const qty = tradeQuantity('trade_hub', key, state);
+    const price = Number(item.unit_price) || 0;
+    const stock = Number(item.stock) || 0;
+    return '<tr><td>' + tradeEsc(label) + '<br><small>Trade Hub hangar: ' + qty.toLocaleString() + '</small></td>' +
+      '<td>' + fmtISK(price) + ' ISK</td><td>' + stock.toLocaleString() + '</td>' +
+      '<td><button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1)" ' + (stock < 1 ? 'disabled' : '') + '>Buy 1</button> ' +
+      '<button onclick="window.tradeMarketSellAll(\'' + tradeEsc(key) + '\')" ' + (qty < 1 ? 'disabled' : '') + '>Sell all</button></td></tr>';
+  });
+  body.innerHTML = rows.join('') || '<tr><td colspan="4">No market items available.</td></tr>';
+}
+function renderTradeHangars() {
+  const state = tradeMarketState();
+  const wallet = document.getElementById('trade-hangar-wallet');
+  if (wallet) wallet.textContent = 'Cloud wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  ['private_highsec','trade_hub'].forEach(function(station) {
+    const id = station === 'private_highsec' ? 'private-hangar-list' : 'trade-hangar-list';
+    const body = document.getElementById(id);
+    if (!body) return;
+    const items = Object.keys(TRADE_ITEM_LABELS);
+    body.innerHTML = items.map(function(key) {
+      const qty = tradeQuantity(station,key,state);
+      const action = station === 'private_highsec'
+        ? '<button onclick="window.transferTradeGoods(\'' + key + '\',' + qty + ')" ' + (qty < 1 ? 'disabled' : '') + '>Move all to Trade Hub</button>'
+        : '<button onclick="window.tradeMarketSellAll(\'' + key + '\')" ' + (qty < 1 ? 'disabled' : '') + '>Sell all</button>';
+      return '<tr><td>' + TRADE_ITEM_LABELS[key] + '</td><td>' + qty.toLocaleString() + '</td><td>' + action + '</td></tr>';
+    }).join('');
+  });
+}
+window.refreshTradeMarket = async function() {
+  const body = document.getElementById('trade-market-list');
+  if (body) body.innerHTML = '<tr><td colspan="4">Refreshing shared market…</td></tr>';
+  try {
+    await window.MINISPACE_MARKET.ready();
+    await window.MINISPACE_MARKET.refresh();
+    renderTradeMarket();
+  } catch (error) {
+    if (body) body.innerHTML = '<tr><td colspan="4">Market unavailable: ' + tradeEsc(error.message || error) + '</td></tr>';
+  }
+};
+window.refreshTradeHangars = async function() {
+  try {
+    await window.MINISPACE_MARKET.ready();
+    await window.MINISPACE_MARKET.refresh();
+    renderTradeHangars();
+  } catch (error) {
+    const body = document.getElementById('private-hangar-list');
+    if (body) body.innerHTML = '<tr><td colspan="3">Hangars unavailable: ' + tradeEsc(error.message || error) + '</td></tr>';
+  }
+};
+window.tradeMarketBuy = async function(key, qty) {
+  try {
+    await window.MINISPACE_MARKET.buy(key,qty);
+    renderTradeMarket(); renderTradeHangars();
+    window.showCorpNotification('Purchased ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' into your Trade Hub hangar.');
+  } catch(error) { window.showCorpNotification('Market buy failed: ' + (error.message || error)); }
+};
+window.tradeMarketSellAll = async function(key) {
+  const qty = tradeQuantity('trade_hub',key,tradeMarketState());
+  if (qty < 1) return;
+  try {
+    await window.MINISPACE_MARKET.sell(key,qty);
+    renderTradeMarket(); renderTradeHangars();
+    window.showCorpNotification('Sold ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' from your Trade Hub hangar.');
+  } catch(error) { window.showCorpNotification('Market sale failed: ' + (error.message || error)); }
+};
+window.transferTradeGoods = async function(key,qty) {
+  if (qty < 1) return;
+  try {
+    await window.MINISPACE_MARKET.transfer(key,qty);
+    renderTradeHangars();
+    window.showCorpNotification('Transferred ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' to the Trade Hub hangar.');
+  } catch(error) { window.showCorpNotification('Transfer failed: ' + (error.message || error)); }
+};
+
 function updateStationUI() {
   updateMarketUI();
+  const inTradeHub = typeof window.getMiniSpaceMapId === 'function' &&
+    window.getMiniSpaceMapId() === 'public_trade_hub';
+  ['trade-market-tab-btn','trade-hangar-tab-btn'].forEach(function(id) {
+    const button = document.getElementById(id);
+    if (button) button.style.display = inTradeHub ? '' : 'none';
+  });
+  if (!inTradeHub) {
+    ['trade-market','trade-hangar'].forEach(function(tab) {
+      const pane = document.getElementById('tab-' + tab);
+      if (pane) pane.style.display = 'none';
+    });
+  }
   let iskDisplay = document.getElementById('station-isk-display');
   if (iskDisplay) iskDisplay.innerText = fmtISK(playerData.isk || 0) + ' Scrap Metals';
 
