@@ -3171,7 +3171,7 @@ if (
 
 
 
-/* RECOVER DOCKED SAVE UI */
+/* RESTORE STATION UI FOR DOCKED SAVES */
 (function () {
   // Restore the station interface when loading a docked save.
   if (playerShip && playerShip.docked) {
@@ -3186,7 +3186,7 @@ if (
   }
 })();
 
-/* EMERGENCY MISSION RECOVERY */
+/* RECOVER SAVED PILOTS FROM AN INVALID MISSION INSTANCE */
 (function () {
   // Escape a saved mission map without resetting the rest of the save.
   if (
