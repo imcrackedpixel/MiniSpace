@@ -1827,10 +1827,10 @@ function updateStationUI() {
     'Mining Frigate':'mining_frigate.png','Mining Barge':'mining_barge.png',
     'Command Ship':'command_ship.png','Mining Capital':'mining_capital.png',
     'Carrier':'carrier.png','Combat Frigate':'combat_frigate.png',
-    'Siege Cruiser':'siege_capital.png','Siege Battleship':'siege_capital.png',
-    'Siege Capital':'siege_capital.png','Exploration Frigate':'exploration_frigate.png',
+    'Siege Cruiser':'siege_cruiser.png','Siege Battleship':'siege_battleship.png',
+    'Siege Capital':'siege_battleship.png','Exploration Frigate':'exploration_frigate.png',
     'Improved Explorer Frigate':'improved_explorer_frigate.png',
-    'Transport Capital':'carrier.png','Industrial Hauler':'mining_capital.png','Freighter':'mining_capital.png'
+    'Transport Capital':'Transport_Capital.png','Industrial Hauler':'mining_capital.png','Freighter':'mining_capital.png'
   };
   function hangarShipPicture(name) {
     const file = HANGAR_SHIP_ART[name] || 'mining_frigate.png';
@@ -3227,8 +3227,8 @@ if (
       canvas.height / 2 - playerShip.y * z
     );
 
-    station.draw(ctx);
-
+    // The station was already drawn behind ships by the preceding render wrapper.
+    // Redraw only the player's ship above it, avoiding a second station paint.
     // Redraw the player's ship above the station image.
     if (!playerShip.docked && typeof playerShip.draw === 'function') {
       playerShip.draw(ctx, null);
@@ -3329,11 +3329,6 @@ if (
 
 /* EMERGENCY MISSION RECOVERY AND CARRIER ART FIX */
 (function () {
-  // Fix the case-sensitive Carrier image filename.
-  if (window.ShipArt && window.ShipArt.ART['Carrier']) {
-    window.ShipArt.ART['Carrier'].file = 'Carrier.png';
-  }
-
   // Escape a saved mission map without resetting the rest of the save.
   if (
     mapManager &&
@@ -3671,7 +3666,6 @@ if (
 
 /* MINIMAP SAFETY RENDERER: keep the radar visible even if a map entity is malformed. */
 (function () {
-  const previousDrawMinimap = drawMinimap;
   drawMinimap = function () {
     if (!minimapCtx || !minimapCanvas) return;
     try { if (typeof updateCargoReadout === 'function') updateCargoReadout(); } catch (_) {}
@@ -3719,8 +3713,9 @@ if (
       (Array.isArray(debris) ? debris : []).forEach(d => { if (d) plot(d.x, d.y, '#d29922', 2); });
     } catch (_) {}
     try {
-      if (mapManager) {
-        if (mapManager.publicGate) plot(mapManager.publicGate.x, mapManager.publicGate.y, '#f85149', 3);
+      const mapId = mapManager && mapManager.currentMapId;
+      if (mapManager && mapId !== 'public_trade_hub') {
+        if (mapManager.publicGate && mapManager.publicGate.radius > 0) plot(mapManager.publicGate.x, mapManager.publicGate.y, '#f85149', 3);
         if (mapManager.frontierEntryGate) plot(mapManager.frontierEntryGate.x, mapManager.frontierEntryGate.y, '#fb923c', 3);
         if (mapManager.frontierReturnGate) plot(mapManager.frontierReturnGate.x, mapManager.frontierReturnGate.y, '#36b99a', 3);
         if (mapManager.missionEntryGate) plot(mapManager.missionEntryGate.x, mapManager.missionEntryGate.y, '#34d399', 3);
@@ -3728,12 +3723,12 @@ if (
         (mapManager.playerGates || []).forEach(g => { if (g) plot(g.x, g.y, '#3fb950', 3); });
         (mapManager.frontierGates || []).forEach(g => { if (g) plot(g.x, g.y, '#fb923c', 3); });
       }
-    } catch (_) {}
-    try {
-      if (mainStation) plot(mainStation.x, mainStation.y, '#58a6ff', 4);
-      if (mapManager && mapManager.currentMapId === 'public_trade_hub') {
-        plot(4200, 2500, '#36b99a', 4);
+      if (mapId === 'public_trade_hub') {
+        const hubStation = window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station;
+        if (hubStation) plot(hubStation.x, hubStation.y, '#58a6ff', 4);
         plot(700, 3500, '#36b99a', 4);
+      } else if (mainStation) {
+        plot(mainStation.x, mainStation.y, '#58a6ff', 4);
       }
     } catch (_) {}
     try {
