@@ -845,6 +845,13 @@ class BotManager {
         if (!bot.transportMapId) bot.transportMapId = 'private_highsec';
 
         const maxCargo = Math.max(1, ship.maxCargo || 50000);
+        if (bot.transportState === 'full') {
+          bot.transportState = 'to_trade_gate';
+          if (!bot.transportShipmentId) {
+            bot.transportShipmentId = 'corp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+          }
+          if (typeof window.saveGameSession === 'function') window.saveGameSession();
+        }
         const inventory = this.playerData.corpStationOre ||
           (this.playerData.corpStationOre = {});
         ship.cargoByOre = ship.cargoByOre || {};
@@ -917,10 +924,14 @@ class BotManager {
           }
 
           if (bot._corpMarketSupplyPending) return;
+          if (bot._corpMarketRetryAt && Date.now() < bot._corpMarketRetryAt) return;
           if (!window.MINISPACE_MARKET ||
               typeof window.MINISPACE_MARKET.corpSupply !== 'function') {
-            if (typeof window.showCorpNotification === 'function') {
-              window.showCorpNotification('Transport Manager is waiting for the shared market connection.');
+            if (!bot._corpMarketWarnedAt || Date.now() - bot._corpMarketWarnedAt > 15000) {
+              bot._corpMarketWarnedAt = Date.now();
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager is waiting for the shared market connection.');
+              }
             }
             return;
           }
@@ -965,6 +976,8 @@ class BotManager {
               bot.transportShipmentId = null;
               bot.transportState = 'to_return_gate';
               bot._corpMarketSupplyPending = false;
+              bot._corpMarketRetryAt = 0;
+              bot._corpMarketWarnedAt = 0;
               if (typeof window.showCorpNotification === 'function') {
                 window.showCorpNotification(
                   'Transport Manager added the corporation shipment to the shared market for ' +
@@ -976,6 +989,7 @@ class BotManager {
             })
             .catch((error) => {
               bot._corpMarketSupplyPending = false;
+              bot._corpMarketRetryAt = Date.now() + 15000;
               if (typeof window.showCorpNotification === 'function') {
                 window.showCorpNotification('Transport Manager market delivery failed; cargo is safe and will retry. ' + (error.message || error));
               }
