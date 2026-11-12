@@ -147,21 +147,30 @@
 
   // Authenticated bridge to the pooled market and separate station hangars.
   // The browser can call only user-scoped RPCs; it never receives the service-role key.
-  let marketState = { wallet: null, hangars: [], items: [] };
+  let marketState = { wallet: null, hangars: [], items: [], gameStateSynced: false };
   let marketReadyPromise = null;
+  let marketQueue = Promise.resolve();
+
+  function queueMarketTask(task) {
+    const next = marketQueue.then(task, task);
+    marketQueue = next.catch(function () {});
+    return next;
+  }
 
   async function refreshMarketState() {
     if (!session || !session.user || !session.user.id) throw new Error('Pilot login required');
     const pilotId = encodeURIComponent(session.user.id);
     const results = await Promise.all([
-      api('/rest/v1/pilot_wallets?select=isk,legacy_imported&pilot_id=eq.' + pilotId, { method: 'GET' }),
+      api('/rest/v1/pilot_wallets?select=isk,legacy_imported,game_state_synced&pilot_id=eq.' + pilotId, { method: 'GET' }),
       api('/rest/v1/pilot_hangars?select=station_id,item_key,quantity&pilot_id=eq.' + pilotId + '&order=station_id,item_key', { method: 'GET' }),
       api('/rest/v1/market_items?select=item_key,display_name,unit_price,stock,player_stock,npc_stock&order=item_key', { method: 'GET' })
     ]);
+    const wallet = Array.isArray(results[0]) && results[0][0] ? results[0][0] : null;
     marketState = {
-      wallet: Array.isArray(results[0]) && results[0][0] ? results[0][0] : null,
+      wallet: wallet,
       hangars: Array.isArray(results[1]) ? results[1] : [],
-      items: Array.isArray(results[2]) ? results[2] : []
+      items: Array.isArray(results[2]) ? results[2] : [],
+      gameStateSynced: !!(wallet && wallet.game_state_synced)
     };
     return JSON.parse(JSON.stringify(marketState));
   }
@@ -176,7 +185,7 @@
         try {
           const saved = JSON.parse(raw);
           const data = saved && saved.playerData;
-          if (data && data.pilotName && Number.isFinite(Number(data.isk)) &&
+          if (data && Number.isFinite(Number(data.isk)) &&
               data.stationOre && typeof data.stationOre === 'object') {
             const walletRows = await api('/rest/v1/pilot_wallets?select=legacy_imported&pilot_id=eq.' +
               encodeURIComponent(session.user.id), { method: 'GET' });
@@ -188,6 +197,21 @@
                   p_inventory: data.stationOre
                 })
               });
+            }
+
+            // Migrate the latest cloud save into the shared economy exactly once.
+            // If the SQL migration is not installed yet, leave the local game alone.
+            try {
+              await api('/rest/v1/rpc/market_sync_game_state', {
+                method: 'POST',
+                body: JSON.stringify({
+                  p_isk: Math.max(0, Math.floor(Number(data.isk))),
+                  p_inventory: data.stationOre,
+                  p_bootstrap: true
+                })
+              });
+            } catch (syncError) {
+              console.warn('Game economy sync needs the market_game_sync SQL migration:', syncError.message || syncError);
             }
           }
         } catch (error) {
@@ -204,29 +228,69 @@
     ready: function () { return initializeMarketBridge(); },
     refresh: refreshMarketState,
     state: function () { return JSON.parse(JSON.stringify(marketState)); },
-    buy: async function (itemKey, quantity) {
-      const result = await api('/rest/v1/rpc/market_buy', {
-        method: 'POST',
-        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+    applyToGame: function (gameData) {
+      if (!gameData || !marketState.gameStateSynced || !marketState.wallet) return false;
+      gameData.isk = Math.max(0, Number(marketState.wallet.isk) || 0);
+      if (!gameData.stationOre || typeof gameData.stationOre !== 'object') gameData.stationOre = {};
+      const keys = ['veldspar','scordite','pyroxeres','omber','debris_t1','debris_t2','debris_t3','debris_t4','debris_t5'];
+      keys.forEach(function (key) {
+        const row = marketState.hangars.find(function (item) {
+          return item.station_id === 'private_highsec' && item.item_key === key;
+        });
+        gameData.stationOre[key] = row ? Math.max(0, Number(row.quantity) || 0) : 0;
       });
-      await refreshMarketState();
-      return result;
+      return true;
     },
-    sell: async function (itemKey, quantity) {
-      const result = await api('/rest/v1/rpc/market_sell', {
-        method: 'POST',
-        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+    syncGameState: function (isk, inventory) {
+      return queueMarketTask(async function () {
+        await initializeMarketBridge();
+        const result = await api('/rest/v1/rpc/market_sync_game_state', {
+          method: 'POST',
+          body: JSON.stringify({
+            p_isk: Math.max(0, Math.floor(Number(isk) || 0)),
+            p_inventory: inventory && typeof inventory === 'object' ? inventory : {},
+            p_bootstrap: false
+          })
+        });
+        await refreshMarketState();
+        return result;
       });
-      await refreshMarketState();
-      return result;
     },
-    transfer: async function (itemKey, quantity) {
-      const result = await api('/rest/v1/rpc/market_transfer_to_trade', {
-        method: 'POST',
-        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+    buy: function (itemKey, quantity) {
+      return queueMarketTask(async function () {
+        await initializeMarketBridge();
+        if (!marketState.gameStateSynced) throw new Error('Game economy sync is not ready. Install supabase/market_game_sync.sql first.');
+        const result = await api('/rest/v1/rpc/market_buy', {
+          method: 'POST',
+          body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+        });
+        await refreshMarketState();
+        return result;
       });
-      await refreshMarketState();
-      return result;
+    },
+    sell: function (itemKey, quantity) {
+      return queueMarketTask(async function () {
+        await initializeMarketBridge();
+        if (!marketState.gameStateSynced) throw new Error('Game economy sync is not ready. Install supabase/market_game_sync.sql first.');
+        const result = await api('/rest/v1/rpc/market_sell', {
+          method: 'POST',
+          body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+        });
+        await refreshMarketState();
+        return result;
+      });
+    },
+    transfer: function (itemKey, quantity) {
+      return queueMarketTask(async function () {
+        await initializeMarketBridge();
+        if (!marketState.gameStateSynced) throw new Error('Game economy sync is not ready. Install supabase/market_game_sync.sql first.');
+        const result = await api('/rest/v1/rpc/market_transfer_to_trade', {
+          method: 'POST',
+          body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+        });
+        await refreshMarketState();
+        return result;
+      });
     }
   };
 
@@ -265,6 +329,16 @@
         const raw = localStorage.getItem('minispace_save');
         if (!raw) return;
         const saveData = JSON.parse(raw);
+        if (saveData && saveData.playerData) {
+          try {
+            await window.MINISPACE_MARKET.syncGameState(
+              saveData.playerData.isk,
+              saveData.playerData.stationOre
+            );
+          } catch (syncError) {
+            console.warn('Game economy sync failed; cloud save will still be kept:', syncError.message || syncError);
+          }
+        }
         await api('/rest/v1/pilot_saves?on_conflict=pilot_id', {
           method: 'POST',
           headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
