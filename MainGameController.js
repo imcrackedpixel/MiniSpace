@@ -2775,8 +2775,9 @@ function updateGame() {
     const back=mapManager.frontierReturnGate;
     if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius) {
       const destination=window._universeRouteDestination;
+      window._universeRouteDestination=null;
       window.jumpToPrivateSec();
-      if(destination==='private_highsec'){window._universeRouteDestination=null;window.showCorpNotification('Arrived home in Private High-Sec.');}
+      if(destination==='private_highsec')window.showCorpNotification('Arrived home in Private High-Sec.');
     } else for(const gate of (mapManager.frontierGates||[])) {
       if(Math.hypot(playerShip.x-gate.x,playerShip.y-gate.y)<gate.radius){window.jumpToFrontierSystem(gate.destinationId);break;}
     }
