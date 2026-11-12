@@ -225,17 +225,21 @@ class PublicNpcManager {
     delete state.guardRespawns[message.npcId];
     const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === message.mapId);
     const def = (state.guardDefs || []).find(d => d.id === message.npcId);
-    if (system && def) this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION);
+    if (system && def && this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION) &&
+        typeof window.showCorpNotification === 'function') {
+      window.showCorpNotification('A station guard patrol has respawned · docking locked again.');
+    }
   }
 
   spawnFrontierGuard(system, def, station) {
-    if (!system || !def || this.publicNpcMiners.some(n => n && n.isAlive && n.id === def.id && n.mapId === system.id)) return;
+    if (!system || !def || this.publicNpcMiners.some(n => n && n.isAlive && n.id === def.id && n.mapId === system.id)) return false;
     const cfg = PIRATE_TYPES[def.type];
-    if (!cfg) return;
+    if (!cfg) return false;
     this.addPirate(cfg, def.x, def.y, def.id, {
       mapId: system.id, stationGuard: true, role: 'patrol',
       hpScale: def.hpScale, dmg: def.dmg, elite: def.elite
     });
+    return true;
   }
 
   initFrontierSystem(system, station) {
@@ -291,12 +295,16 @@ class PublicNpcManager {
     const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
     if (!system) return;
     const now = Date.now();
+    let respawned = 0;
     Object.keys(state.guardRespawns || {}).forEach(npcId => {
       if (Number(state.guardRespawns[npcId]) > now) return;
       delete state.guardRespawns[npcId];
       const def = (state.guardDefs || []).find(d => d.id === npcId);
-      if (def) this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION);
+      if (def && this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION)) respawned++;
     });
+    if (respawned && typeof window.showCorpNotification === 'function') {
+      window.showCorpNotification(respawned + ' station guard' + (respawned === 1 ? '' : 's') + ' respawned · docking locked again.');
+    }
     const alive = this.hasLivingStationGuards(systemId);
     if (!alive && Object.keys(state.guardRespawns || {}).length && !state.clearNotified) {
       state.clearNotified = true;
