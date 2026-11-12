@@ -437,3 +437,111 @@ body.ui-blank #ui-mode-controls [data-ui-mode="close"] { display: none; }
 #minispace-ui-toggle{position:fixed;top:8px;right:8px;z-index:12000;min-height:34px;padding:6px 12px;border:1px solid #3b6570;border-radius:6px;background:rgba(8,20,29,.96);color:#bcefe0;font:700 11px system-ui,sans-serif;pointer-events:auto;touch-action:manipulation}
 body.ui-hidden #ui-layer,body.ui-hidden #online-panel,body.ui-hidden #corp-notification{display:none!important}
 @media(max-width:700px){#minispace-ui-toggle{top:6px;right:6px;min-height:32px}}
+
+
+/* PHONE LANDSCAPE: give the game world the centre and keep controls in slim side rails. */
+@media screen and (orientation: landscape) and (max-height: 560px) and (max-width: 950px) {
+  html, body { width:100%; height:100%; height:100dvh; overflow:hidden; }
+  canvas { width:100vw; height:100%; height:100dvh; }
+  #ui-layer {
+    top: max(4px, env(safe-area-inset-top));
+    left: max(5px, env(safe-area-inset-left));
+    right: max(5px, env(safe-area-inset-right));
+    align-items:flex-start;
+    gap:5px;
+  }
+  #ui-layer > div:first-child {
+    width:min(184px, 29vw);
+    max-width:29vw;
+    gap:4px !important;
+  }
+  #pilot-panel {
+    max-width:none !important;
+    padding:4px 6px;
+    font-size:8px;
+    line-height:1.15;
+  }
+  #pilot-panel > div { margin:1px 0; }
+  #pilot-panel .health-bar-container { gap:3px; min-height:8px; margin:2px 0; }
+  #pilot-panel .health-bar-container span { width:36px !important; font-size:7px; }
+  #pilot-panel .health-bar-bg { height:3px !important; }
+  #flight-controls {
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:3px !important;
+    width:100%;
+    max-width:none !important;
+    padding:4px;
+  }
+  #flight-controls button {
+    min-width:0;
+    min-height:27px;
+    padding:3px 4px !important;
+    font-size:8px !important;
+    line-height:1.05;
+    white-space:normal;
+  }
+  #flight-controls > div { grid-column:1 / -1; }
+  #space-cargo-readout { max-width:none !important; max-height:19vh; padding:4px 6px; font-size:8px; }
+  #ui-layer > div:nth-child(2) { margin-left:auto; }
+  #minimap-panel { padding:3px; gap:2px !important; }
+  #minimap-heading { font-size:7px !important; }
+  #minimap-container, #minimap { width:104px !important; height:104px !important; }
+  #minispace-ui-toggle {
+    top:max(4px, env(safe-area-inset-top));
+    right:max(5px, env(safe-area-inset-right));
+    min-height:28px;
+    padding:4px 8px;
+    font-size:9px;
+  }
+  #online-panel {
+    left:50% !important;
+    right:auto !important;
+    top:auto !important;
+    bottom:max(4px, env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    width:min(280px, 38vw);
+    max-width:38vw;
+    max-height:23vh;
+    min-height:0;
+    padding:4px 6px;
+    font-size:9px;
+    z-index:1100;
+  }
+  #online-panel header { padding-bottom:3px; }
+  #online-count { padding:2px 0; }
+  #online-chat-log { height:34px !important; min-height:28px; margin-top:3px; padding:3px; }
+  #online-chat-controls { gap:3px; }
+  #online-chat-controls input, #online-chat-controls button { min-height:25px; padding:3px 5px; font-size:8px; }
+  #station-ui {
+    inset:0;
+    width:100vw;
+    height:100%;
+    height:100dvh;
+    padding-left:env(safe-area-inset-left);
+    padding-right:env(safe-area-inset-right);
+  }
+  .station-header { min-height:34px; padding:5px 9px; }
+  .station-tabs { flex-wrap:nowrap; overflow-x:auto; gap:3px; padding:4px; }
+  .station-tabs .tab-btn { flex:0 0 auto; min-height:30px; padding:4px 8px; font-size:9px; }
+  .universe-window {
+    width:96vw;
+    max-height:94vh;
+    padding:7px;
+  }
+  .universe-starchart { min-height:0; height:min(56vh, 330px); aspect-ratio:2.1; }
+  .universe-node { min-width:60px; padding:4px; }
+  .universe-node strong { font-size:8px; }
+  .universe-node small { font-size:7px; }
+  #corp-notification { max-width:45vw; font-size:9px; }
+}
+
+/* Very short landscape phones: keep the map clear and chat compact. */
+@media screen and (orientation: landscape) and (max-height: 390px) and (max-width: 950px) {
+  #ui-layer > div:first-child { width:min(158px, 26vw); max-width:26vw; }
+  #pilot-panel { font-size:7px; }
+  #flight-controls button { min-height:23px; font-size:7px !important; }
+  #minimap-container, #minimap { width:86px !important; height:86px !important; }
+  #online-panel { width:min(240px, 34vw); max-width:34vw; max-height:19vh; }
+  #online-chat-log { height:24px !important; }
+}
