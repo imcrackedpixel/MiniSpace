@@ -1340,7 +1340,8 @@ function renderTradeHangars() {
       const qty = tradeQuantity(station,key,state);
       const action = station === 'private_highsec'
         ? '<button onclick="window.transferTradeGoods(\'' + key + '\',' + qty + ')" ' + (!state.gameStateSynced || qty < 1 ? 'disabled' : '') + '>Move all to Trade Hub</button>'
-        : '<button onclick="window.tradeMarketSellAll(\'' + key + '\')" ' + (!state.gameStateSynced || qty < 1 ? 'disabled' : '') + '>Sell all</button>';
+        : '<button onclick="window.transferTradeGoodsToPrivate(\'' + key + '\',' + qty + ')" ' + (!state.gameStateSynced || qty < 1 ? 'disabled' : '') + '>Move all to Private High-Sec</button> ' +
+          '<button onclick="window.tradeMarketSellAll(\'' + key + '\')" ' + (!state.gameStateSynced || qty < 1 ? 'disabled' : '') + '>Sell all</button>';
       return '<tr><td>' + TRADE_ITEM_LABELS[key] + '</td><td>' + qty.toLocaleString() + '</td><td>' + action + '</td></tr>';
     }).join('');
   });
@@ -1400,6 +1401,19 @@ window.transferTradeGoods = async function(key,qty) {
     }
     renderTradeHangars();
     window.showCorpNotification('Transferred ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' to the Trade Hub hangar.');
+  } catch(error) { window.showCorpNotification('Transfer failed: ' + (error.message || error)); }
+};
+
+window.transferTradeGoodsToPrivate = async function(key,qty) {
+  if (qty < 1) return;
+  try {
+    await window.MINISPACE_MARKET.transferToPrivate(key,qty);
+    if (window.MINISPACE_MARKET.applyToGame(playerData)) {
+      updateStationUI();
+      saveGameSession();
+    }
+    renderTradeHangars();
+    window.showCorpNotification('Transferred ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' into your Private High-Sec hangar. They can now be used for ship builds.');
   } catch(error) { window.showCorpNotification('Transfer failed: ' + (error.message || error)); }
 };
 
