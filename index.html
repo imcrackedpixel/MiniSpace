@@ -69,6 +69,7 @@ try {
 <div class="panel" style="display: flex; flex-direction: column; gap: 3px; background: rgba(22, 27, 34, 0.95); border: 1px solid #8aa8b3; max-width: 230px;">
 <button id="dock-btn" onclick="window.requestDock()" style="background: #1a1f25; color: #7fa88a; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%;">DOCK AT STATION</button>
 <button id="autoplay-btn" onclick="window.toggleAutoplay()" style="background: #1a1f25; color: #dfe7ea; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%;">AUTO: OFF</button>
+<button id="universe-btn" onclick="window.openUniverse()" style="background:#162d36;color:#9be7d4;border:1px solid #34785d;padding:6px 8px;font-weight:bold;font-size:10px;width:100%;">✦ UNIVERSE</button>
 <button id="cloak-btn" onclick="window.toggleExplorationCloak()" style="background: #1a1f25; color: #8aa8b3; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%; display: none;">CLOAK: OFF</button>
 <button id="PanicButton-btn" onclick="window.toggleExplorationPanicButton()" style="background: #1a1f25; color: #b5605a; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%; display: none;">PanicButton: OFF</button>
 <button id="anchor-btn" onclick="window.toggleCapitalAnchor()" style="background: #1a1f25; color: #8aa8b3; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%; display: none;">CORE: UNANCHORED</button>
@@ -178,6 +179,7 @@ MINIMAP
 </div>
 </div>
 
+<div id="universe-modal" role="dialog" aria-modal="true" aria-label="Universe map" onclick="if(event.target===this)window.closeUniverse()"><div class="universe-window"><header><strong>MINISPACE UNIVERSE</strong><button onclick="window.closeUniverse()">CLOSE ✕</button></header><p>Choose a system to engage safe warp travel. Frontier systems disable autoplay.</p><div id="universe-systems"></div></div></div>
 <div id="corp-notification"></div>
 <canvas id="gameCanvas"></canvas>
 
