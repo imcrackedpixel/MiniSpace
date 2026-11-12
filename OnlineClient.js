@@ -365,9 +365,12 @@
    if(message.type==='auth-status'){
     state.authenticated=!!message.authenticated;
     state.isGM=!!message.isGM;
-    if(!state.authenticated)log('Account verification failed. Please reload and sign in again.');
+    if(message.banned)log('ACCOUNT BANNED: '+String(message.reason||'Contact a Game Master.'));
+    else if(!state.authenticated)log('Account verification failed. Please reload and sign in again.');
     else if(state.isGM)log('GAME MASTER permissions verified by server.');
    }
+   if(message.type==='gm-command-result')window.dispatchEvent(new CustomEvent('minispace-gm-result',{detail:String(message.message||'Command complete.')}));
+   if(message.type==='account-banned')log(message.message||'This account has been banned.');
 
    if(message.type==='gm-online-list'){
     state.gmPlayers=Array.isArray(message.players)?message.players:[];
