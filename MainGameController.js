@@ -158,6 +158,8 @@ let playerData = {
 };
 
 mainStation = new SpaceStation(WORLD_SIZE / 2, 700, 'Private High-Sec 1.0'); // top middle of the High-Sec map
+var homeStation = mainStation;
+window.MINISPACE_FRONTIER_STATION = null;
 asteroidBelt = new AsteroidBelt(2500, 3800, 150, WORLD_SIZE);
 asteroidBelt.generate(150, ['veldspar', 'scordite']);
 debrisField = new DebrisField(2500, 3800, 3, WORLD_SIZE);
@@ -185,7 +187,8 @@ window.showCorpNotification = function(msg) {
   }
 };
 
-function inPublicSpace() { return !!(mapManager && (mapManager.currentMapId === 'public_space' || String(mapManager.currentMapId).indexOf('frontier_') === 0)); }
+function isFrontierSpace() { return !!(mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0); }
+function inPublicSpace() { return !!(mapManager && (mapManager.currentMapId === 'public_space' || isFrontierSpace())); }
 function inMissionSpace() { return !!(mapManager && String(mapManager.currentMapId).indexOf('mission_') === 0); }
 function autoplayIsOn() { return !!(autoplayManager && autoplayManager.isAutoplay); }
 function balancedShips() {
@@ -511,34 +514,120 @@ window.resetGameSave = function() {
 };
 
 
-window.jumpToFrontierSystem=function(id){
- if(!playerShip||(missionManager&&missionManager.activeMission)){window.showCorpNotification('Finish your active mission before entering the frontier.');return;}
- const current=mapManager.currentMapId;
- const allowed=current==='private_highsec'
-   ? id==='frontier_ashen'
-   : (String(current).indexOf('frontier_')===0 && (window.MINISPACE_UNIVERSE_SYSTEMS||[]).some(s=>s.id===current&&s.links.includes(id)));
- if(!allowed){window.showCorpNotification('Fly through a connected space gate to reach that system.');return;}
- if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
- const r=mapManager.jumpToFrontierSystem(playerShip,id);if(!r)return;
- asteroidBelt=r.asteroidBelt;debrisField=r.debrisField;if(publicNpcManager)publicNpcManager.publicNpcMiners=[];targetMovePos=null;lockedTarget=null;isDockingRequested=false;gateCooldown=180;const rt=window._universeRouteDestination;if(rt){if(rt===id){window._universeRouteDestination=null;window.showCorpNotification('Arrived at destination: '+r.system.name+'.');}else{const path=window.findFrontierRoute(id,rt),next=path&&path[1],g=(mapManager.frontierGates||[]).find(v=>v.destinationId===next);if(g){targetMovePos={x:g.x,y:g.y};window.showCorpNotification('Continuing route to '+rt.replace('frontier_','').toUpperCase()+'.');}else window._universeRouteDestination=null;}}
- window.showCorpNotification('Warp complete: '+r.system.name+'. Threat level '+r.system.level+'. Manual flight only.');
- if(typeof saveGameSession==='function')saveGameSession();window.closeUniverse();
+window.jumpToFrontierSystem = function(id) {
+  if (!playerShip || (missionManager && missionManager.activeMission)) { window.showCorpNotification('Finish your active mission before entering the frontier.'); return; }
+  const current = mapManager.currentMapId;
+  const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === id);
+  const allowed = current === 'private_highsec' ? !!(system && system.ring === 1) :
+    (isFrontierSpace() && (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === current && s.links.includes(id)));
+  if (!allowed) { window.showCorpNotification('Fly through a connected space gate to reach that system.'); return; }
+  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+  const r = mapManager.jumpToFrontierSystem(playerShip, id); if (!r) return;
+  asteroidBelt = r.asteroidBelt; debrisField = r.debrisField;
+  mainStation = r.station || mapManager.frontierStation || homeStation;
+  window.MINISPACE_FRONTIER_STATION = mainStation;
+  targetMovePos = null; lockedTarget = null; isDockingRequested = false; gateCooldown = 180;
+  if (publicNpcManager) publicNpcManager.initFrontierSystem(r.system, mainStation);
+  const destination = window._universeRouteDestination;
+  if (destination) {
+    if (destination === id) { window._universeRouteDestination = null; window.showCorpNotification('Arrived at destination: ' + r.system.name + '.'); }
+    else {
+      const path = window.findFrontierRoute(id, destination), next = path && path[1];
+      const gate = next === 'private_highsec' ? mapManager.frontierReturnGate :
+        (mapManager.frontierGates || []).find(v => v.destinationId === next);
+      if (gate) { targetMovePos = { x: gate.x, y: gate.y }; }
+      else window._universeRouteDestination = null;
+    }
+  }
+  window.showCorpNotification('Warp complete: ' + r.system.name + ' · ' +
+    (r.system.lossMode === 'no-loss' ? 'PROTECTED PvP · NO SHIP LOSS' : 'FULL-LOOT PvP') +
+    ' · clear station guards to dock.');
+  if (typeof saveGameSession === 'function') saveGameSession();
+  window.closeUniverse();
 };
-window.findFrontierRoute=function(from,to){const systems=window.MINISPACE_UNIVERSE_SYSTEMS||[],queue=[[from]],seen=new Set([from]);while(queue.length){const path=queue.shift(),last=path[path.length-1];if(last===to)return path;const node=systems.find(s=>s.id===last);(node&&node.links||[]).forEach(next=>{if(!seen.has(next)){seen.add(next);queue.push(path.concat(next));}});}return null;};
-window.flyToFrontierGate=function(destinationId){if(!playerShip||!mapManager)return;const current=mapManager.currentMapId,systems=window.MINISPACE_UNIVERSE_SYSTEMS||[];if(!systems.some(s=>s.id===destinationId)){window.showCorpNotification('Unknown system destination.');return;}if(current===destinationId){window.closeUniverse();return;}const start=current==='private_highsec'?'frontier_ashen':current,path=window.findFrontierRoute(start,destinationId);if(!path){window.showCorpNotification('No gate route to that system.');return;}const nextHop=current==='private_highsec'?'frontier_ashen':path[1],gate=current==='private_highsec'?mapManager.frontierEntryGate:(mapManager.frontierGates||[]).find(g=>g.destinationId===nextHop);if(!gate){window.showCorpNotification('The next route gate is unavailable.');return;}window._universeRouteDestination=destinationId;if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();lockedTarget=null;targetMovePos={x:gate.x,y:gate.y};isDockingRequested=false;window.closeUniverse();window.showCorpNotification('ROUTE SET · '+destinationId.replace('frontier_','').toUpperCase()+' · flying to '+nextHop.replace('frontier_','').toUpperCase()+' gate.');};
-window.openUniverse=function(){
- const modal=document.getElementById('universe-modal'),host=document.getElementById('universe-systems');if(!modal||!host)return;
- const systems=window.MINISPACE_UNIVERSE_SYSTEMS||[],current=mapManager.currentMapId;
- const pos={frontier_ashen:[13,50],frontier_iron:[34,34],frontier_vanta:[34,72],frontier_cinder:[54,24],frontier_umbra:[57,51],frontier_nexus:[58,79],frontier_redline:[80,22],frontier_blackstar:[83,49],frontier_crypt:[84,81]};
- const xy=id=>{const p=pos[id]||[50,50];return [p[0]*7.6,p[1]*4.8];};
- const routes=[];systems.forEach(s=>s.links.forEach(id=>{if(s.id<id){const a=xy(s.id),b=xy(id);routes.push('<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" class="universe-route-line"/>');}}));
- const stars=systems.map(s=>{const p=xy(s.id),col=['#8aa8b3','#75c9a8','#5ca8d8','#b18be8','#ed6a70'][s.level-1]||'#8aa8b3';return '<g><circle cx="'+p[0]+'" cy="'+p[1]+'" r="23" fill="'+col+'" opacity=".10"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="10" fill="'+col+'" opacity=".16"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+col+'"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="15" fill="none" stroke="'+col+'" stroke-opacity=".5" stroke-dasharray="2 5"/></g>';}).join('');
- const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];const reachable=s.id!==current;const icon=s.shipIcon||'🚀',ship=s.recommendedShip||'Frigate';return '<button type="button" class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+(reachable?' reachable':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" data-system-id="'+s.id+'" '+(reachable?'aria-label="Fly to gate for '+s.name+'. Recommended ship: '+ship+'"':'disabled aria-disabled="true"')+'><strong><span class="universe-ship-icon" title="Recommended ship: '+ship+'">'+icon+'</span>'+s.name+'</strong><small>LVL '+s.level+' · '+ship.toUpperCase()+(s.links.length===1?' · DEAD END':'')+(reachable?' · FLY TO GATE':'')+'</small></button>';}).join('');
- host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Tap any system to plot the shortest gate route. Your ship flies through each physical gate in sequence; it never teleports.</p>';
- if(!host.dataset.navigationBound){host.addEventListener('click',function(event){const node=event.target.closest('button[data-system-id]');if(node&&!node.disabled)window.flyToFrontierGate(node.getAttribute('data-system-id'));});host.dataset.navigationBound='1';}
- modal.style.display='flex';
+window.findFrontierRoute = function(from, to) {
+  const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
+  const linksFor = id => id === 'private_highsec' ? systems.filter(s => s.ring === 1).map(s => s.id) :
+    ((systems.find(s => s.id === id) || {}).links || []);
+  const queue = [[from]], seen = new Set([from]);
+  while (queue.length) {
+    const path = queue.shift(), last = path[path.length - 1];
+    if (last === to) return path;
+    linksFor(last).forEach(next => { if (!seen.has(next)) { seen.add(next); queue.push(path.concat(next)); } });
+  }
+  return null;
 };
-window.closeUniverse=function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
+window.flyToFrontierGate = function(destinationId) {
+  if (!playerShip || !mapManager) return;
+  const current = mapManager.currentMapId, systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
+  if (destinationId !== 'private_highsec' && !systems.some(s => s.id === destinationId)) { window.showCorpNotification('Unknown system destination.'); return; }
+  if (current === destinationId) { window.closeUniverse(); return; }
+  if (destinationId === 'private_highsec' && isFrontierSpace()) {
+    const gate = mapManager.frontierReturnGate;
+    if (!gate) { window.showCorpNotification('High-Sec return gate unavailable.'); return; }
+    window._universeRouteDestination = destinationId;
+    if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+    lockedTarget = null; targetMovePos = { x: gate.x, y: gate.y }; isDockingRequested = false;
+    window.closeUniverse(); window.showCorpNotification('ROUTE SET · HIGH-SEC · flying to the return rift.'); return;
+  }
+  const path = window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, destinationId);
+  if (!path || path.length < 2) { window.showCorpNotification('No gate route to that system.'); return; }
+  const nextHop = path[1];
+  const gate = current === 'private_highsec' ?
+    (mapManager.frontierEntryGates || []).find(g => g.destinationId === nextHop) :
+    (nextHop === 'private_highsec' ? mapManager.frontierReturnGate : (mapManager.frontierGates || []).find(g => g.destinationId === nextHop));
+  if (!gate) { window.showCorpNotification('The next physical gate is unavailable.'); return; }
+  window._universeRouteDestination = destinationId;
+  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+  lockedTarget = null; targetMovePos = { x: gate.x, y: gate.y }; isDockingRequested = false;
+  window.closeUniverse();
+  window.showCorpNotification('ROUTE SET · ' + (destinationId === 'private_highsec' ? 'HIGH-SEC' : destinationId.replace('frontier_','').toUpperCase()) +
+    ' · flying to ' + (nextHop === 'private_highsec' ? 'HIGH-SEC' : nextHop.replace('frontier_','').toUpperCase()) + ' gate.');
+};
+window.openUniverse = function() {
+  const modal = document.getElementById('universe-modal'), host = document.getElementById('universe-systems');
+  if (!modal || !host) return;
+  const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [], current = mapManager.currentMapId;
+  const xy = id => {
+    if (id === 'private_highsec') return [380,240];
+    const s = systems.find(v => v.id === id); if (!s) return [380,240];
+    const ring = Number(s.ring) || 1, radius = 5 + ring * 4.35;
+    const peers = systems.filter(v => v.ring === ring), index = peers.findIndex(v => v.id === id);
+    const angle = (index / Math.max(1, peers.length)) * Math.PI * 2 - Math.PI / 2 + ring * 0.19;
+    return [(50 + Math.cos(angle) * radius) * 7.6, (50 + Math.sin(angle) * radius) * 4.8];
+  };
+  const edges = new Set(), routes = [];
+  systems.forEach(s => s.links.forEach(id => {
+    const key = [s.id,id].sort().join('|'); if (edges.has(key)) return; edges.add(key);
+    const a = xy(s.id), b = xy(id);
+    routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="universe-route-line"/>');
+  }));
+  const home = '<button type="button" class="universe-node current" data-system-id="private_highsec" title="Private High-Sec 1.0" aria-label="Fly back to Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;padding:0;border-radius:50%;z-index:3">⌂</button>';
+  const nodes = systems.map(s => {
+    const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
+    return '<button type="button" class="universe-node ' + (current === s.id ? 'current ' : '') + (s.id !== current ? 'reachable' : '') +
+      '" data-system-id="' + s.id + '" title="' + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
+      '" aria-label="Fly to ' + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
+      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:18px;height:18px;min-width:18px;padding:0;border-radius:50%;border:2px solid ' + color + ';background:' + color + ';box-shadow:0 0 9px ' + color + ';z-index:2">' + s.ring + '</button>';
+  }).join('');
+  const list = systems.map(s => '<button type="button" data-system-id="' + s.id + '" style="display:inline-block;margin:3px;padding:5px 7px;background:' +
+    (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025') + ';color:#e6edf3;border:1px solid ' +
+    (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171') + ';border-radius:5px;font-size:11px">' + s.name + ' · ' + s.ring + '</button>').join('');
+  host.innerHTML = '<div class="universe-starchart" style="position:relative;min-height:430px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
+    routes.join('') + '</svg>' + home + nodes + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
+    '<div class="universe-chart-key">BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
+    '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
+    '<p class="universe-map-note">Tap a system or its name to plot a physical gate route. High-Sec is home. Rings 1–6 protect your ship; rings 7–10 are full-loot PvP.</p>';
+  if (!host.dataset.navigationBound) {
+    host.addEventListener('click', function(event) {
+      const node = event.target.closest('button[data-system-id]');
+      if (node) window.flyToFrontierGate(node.getAttribute('data-system-id'));
+    });
+    host.dataset.navigationBound = '1';
+  }
+  modal.style.display = 'flex';
+};
+window.closeUniverse = function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
 
 window.jumpToPublicSpace = function(slot = 0) {
   let res = mapManager.jumpToPublicSpace(playerShip, mainStation, publicNpcManager, slot);
@@ -573,6 +662,8 @@ window.jumpToMissionSystem = function() {
 };
 
 window.jumpToPrivateSec = function() {
+  mainStation = homeStation || mainStation;
+  window.MINISPACE_FRONTIER_STATION = null;
   let res = mapManager.jumpToPrivateSec(playerShip, mainStation);
   asteroidBelt = res.asteroidBelt;
   debrisField = res.debrisField;
@@ -598,6 +689,7 @@ function emptyCargoIntoStation() {
 var autoUndockTimer = 0;
 function performDock(silent) {
   if (!playerShip) return;
+  if (isFrontierSpace() && publicNpcManager && publicNpcManager.hasLivingStationGuards(mapManager.currentMapId)) { isDockingRequested = false; targetMovePos = null; window.showCorpNotification('Station locked down · destroy all station guards before docking.'); return; }
   playerShip.docked = true;
   playerShip.vx = 0;
   playerShip.vy = 0;
@@ -641,7 +733,8 @@ window.toggleDock = function() {
 
 window.requestDock = function() {
   if (!playerShip || playerShip.docked) return;
-  if (inPublicSpace()) { window.showCorpNotification('No station in Public Space - use your sector gate to return.'); return; }
+  if (inPublicSpace() && !isFrontierSpace()) { window.showCorpNotification('No station in Public Space - use your sector gate to return.'); return; }
+  if (isFrontierSpace() && publicNpcManager && publicNpcManager.hasLivingStationGuards(mapManager.currentMapId)) { window.showCorpNotification('Station locked down · destroy all station guards before docking.'); return; }
   if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
   isDockingRequested = true;
 };
@@ -1484,7 +1577,7 @@ function handleCanvasTouch(clientX, clientY) {
     x: playerShip.x + cameraOffsetX + (xCoord - canvas.width / (2 * dpr)) / cameraZoom,
     y: playerShip.y + cameraOffsetY + (yCoord - canvas.height / (2 * dpr)) / cameraZoom
   };
-  isDockingRequested = !inPublicSpace() && mainStation &&
+  isDockingRequested = (!inPublicSpace() || isFrontierSpace()) && mainStation &&
     Math.hypot(targetMovePos.x - mainStation.x, targetMovePos.y - mainStation.y) < 450;
   if (isDockingRequested) { lockedTarget = null; return; }
 
@@ -2412,7 +2505,8 @@ function manualControl() {
     targetMovePos = null;
   }
 
-  if (isDockingRequested && !pub && mainStation) {
+  if (isDockingRequested && (!pub || isFrontierSpace()) && mainStation) {
+    if (isFrontierSpace() && publicNpcManager && publicNpcManager.hasLivingStationGuards(mapManager.currentMapId)) { isDockingRequested = false; targetMovePos = null; window.showCorpNotification('Station locked down · destroy all station guards before docking.'); return; }
     targetMovePos = { x: mainStation.x, y: mainStation.y };
     if (Math.hypot(ship.x - mainStation.x, ship.y - mainStation.y) < 150) {
       performDock();
@@ -2623,9 +2717,10 @@ function updateGame() {
     const mg = mapManager && mapManager.missionEntryGate;
     if (missionManager.activeMission && mg && Math.hypot(playerShip.x - mg.x, playerShip.y - mg.y) < mg.radius) window.jumpToMissionSystem();
     else {
-      const frontierGate = mapManager ? mapManager.frontierEntryGate : null;
-      if (frontierGate && Math.hypot(playerShip.x - frontierGate.x, playerShip.y - frontierGate.y) < frontierGate.radius) {
-        window.jumpToFrontierSystem('frontier_ashen');
+      const frontierGates = mapManager ? (mapManager.frontierEntryGates || [mapManager.frontierEntryGate]) : [];
+      const frontierEntry = frontierGates.find(g => g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius);
+      if (frontierEntry) {
+        window.jumpToFrontierSystem(frontierEntry.destinationId || 'frontier_ashen');
       } else {
         const g = mapManager ? mapManager.publicGate : null;
         if (g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius) window.jumpToPublicSpace(0);
@@ -2633,8 +2728,13 @@ function updateGame() {
     }
   } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
     const back=mapManager.frontierReturnGate;
-    if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius)window.jumpToPrivateSec();
-    else for(const gate of (mapManager.frontierGates||[])){if(Math.hypot(playerShip.x-gate.x,playerShip.y-gate.y)<gate.radius){window.jumpToFrontierSystem(gate.destinationId);break;}}
+    if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius) {
+      const destination=window._universeRouteDestination;
+      window.jumpToPrivateSec();
+      if(destination==='private_highsec'){window._universeRouteDestination=null;window.showCorpNotification('Arrived home in Private High-Sec.');}
+    } else for(const gate of (mapManager.frontierGates||[])) {
+      if(Math.hypot(playerShip.x-gate.x,playerShip.y-gate.y)<gate.radius){window.jumpToFrontierSystem(gate.destinationId);break;}
+    }
   } else {
     if (mapManager && mapManager.playerGates) {
       for (let gate of mapManager.playerGates) {
@@ -2707,11 +2807,12 @@ function render() {
     if (inMissionSpace()) {
       if (mapManager && mapManager.missionReturnGate) mapManager.missionReturnGate.draw(ctx);
     } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
+      if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
       if(mapManager.frontierReturnGate)mapManager.frontierReturnGate.draw(ctx);
       (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
     } else if (!pub) {
       if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
-      if (mapManager && mapManager.frontierEntryGate && typeof mapManager.frontierEntryGate.draw === 'function') mapManager.frontierEntryGate.draw(ctx);
+      (mapManager.frontierEntryGates || [mapManager.frontierEntryGate]).forEach(g => { if (g && typeof g.draw === 'function') g.draw(ctx); });
       if (mapManager && mapManager.publicGate && typeof mapManager.publicGate.draw === 'function') mapManager.publicGate.draw(ctx);
       if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned && mapManager.missionEntryGate) mapManager.missionEntryGate.draw(ctx);
     } else if (mapManager && mapManager.playerGates) {
