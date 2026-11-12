@@ -196,6 +196,7 @@ class BotManager {
         transportShipmentId: b.transportShipmentId || null,
         transportTask: b.transportTask ? JSON.parse(JSON.stringify(b.transportTask)) : null,
         playerSaleTask: b.playerSaleTask ? JSON.parse(JSON.stringify(b.playerSaleTask)) : null,
+        playerSaleQueue: Array.isArray(b.playerSaleQueue) ? JSON.parse(JSON.stringify(b.playerSaleQueue)) : [],
         transportLevel: b.transportLevel || null
       };
     });
@@ -229,6 +230,7 @@ class BotManager {
       bot.transportShipmentId = s.transportShipmentId || null;
       bot.transportTask = s.transportTask ? JSON.parse(JSON.stringify(s.transportTask)) : null;
       bot.playerSaleTask = s.playerSaleTask ? JSON.parse(JSON.stringify(s.playerSaleTask)) : null;
+      bot.playerSaleQueue = Array.isArray(s.playerSaleQueue) ? JSON.parse(JSON.stringify(s.playerSaleQueue)) : [];
       bot.transportLevel = String(s.className).toLowerCase().includes('transport') ? Math.max(1, Math.floor(Number(s.transportLevel) || 1)) : null;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
@@ -1068,7 +1070,13 @@ class BotManager {
           else {
             bot.transportState = 'loading';
             ship.docked = true; ship.vx = 0; ship.vy = 0;
-            if (typeof window.showCorpNotification === 'function') window.showCorpNotification('Transport Manager returned from your sale and is ready for the next job.');
+            const nextSale = Array.isArray(bot.playerSaleQueue) ? bot.playerSaleQueue.shift() : null;
+            if (nextSale) {
+              bot.playerSaleTask = nextSale;
+              if (typeof window.showCorpNotification === 'function') window.showCorpNotification('Back at High-Sec. Loading the next queued sale for the Trade Hub.');
+            } else if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('All queued sales delivered. Transport Manager is ready for the next job.');
+            }
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
             if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
