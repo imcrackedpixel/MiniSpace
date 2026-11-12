@@ -1,8 +1,9 @@
 // DebrisField.js - Capped max 3 wrecks with balanced yields and auto-refresh.
 // Wrecks are broken satellites or destroyed ships, shaded with gradients, scorch marks, cracks and embers.
 class DebrisField {
-    constructor(x, y, count = 3, radius = 5000) {
+    constructor(x, y, count = 3, radius = 5000, minTier = 1) {
         this.x = x;
+        this.minTier = Math.max(1, Math.min(5, Math.floor(Number(minTier) || 1)));
         this.y = y;
         this.radius = radius;
         this.entities = [];
@@ -25,7 +26,8 @@ class DebrisField {
         for (let i = 0; i < spawnCount; i++) {
             const rx = 500 + Math.random() * (mapSize - 1000);
             const ry = 500 + Math.random() * (mapSize - 1000);
-            const tierData = tierTypes[Math.floor(Math.random() * tierTypes.length)];
+            const availableTiers = tierTypes.filter(t => t.tier >= (this.minTier || 1));
+            const tierData = availableTiers[Math.floor(Math.random() * availableTiers.length)];
             const baseRadius = 25 + (tierData.tier * 12) + Math.random() * 15;
             // Tier 5 (red) relics are always capital derelicts
             const kind = tierData.tier === 5 ? 'capital' : (Math.random() < 0.5 ? 'satellite' : 'ship');
