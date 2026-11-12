@@ -1869,7 +1869,7 @@ function updateStationUI() {
     const rowInput = '<input id="hangar-qty-' + itemKey + '" type="number" min="1" max="' + Math.max(0, Math.floor(Number(qty) || 0)) + '" value="' + rowDefault + '" inputmode="numeric" style="width:72px;max-width:22%;background:#080d12;color:#fff;border:1px solid #40535c;padding:4px;">';
     const loadButton = '<button onclick="window.loadHangarItemToShip(\'' + itemKey + '\')" ' + (!playerShip || !playerShip.docked || inTradeHubNow || qty < 1 || loadRoom < 1 ? 'disabled' : '') + '>Load ship</button>';
     const sellButton = '<button onclick="window.sellHangarItemViaTransport(\'' + itemKey + '\')" ' + (!managerReady || inTradeHubNow || qty < 1 ? 'disabled' : '') + '>Sell via Transport</button>';
-    groupRows[g] += '<div class="inventory-slot" role="button" tabindex="0" onclick="window.openHangarItem(\''+itemKey+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.openHangarItem(\''+itemKey+'\')}"><span class="inventory-item-icon">'+(g==='debris'?'✧':'◈')+'</span><strong>'+displayName+'</strong><span class="slot-qty">'+qty.toLocaleString()+'</span><small>Tap for item actions</small><div class="slot-actions" onclick="event.stopPropagation()">'+rowInput+sellButton+'</div></div>';
+    groupRows[g] += '<div class="inventory-slot" role="button" tabindex="0" onclick="window.openHangarItem(\''+itemKey+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.openHangarItem(\''+itemKey+'\')}">'+hangarItemPicture(itemKey)+'<strong>'+displayName+'</strong><span class="slot-qty">'+qty.toLocaleString()+'</span><small>Tap for item actions</small><div class="slot-actions" onclick="event.stopPropagation()">'+rowInput+sellButton+'</div></div>';
     groupCount[g]++;
   }
 
@@ -1879,7 +1879,7 @@ function updateStationUI() {
       const d = DESIGNS[key];
       const g = HANGAR_SHIP_GROUP[d.hull] || 'capital';
       const costTxt = d.cost ? ' (' + fmtISK(d.cost.isk) + ' Scrap Metals + ' + fmtISK(d.cost.items) + ' ore/components)' : '';
-      groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">📘</span><strong>' + d.label.toUpperCase() + ' (BLUEPRINT)</strong><span class="slot-qty">' + n + ' stored</span><div class="slot-actions"><button onclick="window.buildDesign(\'' + key + '\')">Build on ' + d.hull + costTxt + '</button></div></div>';
+      groupRows[g] += '<div class="inventory-slot"><div class="hangar-art-frame blueprint-art"><span>▤</span></div><strong>' + d.label.toUpperCase() + ' (BLUEPRINT)</strong><span class="slot-qty">' + n + ' stored</span><div class="slot-actions"><button onclick="window.buildDesign(\'' + key + '\')">Build on ' + d.hull + costTxt + '</button></div></div>';
       groupCount[g]++;
     }
   }
@@ -1893,7 +1893,7 @@ function updateStationUI() {
     const action = aboard
       ? '<span style="color:#8b949e;">Aboard</span>'
       : '<button onclick="window.boardShip(\'' + hull + '\', ' + d.cargo + ', ' + d.speed + ')">Board</button>';
-    groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">🚀</span><strong>' + hull.toUpperCase() + ' (HULL)</strong><span class="slot-qty">1 stored</span><div class="slot-actions">' + action + '</div></div>';
+    groupRows[g] += '<div class="inventory-slot">'+hangarShipPicture(hull)+'<strong>' + hull.toUpperCase() + ' (HULL)</strong><span class="slot-qty">1 stored</span><div class="slot-actions">' + action + '</div></div>';
     groupCount[g]++;
   }
 
@@ -1913,12 +1913,12 @@ function updateStationUI() {
     const action = aboard
       ? '<span style="color:#8b949e;">Aboard</span>'
       : '<button onclick="window.boardShip(\'' + hull + '\', ' + info.cargo + ', ' + info.speed + ')">Board</button>';
-    groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">🚀</span><strong>' + hull.toUpperCase() + '</strong><span class="slot-qty">1 owned</span><div class="slot-actions">' + action + '</div></div>';
+    groupRows[g] += '<div class="inventory-slot">'+hangarShipPicture(hull)+'<strong>' + hull.toUpperCase() + '</strong><span class="slot-qty">1 owned</span><div class="slot-actions">' + action + '</div></div>';
     groupCount[g]++;
   }
 
   if ((playerData.transportManagerPurchased || 0) > 0) {
-    groupRows.mining += '<div class="inventory-slot"><span class="inventory-item-icon">📦</span><strong>TRANSPORT MANAGER</strong><span class="slot-qty">Active</span><small>Logistics Online</small></div>';
+    groupRows.mining += '<div class="inventory-slot">'+hangarShipPicture('Transport Capital')+'<strong>TRANSPORT MANAGER</strong><span class="slot-qty">Active</span><small>Logistics Online</small></div>';
     groupCount.mining++;
   }
 
