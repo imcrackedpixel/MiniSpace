@@ -2952,6 +2952,32 @@ window.getMiniSpaceMapId = function() {
 // Failing a mission on death clears the ship-change lock.
 window.handlePlayerDeath = function() {
   let destroyed = playerShip ? playerShip.className : 'Ship';
+  const currentSystem = isFrontierSpace()
+    ? (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === mapManager.currentMapId)
+    : null;
+
+  // Protected frontier rings are PvP combat zones, but destruction never removes
+  // the pilot's hull, fittings, blueprints, cargo or wallet.
+  if (currentSystem && currentSystem.lossMode === 'no-loss') {
+    if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+    if (playerShip) {
+      playerShip.structure = Number(playerShip.maxStructure) || 1;
+      playerShip.shield = Number(playerShip.maxShield) || 0;
+      playerShip.armor = Number(playerShip.maxArmor) || 0;
+      playerShip.vx = 0; playerShip.vy = 0;
+      playerShip.docked = false;
+    }
+    window.showCorpNotification('Ship disabled in protected PvP · no ship, module or cargo loss. Returning to High-Sec.');
+    window.jumpToPrivateSec();
+    if (playerShip && homeStation) {
+      playerShip.x = homeStation.x + 250;
+      playerShip.y = homeStation.y + 250;
+    }
+    performDock();
+    updateMissionsUI();
+    saveGameSession();
+    return;
+  }
 
   if (missionManager && missionManager.activeMission) {
     window.showCorpNotification('Ship destroyed! Mission failed. You can choose another ship and try again.');
