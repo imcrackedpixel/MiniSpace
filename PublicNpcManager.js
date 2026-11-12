@@ -744,12 +744,33 @@ class PublicNpcManager {
         if (npc.pos) this.setPos(npc.ship, npc.pos.x, npc.pos.y);
         npc.ship.draw(ctx);
 
+        // Compact portal-style header: pirate name stays consistent, border colour shows rarity.
         ctx.save();
-        const rarity=npc.frontierLevel?(npc.frontierRarity||'common'):'pirate';
-        ctx.fillStyle = rarity==='elite'?'#d8a2ff':rarity==='rare'?'#72b9ff':rarity==='uncommon'?'#80d8a8':'#f28b82';
-        ctx.font = 'bold 8px "Courier New"';
+        const rarity = npc.frontierLevel ? (npc.frontierRarity || 'common') : 'common';
+        const accent = rarity === 'elite' ? '#bc8cff'
+          : rarity === 'rare' ? '#58a6ff'
+          : rarity === 'uncommon' ? '#3fb950'
+          : '#e6edf3';
+        const zoom = Math.max(0.45, Number(window.cameraZoom) || 1);
+        const label = 'PIRATE';
+        const fontSize = 11 / zoom;
         ctx.textAlign = 'center';
-        ctx.fillText(npc.frontierLevel?'['+rarity.toUpperCase()+'] '+npc.className:'[PIRATE] '+npc.className, npc.ship.x, npc.ship.y - 48);
+        ctx.textBaseline = 'middle';
+        ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+        const width = ctx.measureText(label).width + 18 / zoom;
+        const height = 22 / zoom;
+        const labelY = npc.ship.y - 57 / zoom;
+        ctx.fillStyle = 'rgba(3, 15, 22, 0.9)';
+        ctx.strokeStyle = accent;
+        ctx.lineWidth = 1.3 / zoom;
+        ctx.beginPath();
+        ctx.roundRect(npc.ship.x - width / 2, labelY - height / 2, width, height, 5 / zoom);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowColor = accent;
+        ctx.shadowBlur = 6 / zoom;
+        ctx.fillStyle = accent;
+        ctx.fillText(label, npc.ship.x, labelY);
         ctx.restore();
 
         this.drawBars(ctx, npc);
