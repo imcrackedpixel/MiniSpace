@@ -311,7 +311,20 @@
         await refreshMarketState();
         return result;
       });
+ ,
+    transferToPrivate: function (itemKey, quantity) {
+      return queueMarketTask(async function () {
+        await initializeMarketBridge();
+        if (!marketState.gameStateSynced) throw new Error('Game economy sync is not ready.');
+        const result = await api('/rest/v1/rpc/market_transfer_to_private', {
+          method: 'POST',
+          body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+        });
+        await refreshMarketState();
+        return result;
+      });
     }
+  }
   };
 
   // Secure GM tools. The database verifies the signed-in pilot against the private GM table.
