@@ -316,7 +316,8 @@
    send({
     type:'hello',
     name:localStorage.getItem('minispace_pilot_name')||'Pilot',
-    resumeToken:getResumeToken()
+    resumeToken:getResumeToken(),
+    accessToken:window.MINISPACE_AUTH?.getAccessToken?.()||null
    });
    tick();
   };
