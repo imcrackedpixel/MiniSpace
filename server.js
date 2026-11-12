@@ -463,7 +463,8 @@ wss.on('connection',ws=>{
 
       joinRoom(p,mapId);
       const frontierRoom=publicRooms.get(p.roomId);
-      if(frontierRoom&&String(mapId).indexOf('frontier_')===0)send(ws,{type:'frontier-npc-state',mapId:mapId,deadNpcs:[...frontierRoom.deadNpcs.entries()].map(([npcId,respawnAt])=>({npcId,respawnAt}))});
+      if(frontierRoom&&String(mapId).indexOf('frontier_')===0&&p.frontierSnapshotRoom!==p.roomId){send(ws,{type:'frontier-npc-state',mapId:mapId,deadNpcs:[...frontierRoom.deadNpcs.entries()].map(([npcId,respawnAt])=>({npcId,respawnAt}))});p.frontierSnapshotRoom=p.roomId;}
+      if(String(mapId).indexOf('frontier_')!==0)p.frontierSnapshotRoom=null;
 
       p.x=Number.isFinite(+m.x)
         ? Math.max(-10000,Math.min(10000,+m.x))
