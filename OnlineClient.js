@@ -7,6 +7,8 @@
   connected:false,
   authReady:false,
   authenticated:false,
+  authFailed:false,
+  accountBanned:false,
   isGM:false,
   roomId:null,
   reconnectTimer:null,
@@ -291,7 +293,7 @@
 
  function connect(){
   panel();
-  if(!state.authReady)return;
+  if(!state.authReady||state.authFailed||state.accountBanned)return;
 
   if(state.socket&&(
    state.socket.readyState===WebSocket.OPEN||
@@ -333,7 +335,7 @@
    state.connected=false;
    state.socket=null;
    state.roomId=null;
-   scheduleReconnect();
+   if(!state.authFailed&&!state.accountBanned)scheduleReconnect();
   };
 
   socket.onerror=()=>{
@@ -365,12 +367,12 @@
    if(message.type==='auth-status'){
     state.authenticated=!!message.authenticated;
     state.isGM=!!message.isGM;
-    if(message.banned)log('ACCOUNT BANNED: '+String(message.reason||'Contact a Game Master.'));
-    else if(!state.authenticated)log('Account verification failed. Please reload and sign in again.');
+    if(message.banned){state.accountBanned=true;log('ACCOUNT BANNED: '+String(message.reason||'Contact a Game Master.'));}
+    else if(!state.authenticated){state.authFailed=true;log('Account verification failed. Please reload and sign in again.');}
     else if(state.isGM)log('GAME MASTER permissions verified by server.');
    }
    if(message.type==='gm-command-result')window.dispatchEvent(new CustomEvent('minispace-gm-result',{detail:String(message.message||'Command complete.')}));
-   if(message.type==='account-banned')log(message.message||'This account has been banned.');
+   if(message.type==='account-banned'){state.accountBanned=true;log(message.message||'This account has been banned.');}
 
    if(message.type==='gm-online-list'){
     state.gmPlayers=Array.isArray(message.players)?message.players:[];
