@@ -12,7 +12,9 @@
   reconnectTimer:null,
   reconnectAttempts:0,
   requests:[],
-  directory:[]
+  directory:[],
+  gmPlayers:[],
+  invisible:false
  };
 
  const $=id=>document.getElementById(id);
@@ -365,6 +367,18 @@
     state.isGM=!!message.isGM;
     if(!state.authenticated)log('Account verification failed. Please reload and sign in again.');
     else if(state.isGM)log('GAME MASTER permissions verified by server.');
+   }
+
+   if(message.type==='gm-online-list'){
+    state.gmPlayers=Array.isArray(message.players)?message.players:[];
+    window.dispatchEvent(new CustomEvent('minispace-gm-online-list',{detail:state.gmPlayers}));
+   }
+   if(message.type==='gm-invisibility'){
+    state.invisible=!!message.enabled;
+    window.dispatchEvent(new CustomEvent('minispace-gm-invisibility',{detail:state.invisible}));
+   }
+   if(message.type==='gm-error'){
+    window.dispatchEvent(new CustomEvent('minispace-gm-error',{detail:String(message.message||'GM command failed')}));
    }
 
    if(message.type==='room-joined'){
