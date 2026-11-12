@@ -1366,7 +1366,7 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 const minimapCanvas = document.getElementById('minimap');
 const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
-if (minimapCanvas) { minimapCanvas.width = 120; minimapCanvas.height = 120; }
+if (minimapCanvas) { minimapCanvas.width = 148; minimapCanvas.height = 148; }
 
 var cameraZoom = 0.35;
 window.adjustZoom = function(amount) {
@@ -2639,7 +2639,8 @@ function gameLoop(timestamp) {
     }
     render();
     frameCount++;
-    if (frameCount % 5 === 0) { updateHUD(); drawMinimap(); }
+    if (frameCount % 5 === 0) updateHUD();
+    try { drawMinimap(); } catch (minimapError) { if (!drawMinimap._warned) { console.error('Minimap renderer error:', minimapError); drawMinimap._warned = true; } }
     if (frameCount % 900 === 0) saveGameSession();
   } catch (err) {
     if (!gameLoop._warned || frameCount % 300 === 0) { console.error('Game loop error:', err && err.stack ? err.stack : err); gameLoop._warned = true; }
@@ -3559,99 +3560,38 @@ if (
 })();
 
 
-/* MINIMAP SAFETY RENDERER: keep the radar visible even if a map entity is malformed. */
+/* SINGLE MINIMAP RENDERER: player-centred, isolated from HUD update failures. */
 (function () {
   drawMinimap = function () {
-    if (!minimapCtx || !minimapCanvas) return;
-    try { if (typeof updateCargoReadout === 'function') updateCargoReadout(); } catch (_) {}
-    const m = minimapCtx;
-    const size = 120;
-    const cx = size / 2;
-    const cy = size / 2;
-    const ship = playerShip;
+    if (!minimapCanvas || !minimapCtx) return;
+    const m = minimapCtx, size = 148, cx = size / 2, cy = size / 2, ship = playerShip;
     const world = Math.max(1000, Number(currentWorldSize()) || 5000);
     const range = Math.max(900, Math.min(2600, world * 0.28));
     const scale = (size * 0.44) / range;
     const px = ship && Number.isFinite(Number(ship.x)) ? Number(ship.x) : world / 2;
     const py = ship && Number.isFinite(Number(ship.y)) ? Number(ship.y) : world / 2;
-    m.setTransform(1, 0, 0, 1, 0, 0);
-    m.clearRect(0, 0, size, size);
-    m.fillStyle = '#07111b';
-    m.fillRect(0, 0, size, size);
-    m.save();
-    m.strokeStyle = 'rgba(112,166,190,.22)';
-    m.lineWidth = .7;
-    for (let i = 1; i <= 3; i++) {
-      m.beginPath();
-      m.arc(cx, cy, i * 15, 0, Math.PI * 2);
-      m.stroke();
-    }
-    m.beginPath(); m.moveTo(cx, 4); m.lineTo(cx, size - 4);
-    m.moveTo(4, cy); m.lineTo(size - 4, cy); m.stroke();
-    m.beginPath(); m.rect(1, 1, size - 2, size - 2); m.clip();
-    const plot = function (x, y, color, radius) {
-      x = Number(x); y = Number(y);
-      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      const sx = cx + (x - px) * scale;
-      const sy = cy + (y - py) * scale;
-      if (sx < 2 || sy < 2 || sx > size - 2 || sy > size - 2) return;
-      m.fillStyle = color;
-      m.beginPath(); m.arc(sx, sy, radius || 2, 0, Math.PI * 2); m.fill();
-    };
-    try {
-      if (asteroidBelt && Array.isArray(asteroidBelt.entities)) {
-        asteroidBelt.entities.forEach(r => { if (r && r.oreYield > 0) plot(r.x, r.y, '#788895', 1); });
-      }
-    } catch (_) {}
-    try {
-      const debris = debrisField && typeof debrisField.getEntities === 'function' ? debrisField.getEntities() : [];
-      (Array.isArray(debris) ? debris : []).forEach(d => { if (d) plot(d.x, d.y, '#d29922', 2); });
-    } catch (_) {}
-    try {
-      const mapId = mapManager && mapManager.currentMapId;
-      if (mapId === 'private_highsec') plot(4200, 2500, '#36b99a', 4); // Trade Hub entrance
-      if (mapManager && mapId !== 'public_trade_hub') {
-        if (mapManager.publicGate && mapManager.publicGate.radius > 0) plot(mapManager.publicGate.x, mapManager.publicGate.y, '#f85149', 3);
-        if (mapManager.frontierEntryGate) plot(mapManager.frontierEntryGate.x, mapManager.frontierEntryGate.y, '#fb923c', 3);
-        if (mapManager.frontierReturnGate) plot(mapManager.frontierReturnGate.x, mapManager.frontierReturnGate.y, '#36b99a', 3);
-        if (mapManager.missionEntryGate) plot(mapManager.missionEntryGate.x, mapManager.missionEntryGate.y, '#34d399', 3);
-        if (mapManager.missionReturnGate) plot(mapManager.missionReturnGate.x, mapManager.missionReturnGate.y, '#3fb950', 3);
-        (mapManager.playerGates || []).forEach(g => { if (g) plot(g.x, g.y, '#3fb950', 3); });
-        (mapManager.frontierGates || []).forEach(g => { if (g) plot(g.x, g.y, '#fb923c', 3); });
-      }
-      if (mapId === 'public_trade_hub') {
-        const hubStation = window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station;
-        if (hubStation) plot(hubStation.x, hubStation.y, '#58a6ff', 4);
-        plot(700, 3500, '#36b99a', 4);
-      } else if (mainStation) {
-        plot(mainStation.x, mainStation.y, '#58a6ff', 4);
-      }
-    } catch (_) {}
-    try {
-      if (publicNpcManager && Array.isArray(publicNpcManager.publicNpcMiners)) {
-        publicNpcManager.publicNpcMiners.forEach(n => {
-          if (n && n.isAlive && n.ship) plot(n.ship.x, n.ship.y, '#f85149', 2.5);
-        });
-      }
-      if (missionManager && typeof missionManager.getLivingEnemies === 'function') {
-        missionManager.getLivingEnemies().forEach(e => { if (e) plot(e.x, e.y, '#f85149', 2.5); });
-      }
-    } catch (_) {}
-    if (targetMovePos && Number.isFinite(Number(targetMovePos.x)) && Number.isFinite(Number(targetMovePos.y))) {
-      plot(targetMovePos.x, targetMovePos.y, '#4dd0e1', 3);
-      m.save(); m.strokeStyle = 'rgba(77,208,225,.8)'; m.setLineDash([3, 3]);
-      m.beginPath(); m.moveTo(cx, cy);
-      m.lineTo(cx + (targetMovePos.x - px) * scale, cy + (targetMovePos.y - py) * scale);
-      m.stroke(); m.restore();
-    }
-    m.restore();
-    if (ship) {
-      m.save(); m.translate(cx, cy); m.rotate(Number(ship.angle) || 0);
-      m.fillStyle = '#fff'; m.strokeStyle = '#36b99a'; m.lineWidth = 1.3;
-      m.beginPath(); m.moveTo(0, -7); m.lineTo(5, 5); m.lineTo(0, 2); m.lineTo(-5, 5); m.closePath();
-      m.fill(); m.stroke(); m.restore();
-    } else {
-      m.fillStyle = '#fff'; m.fillRect(cx - 2, cy - 2, 4, 4);
-    }
+    if (minimapCanvas.width !== size || minimapCanvas.height !== size) { minimapCanvas.width = size; minimapCanvas.height = size; }
+    m.setTransform(1,0,0,1,0,0); m.clearRect(0,0,size,size); m.fillStyle='#07111b'; m.fillRect(0,0,size,size);
+    m.save(); m.strokeStyle='rgba(112,166,190,.25)'; m.lineWidth=1;
+    for(let i=1;i<=3;i++){m.beginPath();m.arc(cx,cy,i*19,0,Math.PI*2);m.stroke();}
+    m.beginPath();m.moveTo(cx,3);m.lineTo(cx,size-3);m.moveTo(3,cy);m.lineTo(size-3,cy);m.stroke();
+    m.beginPath();m.rect(1,1,size-2,size-2);m.clip();
+    const plot=function(x,y,color,radius){x=Number(x);y=Number(y);if(!Number.isFinite(x)||!Number.isFinite(y))return;const sx=cx+(x-px)*scale,sy=cy+(y-py)*scale;if(sx<2||sy<2||sx>size-2||sy>size-2)return;m.fillStyle=color;m.beginPath();m.arc(sx,sy,radius||2,0,Math.PI*2);m.fill();};
+    try{if(asteroidBelt&&Array.isArray(asteroidBelt.entities))asteroidBelt.entities.forEach(r=>{if(r&&Number(r.oreYield)>0)plot(r.x,r.y,'#788895',1.2);});}catch(_){}
+    try{const ds=debrisField&&typeof debrisField.getEntities==='function'?debrisField.getEntities():[];if(Array.isArray(ds))ds.forEach(d=>{if(d)plot(d.x,d.y,'#d29922',2);});}catch(_){}
+    try{
+      const id=mapManager&&mapManager.currentMapId;
+      if(id==='private_highsec')plot(4200,2500,'#36b99a',4);
+      if(id==='public_trade_hub'){const h=window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station;if(h)plot(h.x,h.y,'#58a6ff',4);plot(700,3500,'#36b99a',4);}
+      else{if(mainStation)plot(mainStation.x,mainStation.y,'#58a6ff',4);if(mapManager){['publicGate','frontierEntryGate','frontierReturnGate','missionEntryGate','missionReturnGate'].forEach(k=>{const g=mapManager[k];if(g)plot(g.x,g.y,k==='frontierEntryGate'?'#fb923c':'#36b99a',3);});(mapManager.playerGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#3fb950',3);});(mapManager.frontierGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});}}
+    }catch(_){}
+    try{
+      if(publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners))publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship)plot(n.ship.x,n.ship.y,n.faction==='miners'?'#e3b341':'#f85149',3);});
+      if(missionManager&&typeof missionManager.getLivingEnemies==='function')missionManager.getLivingEnemies().forEach(e=>{if(e)plot(e.x,e.y,'#f85149',3);});
+      const remote=window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers;if(remote)Object.values(remote).forEach(p=>{if(p&&p.mapId===(mapManager&&mapManager.currentMapId))plot(p.x,p.y,'#36b99a',2.5);});
+    }catch(_){}
+    if(targetMovePos){plot(targetMovePos.x,targetMovePos.y,'#4dd0e1',3);m.save();m.strokeStyle='rgba(77,208,225,.85)';m.setLineDash([3,3]);m.beginPath();m.moveTo(cx,cy);m.lineTo(cx+(targetMovePos.x-px)*scale,cy+(targetMovePos.y-py)*scale);m.stroke();m.restore();}
+    m.restore();m.save();m.translate(cx,cy);m.rotate(Number(ship&&ship.angle)||0);m.fillStyle='#fff';m.strokeStyle='#36b99a';m.lineWidth=1.5;m.beginPath();m.moveTo(0,-8);m.lineTo(6,6);m.lineTo(0,3);m.lineTo(-6,6);m.closePath();m.fill();m.stroke();m.restore();
+    try{if(typeof updateCargoReadout==='function')updateCargoReadout();}catch(_){}
   };
 })();
