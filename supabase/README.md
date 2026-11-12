@@ -1,51 +1,36 @@
-# MiniSpace shared market — Supabase setup
+# MiniSpace Supabase setup
 
-This is the persistent database foundation for the shared Trade Hub market.
+MiniSpace uses Supabase Auth and authenticated database functions for pilot wallets, separate hangars, and the shared Trade Hub market. The browser uses the public publishable/anon key with the signed-in pilot session. **Never put a Supabase service-role key in browser code, GitHub, chat, or the public game page.**
 
-## Before connecting the game
+## Database setup order
 
-1. Create a Supabase project at https://supabase.com/dashboard.
-2. In the project, open **SQL Editor**, create a new query, paste all of `market.sql`, and run it.
-3. In **Authentication → Providers**, make sure the Email provider or Anonymous Sign-ins are enabled. MiniSpace account integration will be connected in the next code step.
-4. In **Project Settings → API**, copy the Project URL and the **service_role** key. Never put the service-role key in browser code, GitHub, chat, or the public game page.
-5. Add the URL and service-role key as private environment variables on the Render service that runs `server.js`. Use names:
-   - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+Run each SQL file once in Supabase → SQL Editor, in this order:
 
-Do not add these values to `index.html`, `OnlineClient.js`, or any committed file.
+1. `market.sql` — base wallet, inventory, market, and transaction tables.
+2. `pilot_saves.sql` — cloud pilot save storage.
+3. `market_pool.sql` — pooled player stock, dynamic prices, and the small NPC starter buffer.
+4. `market_hangars.sql` — separate Private High-Sec and Trade Hub hangars.
+5. `market_game_sync.sql` — one-time bootstrap and ongoing sync between the game wallet/private hangar and the secure market records.
+6. `market_transfer_to_private.sql` — allows bought Trade Hub goods to be moved back to Private High-Sec for shipbuilding.
+7. `market_corp_supply.sql` — allows the Corporation Transport Manager to add its full shipments to shared market stock. Shipment IDs make retries safe and prevent duplicate stock.
+8. `gm_setup.sql` — optional GM permissions and tools. Run this only if you want the GM panel enabled.
 
-## Pooled market upgrade
+Do not skip ahead or rerun older migrations to fix a newer feature. Each migration is designed to be additive or replace its own RPC functions.
 
-After running `market.sql` and `pilot_saves.sql`, run all of `market_pool.sql` in a new SQL Editor query. This upgrades the starter market to a pooled shared-stock model:
+## How the economy works
 
-- Player sales add goods to shared stock and player market volume.
-- Buyers purchase from one shared pool; the interface can show one quote per material instead of individual tiny listings.
-- Prices move with available stock, bounded between 50% and 150% of each material's baseline.
-- NPC liquidity starts with a small 10-unit buffer per material. Further NPC supply is capped at 10% of player-supplied market volume.
-- A one-time authenticated import function moves the old pilot wallet and private hangar quantities into the secure market wallet/inventory. The game client will call this during the integration step.
+- Private High-Sec and Trade Hub use separate hangars.
+- Market purchases arrive in the Trade Hub hangar.
+- Move goods to Private High-Sec before using them in ship recipes.
+- Market sales use Trade Hub goods only.
+- The market uses one pooled stock and one current price per item, not individual tiny fixed-price orders.
+- NPC liquidity provides a small starter buffer of 10 units per item. Further NPC supply is capped at 10% of player-supplied market volume.
+- The Corporation Transport Manager loads only goods from the corporation hangar at Private High-Sec. It waits for a full cargo, travels to the Trade Hub, adds the shipment to shared player stock, credits the corporation wallet, and returns.
+- Corporation shipment deposits are idempotent: a retry of the same shipment cannot add the stock twice.
 
-Do not delete or rerun the original tables manually. The upgrade is additive and replaces the market buy/sell RPCs.
+## Security notes
 
-## What the schema provides
-
-- One shared stock and unit price for each material across all pilots.
-- Server/database-side wallet and inventory records.
-- Atomic buy and sell transactions, so two pilots cannot spend the same stock or ISK at once.
-- A transaction history.
-- New authenticated pilots receive a starter wallet of 1,000,000 ISK.
-
-## Important integration note
-
-The current game stores pilot ISK and hangar inventory in browser save data, and its WebSocket server does not yet authenticate pilots. The SQL schema is deliberately not wired to the live market until the next integration step moves pilot identity, wallet, inventory imports, and market actions behind the online server. This avoids pretending that local browser balances are secure or that the market is already shared.
-
-The corporation bot supply cap (5–10%) will be enforced by the trusted server integration, not by a browser setting.
-
-
-## Separate hangars upgrade
-
-After `market_pool.sql` succeeds, run `market_hangars.sql` in a new SQL Editor query. This creates separate database storage for:
-
-- `private_highsec`: the pilot's private High-Sec station hangar.
-- `trade_hub`: goods bought from or transferred to the shared Trade Hub.
-
-The legacy-save import writes existing goods to the private hangar. Market purchases go into the Trade Hub hangar, market sales can only use Trade Hub goods, and `market_transfer_to_trade` moves goods between the two without changing the wallet. The game UI still needs its next integration change before these actions are available in-game.
+- Market and GM actions are authenticated RPCs that use `auth.uid()` to identify the pilot.
+- Browser clients do not receive or use the service-role key.
+- GM access is checked against the private `minispace_gm_accounts` table; hiding the GM button is not the security boundary.
+- The WebSocket multiplayer service is separate from the Supabase market and save functions.
