@@ -522,10 +522,11 @@ wss.on('connection',ws=>{
       const z=zoneAt(p.x,p.y);
       p.zone=z.id;
 
-      // TRADE HUB IS ALWAYS NON-PVP
-      p.pvp=p.mapId==='public_trade_hub'
+      // Frontier and 3v3 maps are PvP everywhere, independent of local x/y zone coordinates.
+      // The Trade Hub is always non-PvP; private High-Sec remains in a private room.
+      p.pvp = p.mapId === 'public_trade_hub'
         ? false
-        : z.pvp;
+        : (p.mapId === 'public_space' || String(p.mapId).indexOf('frontier_') === 0 ? true : z.pvp);
 
       p.last=Date.now();
 
