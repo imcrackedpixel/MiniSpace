@@ -550,6 +550,33 @@ body.ui-hidden #ui-layer,body.ui-hidden #online-panel,body.ui-hidden #corp-notif
   #corp-notification { max-width:45vw; font-size:9px; }
 }
 
+
+/* Keep the two essential flight buttons compact on landscape phones. */
+@media screen and (orientation:landscape) and (max-width:950px) {
+  #flight-controls {
+    grid-template-columns:repeat(2, max-content) !important;
+    justify-content:start;
+    width:max-content !important;
+    max-width:100% !important;
+    padding:2px !important;
+    gap:2px !important;
+  }
+  #flight-controls #dock-btn,
+  #flight-controls #autoplay-btn {
+    width:auto !important;
+    min-width:0 !important;
+    max-width:none;
+    min-height:21px !important;
+    padding:2px 5px !important;
+    font-size:7px !important;
+    line-height:1 !important;
+    white-space:nowrap !important;
+  }
+  #flight-controls > button:not(#dock-btn):not(#autoplay-btn) {
+    grid-column:1 / -1;
+  }
+}
+
 /* Very short landscape phones: keep the map clear and chat compact. */
 @media screen and (orientation: landscape) and (max-height: 390px) and (max-width: 950px) {
   #ui-layer > div:first-child { width:min(158px, 26vw); max-width:26vw; }
