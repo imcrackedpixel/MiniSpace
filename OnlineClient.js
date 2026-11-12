@@ -1,5 +1,5 @@
 
-/* MiniSpace Online - count, chat and friends only */
+/* MiniSpace Online - count, chat, friends and request window */
 (function(){
  const state={
   socket:null,
@@ -7,7 +7,8 @@
   connected:false,
   roomId:null,
   reconnectTimer:null,
-  reconnectAttempts:0
+  reconnectAttempts:0,
+  requests:[]
  };
 
  const $=id=>document.getElementById(id);
@@ -71,6 +72,106 @@
   $('online-send').onclick=chat;
   $('online-chat-input').addEventListener('keydown',e=>{
    if(e.key==='Enter')chat();
+  });
+
+  requestWindow();
+ }
+
+ function requestWindow(){
+  if($('friend-request-window'))return;
+
+  const style=document.createElement('style');
+  style.textContent=`
+   #friend-request-window{
+    position:fixed;
+    right:12px;
+    bottom:145px;
+    z-index:99999;
+    width:250px;
+    max-width:calc(100vw - 24px);
+    max-height:220px;
+    overflow-y:auto;
+    padding:10px;
+    color:#e6edf3;
+    background:#101923;
+    border:1px solid #36b99a;
+    border-radius:9px;
+    box-shadow:0 4px 18px #0009;
+    font:13px Arial,sans-serif;
+    display:none;
+   }
+   #friend-request-window .request-row{
+    padding:8px 0;
+    border-top:1px solid #34414d;
+   }
+   #friend-request-window button{
+    margin:6px 5px 0 0;
+    padding:6px 10px;
+    border:0;
+    border-radius:5px;
+    font-weight:bold;
+   }
+   #friend-request-window .accept-request{
+    background:#238636;
+    color:white;
+   }
+   #friend-request-window .deny-request{
+    background:#30363d;
+    color:white;
+   }
+  `;
+  document.head.appendChild(style);
+
+  const box=document.createElement('div');
+  box.id='friend-request-window';
+  document.body.appendChild(box);
+  renderRequests();
+ }
+
+ function renderRequests(){
+  const box=$('friend-request-window');
+  if(!box)return;
+
+  box.replaceChildren();
+
+  if(!state.requests.length){
+   box.style.display='none';
+   return;
+  }
+
+  box.style.display='block';
+
+  const heading=document.createElement('strong');
+  heading.textContent='FRIEND REQUESTS';
+  box.appendChild(heading);
+
+  state.requests.forEach((name,index)=>{
+   const row=document.createElement('div');
+   row.className='request-row';
+
+   const label=document.createElement('div');
+   label.textContent=name+' wants to be your friend.';
+   row.appendChild(label);
+
+   const accept=document.createElement('button');
+   accept.className='accept-request';
+   accept.textContent='ACCEPT';
+   accept.onclick=()=>{
+    send({type:'friend-accept',name});
+    state.requests.splice(index,1);
+    renderRequests();
+   };
+
+   const deny=document.createElement('button');
+   deny.className='deny-request';
+   deny.textContent='DENY';
+   deny.onclick=()=>{
+    state.requests.splice(index,1);
+    renderRequests();
+   };
+
+   row.append(accept,deny);
+   box.appendChild(row);
   });
  }
 
@@ -192,7 +293,11 @@
    }
 
    if(message.type==='friend-request'){
-    log('Friend request from '+message.from);
+    const name=String(message.from||'Pilot').slice(0,16);
+    if(!state.requests.includes(name)){
+     state.requests.push(name);
+     renderRequests();
+    }
    }
 
    if(message.type==='friend-added'){
