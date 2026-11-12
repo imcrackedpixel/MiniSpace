@@ -384,7 +384,7 @@ wss.on('connection',ws=>{
     }
 
     if(m.type==='gm-kick-account') {
-      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      if(!(await hasCurrentGM(p))){send(ws,{type:'gm-error',message:'GM access required'});return;}
       const accountId=String(m.accountId||'');
       const targets=[...players.values()].filter(q=>q.accountId===accountId&&q.id!==p.id&&q.ws);
       if(!targets.length){send(ws,{type:'gm-command-result',message:'That pilot is not currently online.'});return;}
@@ -403,7 +403,7 @@ wss.on('connection',ws=>{
     }
 
     if(m.type==='gm-teleport-to-player') {
-      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      if(!(await hasCurrentGM(p))){send(ws,{type:'gm-error',message:'GM access required'});return;}
       const target=[...players.values()].find(q=>q.accountId===String(m.accountId||'')&&q.ws&&q.authenticated);
       if(!target){send(ws,{type:'gm-error',message:'Pilot is not online.'});return;}
       if(!p.roomId||p.roomId!==target.roomId||p.mapId!==target.mapId){send(ws,{type:'gm-error',message:'Teleport requires you and the pilot to be in the same shared map instance.'});return;}
@@ -412,7 +412,7 @@ wss.on('connection',ws=>{
     }
 
     if(m.type==='gm-unstick-pilot') {
-      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      if(!(await hasCurrentGM(p))){send(ws,{type:'gm-error',message:'GM access required'});return;}
       const target=[...players.values()].find(q=>q.accountId===String(m.accountId||'')&&q.ws&&q.authenticated);
       if(!target){send(ws,{type:'gm-error',message:'Pilot is not online.'});return;}
       send(target.ws,{type:'gm-unstick',message:'A Game Master returned your ship to Private High-Sec.'});
@@ -421,7 +421,7 @@ wss.on('connection',ws=>{
     }
 
     if(m.type==='gm-toggle-invisible') {
-      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      if(!(await hasCurrentGM(p))){send(ws,{type:'gm-error',message:'GM access required'});return;}
       p.invisible=!p.invisible;
       if(p.roomId){
         if(p.invisible){
