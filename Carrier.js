@@ -40,9 +40,6 @@ class Carrier {
     this.cargo = 0;
     this.maxCargo = 40000;
     this.weaponRange = 800;
-    this.missileDamage = 95;
-    this.weaponCooldown = 0;
-    this.missiles = [];
 
     // Powerful player stats
     this.maxShield = 15000;
@@ -391,65 +388,6 @@ class Carrier {
       }
     }
 
-    // Carrier primary battery fires independently of its drone wing.
-    if (this.weaponCooldown > 0) this.weaponCooldown--;
-    if (activePrey && activePrey.structure > 0) {
-      const weaponDistance = Math.hypot(activePrey.x - this.x, activePrey.y - this.y);
-      if (weaponDistance <= this.weaponRange && this.weaponCooldown <= 0) {
-        const fireAngle = Math.atan2(activePrey.y - this.y, activePrey.x - this.x);
-        this.missiles.push({
-          x: this.x + Math.cos(fireAngle) * 190,
-          y: this.y + Math.sin(fireAngle) * 190,
-          vx: Math.cos(fireAngle) * 10,
-          vy: Math.sin(fireAngle) * 10,
-          target: activePrey,
-          damage: this.missileDamage,
-          life: 110,
-          age: 0,
-          maxSpeed: 13
-        });
-        this.weaponCooldown = 55;
-      }
-    }
-
-    // Lightweight homing projectiles; no particle trails, to keep mobile load low.
-    for (const missile of this.missiles) {
-      missile.age++;
-      if (!missile.target || missile.target.structure <= 0) {
-        let nearest = null, nearestDistance = Infinity;
-        for (const candidate of (enemyListRef || [])) {
-          const entity = candidate && (candidate.ship || candidate);
-          if (!entity || entity.structure <= 0) continue;
-          const d = Math.hypot(entity.x - missile.x, entity.y - missile.y);
-          if (d < nearestDistance) { nearestDistance = d; nearest = entity; }
-        }
-        missile.target = nearest;
-      }
-      if (missile.target && missile.target.structure > 0) {
-        const tx = missile.target.x + (missile.target.vx || 0) * 8;
-        const ty = missile.target.y + (missile.target.vy || 0) * 8;
-        const desired = Math.atan2(ty - missile.y, tx - missile.x);
-        const speed = Math.hypot(missile.vx, missile.vy) || 10;
-        let angle = Math.atan2(missile.vy, missile.vx);
-        let turn = desired - angle;
-        while (turn < -Math.PI) turn += Math.PI * 2;
-        while (turn > Math.PI) turn -= Math.PI * 2;
-        angle += Math.max(-0.18, Math.min(0.18, turn));
-        missile.vx = Math.cos(angle) * speed;
-        missile.vy = Math.sin(angle) * speed;
-        const hitRadius = missile.target === window.centralStationBoss ? 120 : 28;
-        if (Math.hypot(missile.target.x - missile.x, missile.target.y - missile.y) < hitRadius) {
-          if (typeof missile.target.takeDamage === 'function') missile.target.takeDamage(missile.damage);
-          else missile.target.structure -= missile.damage;
-          missile.life = 0;
-        }
-      }
-      missile.x += missile.vx;
-      missile.y += missile.vy;
-      missile.life--;
-    }
-    this.missiles = this.missiles.filter(m => m.life > 0).slice(-8);
-
     if (activePrey) {
       let distToTarget = Math.hypot(activePrey.x - this.x, activePrey.y - this.y);
       let idealStandoff = 350;
@@ -671,22 +609,6 @@ class Carrier {
     this.drawThrustersBack(ctx);
     if (window.ShipArt) window.ShipArt.draw(ctx, this.className, this.x, this.y, this.angle);
     this.drawThrusters(ctx);
-
-    // Draw the Carrier's own missiles even if its drone wing is empty.
-    for (const missile of (this.missiles || [])) {
-      ctx.save();
-      ctx.translate(missile.x, missile.y);
-      ctx.rotate(Math.atan2(missile.vy, missile.vx));
-      ctx.fillStyle = '#fbbf24';
-      ctx.beginPath();
-      ctx.moveTo(13, 0);
-      ctx.lineTo(-8, -4);
-      ctx.lineTo(-5, 0);
-      ctx.lineTo(-8, 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
 
     if (this.drones) {
       for (let d of this.drones) {
