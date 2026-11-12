@@ -518,7 +518,7 @@ window.jumpToFrontierSystem=function(id){
  if(!allowed){window.showCorpNotification('Fly through a connected space gate to reach that system.');return;}
  if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
  const r=mapManager.jumpToFrontierSystem(playerShip,id);if(!r)return;
- asteroidBelt=r.asteroidBelt;debrisField=r.debrisField;if(publicNpcManager&&typeof publicNpcManager.initFrontier==='function')publicNpcManager.initFrontier(r.system);targetMovePos=null;lockedTarget=null;isDockingRequested=false;gateCooldown=180;const rt=window._universeRouteDestination;if(rt){if(rt===id){window._universeRouteDestination=null;window.showCorpNotification('Arrived at destination: '+r.system.name+'.');}else{const path=window.findFrontierRoute(id,rt),next=path&&path[1],g=(mapManager.frontierGates||[]).find(v=>v.destinationId===next);if(g){targetMovePos={x:g.x,y:g.y};window.showCorpNotification('Continuing route to '+rt.replace('frontier_','').toUpperCase()+'.');}else window._universeRouteDestination=null;}}
+ asteroidBelt=r.asteroidBelt;debrisField=r.debrisField;if(publicNpcManager)publicNpcManager.publicNpcMiners=[];targetMovePos=null;lockedTarget=null;isDockingRequested=false;gateCooldown=180;const rt=window._universeRouteDestination;if(rt){if(rt===id){window._universeRouteDestination=null;window.showCorpNotification('Arrived at destination: '+r.system.name+'.');}else{const path=window.findFrontierRoute(id,rt),next=path&&path[1],g=(mapManager.frontierGates||[]).find(v=>v.destinationId===next);if(g){targetMovePos={x:g.x,y:g.y};window.showCorpNotification('Continuing route to '+rt.replace('frontier_','').toUpperCase()+'.');}else window._universeRouteDestination=null;}}
  window.showCorpNotification('Warp complete: '+r.system.name+'. Threat level '+r.system.level+'. Manual flight only.');
  if(typeof saveGameSession==='function')saveGameSession();window.closeUniverse();
 };
@@ -2218,91 +2218,7 @@ function updateHUD() {
 }
 
 function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
-function updateNearbySpacePanel() {
-  updateCargoReadout();
-  const list = document.getElementById('nearby-space-list');
-  if (!list || !playerShip || !mapManager) return;
-  const px = Number(playerShip.x) || 0, py = Number(playerShip.y) || 0;
-  const distanceTo = p => Math.hypot((Number(p.x)||0)-px,(Number(p.y)||0)-py);
-  const entries = { tears: [], pirates: [], rocks: [], stations: [] };
-  const add = (group, name, x, y, kind, ref, extra) => {
-    if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return;
-    const point={x:Number(x),y:Number(y)};
-    entries[group].push({name:String(name||kind),x:point.x,y:point.y,distance:distanceTo(point),kind,ref:ref||null,extra:extra||null});
-  };
-  const currentId=String(mapManager.currentMapId||'');
-  // Stations are pinned to the top of the list and are never distance-filtered.
-  if (currentId === 'public_trade_hub' && window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station) {
-    const st=window.MINISPACE_TRADE_HUB.station;
-    add('stations','Trade Hub Station',st.x,st.y,'station',st,'trade');
-  } else if (currentId.indexOf('frontier_')===0 && mapManager.frontierReturnGate) {
-    const gate=mapManager.frontierReturnGate;
-    add('stations','High-Sec Station · via return tear',gate.x,gate.y,'station',gate,'return');
-  } else if (currentId.indexOf('mission_')===0 && mapManager.missionReturnGate) {
-    const gate=mapManager.missionReturnGate;
-    add('stations','High-Sec Station · via return tear',gate.x,gate.y,'station',gate,'return');
-  } else if (inPublicSpace() && mapManager.playerGates && mapManager.playerGates.length) {
-    const gate=mapManager.playerGates.reduce((best,g)=>!best||distanceTo(g)<distanceTo(best)?g:best,null);
-    add('stations','High-Sec Station · via return gate',gate.x,gate.y,'station',gate,'return');
-  } else if (mainStation) {
-    add('stations','High-Sec Station',mainStation.x,mainStation.y,'station',mainStation,'home');
-  }
-  const addGate=(g,name,extra)=>{if(g)add('tears',name,g.x,g.y,'gate',g,extra);};
-  if (currentId.indexOf('frontier_')===0) {
-    addGate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});
-    (mapManager.frontierGates||[]).forEach(g=>{
-      const dest=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===g.destinationId);
-      addGate(g,dest?dest.name+' Tear':'Frontier Tear',{destinationId:g.destinationId});
-    });
-  } else if (currentId.indexOf('mission_')===0) {
-    addGate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
-  } else {
-    if (mapManager.frontierEntryGate) addGate(mapManager.frontierEntryGate,'Frontier Tear',{destinationId:'frontier_ashen'});
-    if (mapManager.publicGate && currentId!=='public_trade_hub') addGate(mapManager.publicGate,'Arena Tear',{});
-    if (mapManager.missionEntryGate && missionManager && missionManager.activeMission && !missionManager.activeMission.returned)
-      addGate(mapManager.missionEntryGate,'Mission Tear',{mission:true});
-    (mapManager.playerGates||[]).forEach((g,i)=>addGate(g,'Return Gate '+(i+1),{}));
-  }
-  // Live pirate/miner ships. Include only hostile pirate faction in the pirate group.
-  if (publicNpcManager && Array.isArray(publicNpcManager.publicNpcMiners)) {
-    publicNpcManager.publicNpcMiners.forEach(n=>{
-      if(!n||!n.isAlive||!n.ship)return;
-      const ship=n.ship, faction=String(n.faction||n.role||'').toLowerCase();
-      if(faction==='miners'||faction==='mine')return;
-      const label=n.name||n.pilotName||ship.pilotName||ship.name||ship.className||'Pirate';
-      add('pirates',label,ship.x,ship.y,'pirate',ship,{npc:n});
-    });
-  }
-  if (inMissionSpace() && missionManager && missionManager.activeMission) {
-    try { missionManager.getLivingEnemies().forEach((enemy,i)=>add('pirates',enemy.name||enemy.pilotName||enemy.className||('Mission Pirate '+(i+1)),enemy.x,enemy.y,'pirate',enemy,{mission:true})); } catch(e) {}
-  }
-  if (asteroidBelt && Array.isArray(asteroidBelt.entities)) {
-    asteroidBelt.entities.forEach((rock,i)=>{
-      if(rock && Number(rock.oreYield)>0) add('rocks',rock.name||rock.oreName||rock.oreType||'Asteroid '+(i+1),rock.x,rock.y,'rock',rock);
-    });
-  }
-  if (debrisField && typeof debrisField.getEntities==='function') {
-    debrisField.getEntities().forEach((wreck,i)=>{
-      if(wreck && (Number(wreck.oreYield)>0 || Number(wreck.value)>0 || wreck.isMineable!==false))
-        add('rocks',wreck.name||wreck.type||'Salvage '+(i+1),wreck.x,wreck.y,'salvage',wreck);
-    });
-  }
-  Object.keys(entries).forEach(k=>entries[k].sort((a,b)=>a.distance-b.distance));
-  const shown=[];
-  const section=(key,title,icon,limit)=>{
-    const rows=key==='stations'?entries[key]:entries[key].slice(0,limit);
-    if(!rows.length)return '';
-    let out='<div class="nearby-group"><div class="nearby-group-title">'+icon+' '+title+'</div>';
-    rows.forEach(item=>{
-      const index=shown.push(item)-1;
-      out+='<button type="button" class="nearby-entry" data-nearby-index="'+index+'"><span class="nearby-entry-name">'+item.name.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))+'</span><span class="nearby-entry-distance">'+Math.round(item.distance).toLocaleString()+' m</span></button>';
-    });
-    return out+'</div>';
-  };
-  const markup=section('tears','TEARS / GATES','🌀',6)+section('pirates','PIRATES','☠️',6)+section('rocks','ROCKS / SALVAGE','☄️',8)+section('stations','STATIONS','⌂',20);
-  list.innerHTML=markup||'<div class="nearby-empty">Nothing detected nearby</div>';
-  window._miniSpaceNearbyTargets=shown;
-}
+function updateNearbySpacePanel(){const list=document.getElementById('nearby-space-list');if(!list)return;if(!playerShip||!mapManager){list.innerHTML='<div class="nearby-empty">Waiting for your ship…</div>';return;}const px=Number(playerShip.x)||0,py=Number(playerShip.y)||0,dist=o=>Math.hypot((Number(o&&o.x)||0)-px,(Number(o&&o.y)||0)-py);const g={tears:[],pirates:[],rocks:[],stations:[]},add=(k,n,o,t,x)=>{if(o&&Number.isFinite(Number(o.x))&&Number.isFinite(Number(o.y)))g[k].push({name:String(n||t),x:Number(o.x),y:Number(o.y),distance:dist(o),kind:t,ref:o,extra:x||null});};const id=String(mapManager.currentMapId||'');if(id==='public_trade_hub'&&window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station)add('stations','Trade Hub Station',window.MINISPACE_TRADE_HUB.station,'station','trade');else if(id.indexOf('frontier_')===0&&mapManager.frontierReturnGate)add('stations','High-Sec Station · via return tear',mapManager.frontierReturnGate,'station','return');else if(id.indexOf('mission_')===0&&mapManager.missionReturnGate)add('stations','High-Sec Station · via return tear',mapManager.missionReturnGate,'station','return');else if(id==='public_space'&&Array.isArray(mapManager.playerGates))mapManager.playerGates.forEach((o,i)=>add('stations','High-Sec Return Gate '+(i+1),o,'station','return'));else if(mainStation)add('stations','High-Sec Station',mainStation,'station','home');const gate=(o,n,x)=>add('tears',n,o,'gate',x);if(id.indexOf('frontier_')===0){gate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});(Array.isArray(mapManager.frontierGates)?mapManager.frontierGates:[]).forEach(o=>{const d=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===o.destinationId);gate(o,(d?d.name:'Frontier')+' Tear',{destinationId:o.destinationId});});}else if(id.indexOf('mission_')===0)gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});else{gate(mapManager.frontierEntryGate,'Frontier Tear',{destinationId:'frontier_ashen'});if(id!=='public_trade_hub')gate(mapManager.publicGate,'Arena Tear',{});if(mapManager.missionEntryGate&&missionManager&&missionManager.activeMission&&!missionManager.activeMission.returned)gate(mapManager.missionEntryGate,'Mission Tear',{mission:true});(Array.isArray(mapManager.playerGates)?mapManager.playerGates:[]).forEach((o,i)=>gate(o,'Return Gate '+(i+1),{return:true}));}if(id==='public_space'&&publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners))publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship)add('pirates',n.ship.pilotName||n.ship.name||n.className||'Pirate',n.ship,'pirate');});if(Array.isArray(asteroidBelt&&asteroidBelt.entities))asteroidBelt.entities.forEach((o,i)=>{if(o&&Number(o.oreYield)>0)add('rocks',o.name||o.oreName||o.oreType||'Asteroid '+(i+1),o,'rock');});if(debrisField&&typeof debrisField.getEntities==='function')(debrisField.getEntities()||[]).forEach((o,i)=>{if(o&&(Number(o.oreYield)>0||Number(o.value)>0||o.isMineable!==false))add('rocks',o.name||o.type||'Salvage '+(i+1),o,'salvage');});Object.keys(g).forEach(k=>g[k].sort((a,b)=>a.distance-b.distance));const targets=[],esc=v=>String(v).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));const section=(k,t,em,max)=>{const rows=k==='stations'?g[k]:g[k].slice(0,max);let out='<section class="nearby-group"><div class="nearby-group-title">'+em+' '+t+' <span>'+rows.length+'</span></div>';if(!rows.length)out+='<div class="nearby-empty">Nothing detected</div>';rows.forEach(o=>{const i=targets.push(o)-1;out+='<button type="button" class="nearby-entry" data-nearby-index="'+i+'"><span class="nearby-entry-name">'+esc(o.name)+'</span><span class="nearby-entry-distance">'+Math.round(o.distance).toLocaleString()+' m</span></button>';});return out+'</section>';};list.innerHTML=section('tears','TEARS / GATES','🌀',8)+section('pirates','PIRATES','☠️',6)+section('rocks','ROCKS / SALVAGE','☄️',8)+section('stations','STATIONS','⌂',20);window._miniSpaceNearbyTargets=targets;try{updateCargoReadout();}catch(_){}}
 (function bindNearbySpaceClicks(){
   const list=document.getElementById('nearby-space-list');
   if(!list||list.dataset.bound)return;
