@@ -589,3 +589,34 @@ button[onclick*="adjustZoom"],
 [onclick*="adjustZoom"] {
   display: none !important;
 }
+
+/* Optional immersive fullscreen mode for landscape phones. */
+#minispace-fullscreen-btn {
+  display:none;
+  position:fixed;
+  top:max(6px, env(safe-area-inset-top));
+  right:max(6px, env(safe-area-inset-right));
+  z-index:5000;
+  min-height:32px;
+  padding:5px 10px;
+  color:#9be7d4;
+  background:rgba(9,20,27,.94);
+  border:1px solid #34785d;
+  font-size:10px;
+  font-weight:bold;
+  letter-spacing:.3px;
+}
+@media screen and (orientation:landscape) and (max-width:950px) {
+  #minispace-fullscreen-btn { display:block; }
+}
+html:fullscreen, html:-webkit-full-screen {
+  width:100%;
+  height:100%;
+  background:#07090e;
+}
+html:fullscreen body, html:-webkit-full-screen body {
+  width:100%;
+  height:100%;
+  min-height:100%;
+  overflow:hidden;
+}
