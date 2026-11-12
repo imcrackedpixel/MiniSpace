@@ -57,7 +57,8 @@
   el.innerHTML=`
    <header id="online-header">
     <span>MINISPACE ONLINE <span id="online-status">OFFLINE</span></span>
-    <button id="online-collapse">−</button>
+    <button id="online-chat-collapse" type="button" title="Fold chat">CHAT −</button>
+    <button id="online-collapse" type="button" title="Fold online panel">−</button>
    </header>
    <div id="online-content">
     <div id="online-count">0 pilots online</div>
@@ -80,8 +81,9 @@
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
      <button id="online-add-friend">ADD FRIEND</button>
     </div>
-    <div id="online-chat-log" aria-live="polite"></div>
-    <div class="online-actions">
+    <div id="online-chat-content">
+     <div id="online-chat-log" aria-live="polite"></div>
+     <div class="online-actions" id="online-chat-controls">
      <select id="online-channel">
       <option value="global">Global</option>
       <option value="local">Local</option>
@@ -89,6 +91,7 @@
      </select>
      <input id="online-chat-input" maxlength="240" placeholder="Message">
      <button id="online-send">SEND</button>
+     </div>
     </div>
    </div>
   `;
@@ -99,6 +102,14 @@
    const hidden=content.style.display==='none';
    content.style.display=hidden?'block':'none';
    $('online-collapse').textContent=hidden?'−':'+';
+  };
+
+  $('online-chat-collapse').onclick=()=>{
+   const chat=$('online-chat-content');
+   const hidden=chat.style.display==='none';
+   chat.style.display=hidden?'block':'none';
+   $('online-chat-collapse').textContent=hidden?'CHAT −':'CHAT +';
+   $('online-chat-collapse').title=hidden?'Fold chat':'Expand chat';
   };
 
   $('online-friends-button').onclick=()=>{
