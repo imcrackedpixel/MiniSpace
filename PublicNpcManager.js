@@ -82,7 +82,7 @@ const PATROL_SPEED_FRAC = 0.3;     // patrol cruising speed as a fraction of max
 const MINE_SPEED_FRAC = 0.5;       // speed flying in to a rock, as a fraction of maxSpeed
 
 // Hulls that patrol their belt. Every other pirate hull mines rocks when the player is away.
-const PATROL_NAMES = { 'Carrier': true, 'Capital': true, 'Combat Frigate': true, 'Exploration Frigate': true, 'Siege Cruiser': true, 'Siege Battleship': true };
+const PATROL_NAMES = { 'Mining Frigate': true, 'Mining Barge': true, 'Command Ship': true, 'Carrier': true, 'Capital': true, 'Combat Frigate': true, 'Exploration Frigate': true, 'Siege Cruiser': true, 'Siege Battleship': true };
 
 // Ring the attackers hold around the player, as a fraction of their weapon range
 const ORBIT_RANGE_FRAC = 0.9;
@@ -186,7 +186,7 @@ class PublicNpcManager {
       const elite=rarity==='elite'&&level===5&&n.frontierKind!=='Mining Fleet';
       const hull=cfg.name==='Capital'?'Siege Capital':cfg.name;
       const old=this.publicNpcMiners;this.publicNpcMiners=[];
-      this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity});
+      const levelScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;const damageScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:COMBAT_HULLS[cfg.name]?damageScale:.04,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity,hpScale:levelScale});
       const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;
       if(fresh)Object.assign(n,fresh);
     }finally{Math.random=oldRandom;}
@@ -270,6 +270,7 @@ class PublicNpcManager {
       frontierLevel: Number(opts.frontierLevel)||0,
       frontierKind: opts.frontierKind || '',
       frontierRarity: opts.frontierRarity || (opts.elite ? 'elite' : 'common'),
+      rewarded: false,
       ship: shipObj,
       className: cfg.name,
       combat: !!COMBAT_HULLS[cfg.name],
@@ -287,7 +288,7 @@ class PublicNpcManager {
       isAggro: false,
       aggroTimer: 0,
       lastHp: hp,
-      role: PATROL_NAMES[cfg.name] ? 'patrol' : 'mine',   // patrol the belt, or mine rocks
+      role: 'patrol',   // all pirate hulls keep moving between patrol waypoints
       home: { x: x, y: y },                               // centre of its patrol area
       pos: { x: x, y: y },                                // authoritative position, owned by this manager
       patrolPt: null,
@@ -560,15 +561,15 @@ class PublicNpcManager {
       const ship = npc.ship;
 
       // Check if NPC was killed
-      if (ship.structure <= 0) {
+      if (this.totalHp(ship) <= 0 && !npc.rewarded) {
+        npc.rewarded = true;
         npc.isAlive = false;
         if(npc.frontierLevel){npc.respawnAt=Date.now()+60000+Math.floor(Math.random()*60001);if(window.MinispaceOnline&&window.MinispaceOnline.send)window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});}
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
         }
-        const frontierXP = npc.frontierLevel
-          ? Math.round(90 + npc.frontierLevel * 65 + (npc.elite ? 350 : 0))
-          : 45;
+        const frontierXP = npc.frontierLevel ? Math.round(140 + npc.frontierLevel * 110 + (npc.elite ? 450 : 0)) : 75;
+        if(playerData){if(!playerData.stationOre)playerData.stationOre={};const salvageKey=npc.frontierLevel?(Math.random()<.55?'debris_t2':'debris_t3'):(Math.random()<.65?'debris_t1':'debris_t2');const salvageQty=Math.max(1,Math.round((1+Math.floor(Math.random()*3))*(1+(npc.frontierLevel||0)*.5)*(npc.elite?2:1)));playerData.stationOre[salvageKey]=(Number(playerData.stationOre[salvageKey])||0)+salvageQty;npc.salvageReward={key:salvageKey,qty:salvageQty};}
         if (typeof window.awardPlayerXP === 'function') {
           window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
         }
@@ -591,7 +592,7 @@ class PublicNpcManager {
           if(typeof saveGameSession==='function')saveGameSession();
         }
         if (typeof window.showCorpNotification === 'function') {
-          window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + frontierXP + ' XP');
+          window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + frontierXP + ' XP · SALVAGE +' + (npc.salvageReward ? npc.salvageReward.qty + ' ' + npc.salvageReward.key.replace('debris_','T') : 'secured'));
         }
         if (typeof updateStationUI === 'function') updateStationUI();
         if (typeof saveGameSession === 'function') saveGameSession();
