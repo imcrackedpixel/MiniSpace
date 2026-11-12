@@ -550,7 +550,7 @@ class PublicNpcManager {
           if(typeof window.showCorpNotification==='function')window.showCorpNotification('MODULE DROP: '+rarity.toUpperCase()+' '+module);
         }
         if (typeof window.showCorpNotification === 'function') {
-          window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + pirateXP + ' XP · SALVAGE +' + (npc.salvageReward ? npc.salvageReward.qty + ' ' + npc.salvageReward.key.replace('debris_','T') : 'secured'));
+          window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + pirateXP + ' XP');
         }
         if (typeof updateStationUI === 'function') updateStationUI();
         if (typeof saveGameSession === 'function') saveGameSession();
