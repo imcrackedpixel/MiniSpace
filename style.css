@@ -270,3 +270,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
     right: auto !important;
   }
 }
+/* HIDE ONLINE PILOT LIST */
+#online-roster {
+  display: none !important;
+}
