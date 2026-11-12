@@ -1536,7 +1536,7 @@ window.sellHangarItemViaTransport = async function(itemKey) {
   const input = document.getElementById('hangar-qty-' + itemKey);
   const qty = Math.floor(Number(input && input.value) || 0);
   const available = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[itemKey]) || 0));
-  const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && b.ship.className === 'Transport Capital'; }) : null;
+  const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
   if (!playerShip || !playerShip.docked || (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
     window.showCorpNotification('Dock at your Private High-Sec station to dispatch a sale.');
     return;
@@ -1604,8 +1604,8 @@ function updateStationUI() {
     let sellPrice = itemPrices[itemKey] || 10;
     let displayName = itemLabel(itemKey).toUpperCase();
     const g = itemKey.indexOf('debris_') === 0 ? 'debris' : 'ore';
-    const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && b.ship.className === 'Transport Capital'; }) : null;
-    const managerReady = !!(manager && manager.transportState === 'loading' && !manager.transportTask && !manager.playerSaleTask && !(manager.ship.cargo || 0));
+    const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
+    const managerReady = !!(manager && (!manager.transportState || manager.transportState === 'loading') && !manager.transportTask && !manager.playerSaleTask && !(manager.ship.cargo || 0));
     const inTradeHubNow = typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub';
     const loadRoom = playerShip ? Math.max(0, (Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)) : 0;
     const rowDefault = Math.min(Math.max(0, Math.floor(Number(qty) || 0)), 5000);
