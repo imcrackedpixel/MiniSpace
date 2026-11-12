@@ -291,3 +291,45 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .universe-node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center;min-width:76px;max-width:110px;padding:6px 7px;background:rgba(8,18,28,.92);border:1px solid #557181;border-radius:20px;color:#e6edf3;box-shadow:0 0 14px #1b435b88;z-index:2}.universe-node strong{font-size:10px;white-space:nowrap}.universe-node small{font-size:8px;color:#b9c9d0}
 .universe-node.level-1{border-color:#8aa8b3}.universe-node.level-2{border-color:#75c9a8}.universe-node.level-3{border-color:#5ca8d8}.universe-node.level-4{border-color:#b18be8}.universe-node.level-5{border-color:#ed6a70;box-shadow:0 0 18px #ed6a7066}.universe-node.current{background:#164c42;border-color:#7ef0c8}.universe-chart-title,.universe-chart-key{position:absolute;left:10px;top:8px;color:#9be7d4;font-size:9px;letter-spacing:1px;z-index:3;pointer-events:none}.universe-chart-key{top:auto;bottom:8px;color:#91a1a9;letter-spacing:0}.universe-node:disabled{opacity:1;cursor:default}
 @media(max-width:520px){.universe-window{padding:8px}.universe-starchart{min-height:390px;aspect-ratio:.88}.universe-node{min-width:66px;padding:5px 4px}.universe-node strong{font-size:9px}.universe-node small{font-size:7px}}.universe-window{padding:10px}}
+
+
+/* Hangar bag: compact vertical category rail, stack slots and a dedicated fitting bench */
+.hangar-inventory-layout{display:flex;align-items:stretch;gap:8px;min-height:260px}
+.hangar-side-tabs{display:flex;flex:0 0 58px;flex-direction:column;gap:6px;padding:4px 0}
+.hangar-side-btn{display:flex;min-height:58px;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:5px 2px;background:#0b141c;border:1px solid #263d4a;color:#8faab6;border-radius:6px;font-size:19px}
+.hangar-side-btn span{font-size:9px;font-weight:bold;text-transform:uppercase}
+.hangar-side-btn.active{background:#153a3a;border-color:#48a88d;color:#a8f0d6;box-shadow:inset 0 0 12px #1d806033}
+.hangar-bag-main{flex:1;min-width:0;overflow-x:hidden}
+.hangar-bag-main #hangar-items-table{width:100%;border-collapse:separate;border-spacing:0 7px}
+.hangar-bag-main #hangar-items-table>thead{display:none}
+.hangar-bag-main #hangar-items-table>tbody>tr>td{padding:0;border:0;background:transparent}
+.hangar-bag-main #hangar-items-table details{display:block;background:linear-gradient(145deg,#14232d,#0b131b);border:1px solid #304653;border-radius:7px;overflow:hidden}
+.hangar-bag-main #hangar-items-table details>summary{padding:10px 11px;color:#9be7d4!important;font-size:11px;letter-spacing:.7px;list-style:none}
+.hangar-bag-main #hangar-items-table details>summary::-webkit-details-marker{display:none}
+.hangar-bag-main #hangar-items-table details>summary:after{content:"＋";float:right;color:#75b8c6}
+.hangar-bag-main #hangar-items-table details[open]>summary:after{content:"－"}
+.hangar-bag-main #hangar-items-table details>table{width:100%;border-spacing:6px;table-layout:fixed}
+.hangar-bag-main #hangar-items-table details>table tbody{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:7px;padding:0 7px 8px}
+.hangar-bag-main #hangar-items-table details>table tr{display:flex;flex-direction:column;justify-content:space-between;gap:6px;min-width:0;min-height:112px;padding:9px;background:linear-gradient(160deg,#172632,#0c151e);border:1px solid #304b5b;border-radius:7px}
+.hangar-bag-main #hangar-items-table details>table td{display:block;min-width:0;padding:0!important;overflow-wrap:anywhere;font-size:10px}
+.hangar-bag-main #hangar-items-table details>table td:first-child{font-weight:bold;color:#d9e9ef}
+.hangar-bag-main #hangar-items-table details>table td:nth-child(2){font-size:12px;color:#80d8b7;font-weight:bold}
+.hangar-bag-main #hangar-items-table details>table td:last-child{display:flex;flex-wrap:wrap;gap:4px}
+.hangar-bag-main #hangar-items-table details>table input{width:100%!important;max-width:100%!important;box-sizing:border-box}
+.hangar-bag-main #hangar-items-table details>table button{min-width:0!important;min-height:30px!important;flex:1 1 100%;padding:5px!important;font-size:9px!important}
+.inventory-item-icon{display:block;margin-bottom:4px;color:#7dd3c7;font-size:20px}
+#hangar-fitting-panel{padding:5px 2px;color:#dce8ed}
+.fitting-heading{display:flex;justify-content:space-between;align-items:center;margin:5px 0 10px;padding:9px;background:#12232d;border:1px solid #2d4a58;border-radius:6px;color:#9be7d4;font-size:11px}
+.fitting-heading span{color:#91a1a9;font-size:10px}
+.fitting-module-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:7px;margin-bottom:16px}
+.fitting-module{display:flex;min-height:82px;flex-direction:column;justify-content:space-between;padding:9px;background:linear-gradient(145deg,#182b37,#0b141d);border:1px solid #345364;border-radius:7px}
+.fitting-module span{font-size:9px;color:#9db4bf}.fitting-module strong{font-size:13px;color:#a8f0d6}.fitting-module small{font-size:8px;color:#738b97}
+.fitting-chip-list{display:flex;flex-direction:column;gap:7px}
+.fitting-chip{display:flex;align-items:center;gap:8px;padding:9px;background:linear-gradient(120deg,#281d38,#171626);border:1px solid #8756b8;border-radius:7px}
+.fitting-chip .chip-glyph{font-size:22px;color:#d7a5ff}
+.fitting-chip>div{display:flex;flex:1;min-width:0;flex-direction:column;gap:3px}
+.fitting-chip strong{font-size:10px;color:#e5c7ff}.fitting-chip small{font-size:9px;color:#b6a3c8;overflow-wrap:anywhere}
+.fitting-chip button{min-width:80px!important;min-height:34px!important;font-size:8px!important;background:#392653!important;border-color:#8756b8!important;color:#f1ddff!important}
+.fitting-chip button:disabled{opacity:.5}
+.fitting-empty{padding:12px;color:#8498a3;font-size:11px;text-align:center}
+@media(max-width:520px){.hangar-inventory-layout{gap:5px}.hangar-side-tabs{flex-basis:48px}.hangar-side-btn{min-height:52px}.hangar-bag-main #hangar-items-table details>table tbody{grid-template-columns:repeat(2,minmax(0,1fr))}.fitting-chip{align-items:flex-start;flex-wrap:wrap}.fitting-chip button{margin-left:30px}}
