@@ -136,16 +136,23 @@ class PublicNpcManager {
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
   init(playerShip, playerSlot = 0) {
-    this.publicNpcMiners = [];
+    // Keep the shared arena population when another pilot enters. Rebuilding this
+    // array here used to erase every existing pirate ship on each gate entry.
+    if (!Array.isArray(this.publicNpcMiners)) this.publicNpcMiners = [];
     const M = PUBLIC_MAP;
 
-    // Rogue station boss at the centre of the map (unchanged)
-    const centralStation = new SpaceStation(M.cx, M.cy, 'Rogue NPC Station');
-    centralStation.structure = 20000;
-    centralStation.maxStructure = 20000;
-    window.centralStationBoss = centralStation;
+    // Keep the current station boss for pilots already fighting in this arena.
+    if (!window.centralStationBoss || Number(window.centralStationBoss.structure) <= 0) {
+      const centralStation = new SpaceStation(M.cx, M.cy, 'Rogue NPC Station');
+      centralStation.structure = 20000;
+      centralStation.maxStructure = 20000;
+      window.centralStationBoss = centralStation;
+    }
 
     const slot = Math.max(0, Math.min(M.spawns.length - 1, playerSlot | 0));
+    // Only seed a belt when it has no living pirates. Existing ships in every
+    // other belt remain untouched when a new player arrives.
+    if (this.publicNpcMiners.some(n => n && n.isAlive && n.beltSlot === slot)) return;
     this.playerSlot = slot;
     const sp = M.spawns[slot];
     const plan = ENTRY_SPAWNS[playerHullGroup(playerShip)];
