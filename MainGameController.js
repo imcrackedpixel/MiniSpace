@@ -2015,3 +2015,15 @@ window.handlePlayerDeath = function() {
   updateMissionsUI();
   saveGameSession();
 };
+
+// RESTORE SAVED SHIP POSITION AFTER STARTUP
+if (window.MINISPACE_SAVED_POSITION && playerShip) {
+  const saved = window.MINISPACE_SAVED_POSITION;
+
+  playerShip.x = saved.x;
+  playerShip.y = saved.y;
+  playerShip.vx = saved.vx;
+  playerShip.vy = saved.vy;
+  playerShip.angle = saved.angle;
+  playerShip.docked = saved.docked;
+}
