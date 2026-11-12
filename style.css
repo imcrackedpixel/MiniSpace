@@ -274,3 +274,12 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 #online-roster {
   display: none !important;
 }
+/* RESIZABLE ONLINE PANEL */
+#online-panel {
+  resize: both;
+  overflow: auto;
+  min-width: 180px;
+  min-height: 120px;
+  max-width: 90vw;
+  max-height: 80vh;
+}
