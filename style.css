@@ -372,3 +372,63 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .hangar-item-detail-head{justify-content:flex-start}
 .hangar-item-detail-head strong{flex:1}
 @media(max-width:420px){.inventory-slot{min-height:148px}.hangar-art-frame{height:68px}}
+
+
+/* ===== Reliable HUD display modes and independent chat folding ===== */
+#ui-mode-controls {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 12000;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  max-width: min(94vw, 420px);
+  pointer-events: auto;
+}
+#ui-mode-controls button {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid #3b6570;
+  border-radius: 5px;
+  background: rgba(8, 20, 29, .94);
+  color: #bcefe0;
+  font: 700 9px system-ui, sans-serif;
+  letter-spacing: .35px;
+  touch-action: manipulation;
+}
+body:not(.ui-blank) #ui-mode-controls [data-ui-mode="restore"] { display: none; }
+body.ui-minimal #pilot-panel,
+body.ui-minimal #minimap-panel,
+body.ui-minimal #online-panel { display: none !important; }
+body.ui-minimal #flight-controls { max-width: 170px !important; }
+body.ui-blank #ui-layer,
+body.ui-blank #online-panel,
+body.ui-blank #corp-notification { display: none !important; }
+body.ui-blank #ui-mode-controls [data-ui-mode="minimal"],
+body.ui-blank #ui-mode-controls [data-ui-mode="blank"],
+body.ui-blank #ui-mode-controls [data-ui-mode="close"] { display: none; }
+#online-header { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+#online-header > span { flex: 1; min-width: 0; }
+#online-header button { flex: 0 0 auto; white-space: nowrap; }
+#online-chat-content { display: block; }
+#online-chat-controls { align-items: center; }
+@media (max-width: 700px) {
+  #ui-mode-controls { top: 6px; right: 6px; gap: 3px; max-width: 96vw; }
+  #ui-mode-controls button { min-height: 28px; padding: 4px 6px; font-size: 8px; }
+}
+
+/* Recommended hull marker on the frontier chart */
+.universe-ship-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  margin-right: 4px;
+  font-size: 12px;
+  vertical-align: -2px;
+  filter: drop-shadow(0 0 4px rgba(117, 201, 168, .45));
+}
+.universe-node strong { display: flex; align-items: center; justify-content: center; gap: 2px; }
