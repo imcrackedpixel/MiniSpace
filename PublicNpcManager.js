@@ -499,7 +499,7 @@ class PublicNpcManager {
           playerData.isk += Math.floor(npc.bounty);
         }
         if (typeof window.showCorpNotification === 'function') {
-          window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' ISK');
+          window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals');
         }
         // Spawn loot wreckage
         if (typeof DebrisField !== 'undefined' && debrisField && debrisField.entities) {
