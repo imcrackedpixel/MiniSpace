@@ -133,6 +133,11 @@ class PublicNpcManager {
     this.CARRIER_IDEAL_DIST = 320;
     this._dbgFrame = 0;
     this._frontierStates = Object.create(null);
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('minispace-frontier-npc-state', e => this.applyFrontierNpcState(e && e.detail));
+      window.addEventListener('minispace-frontier-npc-killed', e => this.applyFrontierNpcKilled(e && e.detail));
+      window.addEventListener('minispace-frontier-npc-respawn', e => this.applyFrontierNpcRespawn(e && e.detail));
+    }
   }
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
@@ -183,20 +188,60 @@ class PublicNpcManager {
     });
   }
 
+  frontierState(systemId) {
+    return this._frontierStates[systemId] || (this._frontierStates[systemId] = {
+      spawned: false, guardDefs: [], guardRespawns: Object.create(null), clearNotified: false
+    });
+  }
+
+  applyFrontierNpcState(message) {
+    if (!message || !String(message.mapId || '').startsWith('frontier_')) return;
+    const state = this.frontierState(message.mapId);
+    (Array.isArray(message.deadNpcs) ? message.deadNpcs : []).forEach(dead => {
+      if (!dead || !dead.npcId) return;
+      const at = Number(dead.respawnAt) || 0;
+      if (at > Date.now()) {
+        state.guardRespawns[dead.npcId] = at;
+        const npc = this.publicNpcMiners.find(n => n && n.id === dead.npcId && n.mapId === message.mapId);
+        if (npc) npc.isAlive = false;
+      }
+    });
+    this.publicNpcMiners = this.publicNpcMiners.filter(n => n && n.isAlive);
+  }
+
+  applyFrontierNpcKilled(message) {
+    if (!message || !String(message.mapId || '').startsWith('frontier_') || !message.npcId) return;
+    const state = this.frontierState(message.mapId);
+    const at = Number(message.respawnAt) || Date.now() + 240000;
+    state.guardRespawns[message.npcId] = at;
+    const npc = this.publicNpcMiners.find(n => n && n.id === message.npcId && n.mapId === message.mapId);
+    if (npc) npc.isAlive = false;
+    this.publicNpcMiners = this.publicNpcMiners.filter(n => n && n.isAlive);
+  }
+
+  applyFrontierNpcRespawn(message) {
+    if (!message || !String(message.mapId || '').startsWith('frontier_') || !message.npcId) return;
+    const state = this.frontierState(message.mapId);
+    delete state.guardRespawns[message.npcId];
+    const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === message.mapId);
+    const def = (state.guardDefs || []).find(d => d.id === message.npcId);
+    if (system && def) this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION);
+  }
+
+  spawnFrontierGuard(system, def, station) {
+    if (!system || !def || this.publicNpcMiners.some(n => n && n.isAlive && n.id === def.id && n.mapId === system.id)) return;
+    const cfg = PIRATE_TYPES[def.type];
+    if (!cfg) return;
+    this.addPirate(cfg, def.x, def.y, def.id, {
+      mapId: system.id, stationGuard: true, role: 'patrol',
+      hpScale: def.hpScale, dmg: def.dmg, elite: def.elite
+    });
+  }
+
   initFrontierSystem(system, station) {
     if (!system || !system.id) return;
-    const id = system.id;
-    const state = this._frontierStates[id] || (this._frontierStates[id] = { spawned: false, respawnAt: 0 });
-    const live = this.publicNpcMiners.some(n => n && n.isAlive && n.mapId === id && n.stationGuard);
-    if (live) return;
-    if (state.spawned && !state.respawnAt) {
-      state.respawnAt = Date.now() + 180000 + Math.floor(Math.random() * 120001);
-    }
-    if (state.spawned && state.respawnAt && Date.now() < state.respawnAt) return;
-    if (state.spawned && state.respawnAt && Date.now() >= state.respawnAt) {
-      state.spawned = false;
-      state.respawnAt = 0;
-    }
+    const id = system.id, state = this.frontierState(id);
+    if (state.spawned) return;
     const cx = station && Number.isFinite(station.x) ? station.x : 4500;
     const cy = station && Number.isFinite(station.y) ? station.y : 4500;
     let plan;
@@ -204,20 +249,36 @@ class PublicNpcManager {
     else if (system.ring <= 6) plan = ['siegeCruiser','combatFrigate','combatFrigate','frigate','frigate','frigate'];
     else plan = ['siegeBattleship','siegeCruiser','combatFrigate','combatFrigate','combatFrigate','carrier'];
     const hpScale = system.ring >= 9 ? 0.42 : (system.ring >= 7 ? 0.48 : 0.6);
-    plan.forEach((type, i) => {
-      const cfg = PIRATE_TYPES[type];
-      if (!cfg) return;
-      const a = (i / plan.length) * Math.PI * 2 + Math.random() * 0.3;
+    state.guardDefs = plan.map((type, i) => {
+      const angle = (i / plan.length) * Math.PI * 2 + Math.random() * 0.3;
       const radius = 720 + Math.random() * 650;
-      this.addPirate(cfg, cx + Math.cos(a) * radius, cy + Math.sin(a) * radius,
-        'station_guard_' + id + '_' + i, {
-          mapId: id, stationGuard: true, role: 'patrol', hpScale: hpScale,
-          dmg: system.ring >= 7 ? 0.22 : 0.14,
-          elite: system.ring >= 9 && i === 0
-        });
+      return {
+        id: 'station_guard_' + id + '_' + i, type: type,
+        x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius,
+        hpScale: hpScale, dmg: system.ring >= 7 ? 0.22 : 0.14,
+        elite: system.ring >= 9 && i === 0
+      };
     });
     state.spawned = true;
-    state.respawnAt = 0;
+    state.guardDefs.forEach(def => {
+      const respawnAt = Number(state.guardRespawns[def.id]) || 0;
+      if (respawnAt > Date.now()) return;
+      if (respawnAt) delete state.guardRespawns[def.id];
+      this.spawnFrontierGuard(system, def, station);
+    });
+  }
+
+  scheduleFrontierGuardRespawn(npc) {
+    if (!npc || !npc.stationGuard || !npc.mapId) return;
+    const state = this.frontierState(npc.mapId);
+    const respawnAt = Date.now() + 180000 + Math.floor(Math.random() * 120001);
+    state.guardRespawns[npc.id] = respawnAt;
+    if (window.MinispaceOnline && typeof window.MinispaceOnline.send === 'function') {
+      window.MinispaceOnline.send({
+        type: 'frontier-npc-killed', mapId: npc.mapId,
+        npcId: npc.id, respawnAt: respawnAt
+      });
+    }
   }
 
   hasLivingStationGuards(systemId) {
@@ -227,21 +288,23 @@ class PublicNpcManager {
   updateFrontierRespawn(systemId) {
     const state = this._frontierStates[systemId];
     if (!state || !state.spawned) return;
-    if (this.hasLivingStationGuards(systemId)) return;
-    if (!state.respawnAt) {
-      state.respawnAt = Date.now() + 180000 + Math.floor(Math.random() * 120001);
+    const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
+    if (!system) return;
+    const now = Date.now();
+    Object.keys(state.guardRespawns || {}).forEach(npcId => {
+      if (Number(state.guardRespawns[npcId]) > now) return;
+      delete state.guardRespawns[npcId];
+      const def = (state.guardDefs || []).find(d => d.id === npcId);
+      if (def) this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION);
+    });
+    const alive = this.hasLivingStationGuards(systemId);
+    if (!alive && Object.keys(state.guardRespawns || {}).length && !state.clearNotified) {
+      state.clearNotified = true;
       if (typeof window.showCorpNotification === 'function') {
         window.showCorpNotification('Station guards cleared. Docking unlocked · patrols return in 3–5 minutes.');
       }
-      return;
     }
-    if (Date.now() >= state.respawnAt) {
-      state.spawned = false;
-      state.respawnAt = 0;
-      const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
-      if (system) this.initFrontierSystem(system, window.MINISPACE_FRONTIER_STATION);
-      if (typeof window.showCorpNotification === 'function') window.showCorpNotification('Station patrols have respawned. Clear the guards to dock again.');
-    }
+    if (alive) state.clearNotified = false;
   }
 
   addPirate(cfg, x, y, id, opts) {
@@ -608,6 +671,7 @@ class PublicNpcManager {
       if (this.totalHp(ship) <= 0 && !npc.rewarded) {
         npc.rewarded = true;
         npc.isAlive = false;
+        if (npc.stationGuard) this.scheduleFrontierGuardRespawn(npc);
         // Arena pirates can be damaged by other NPCs as well as the player.
         // Still grant the local pilot combat XP for a 3v3 arena kill, even if an
         // NPC delivered the final blow; keep bounty and module drops player-tagged.
