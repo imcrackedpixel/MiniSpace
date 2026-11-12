@@ -105,7 +105,18 @@ class MissionManager {
     m.fleet.forEach(enemy=>{
       if(!enemy||enemy.structure<=0||!playerShip||playerShip.docked)return;
       const d=Math.hypot(playerShip.x-enemy.x,playerShip.y-enemy.y);
-      if(d<1400){enemy.docked=false;enemy.currentTarget=playerShip;enemy.update(null,playerShip,false,[],true);}
+      if(d<1400){
+        enemy.docked=false;
+        enemy.currentTarget=playerShip;
+        // NpcCarrier has a six-argument update signature. The old five-argument
+        // call passed [] as forceStop and true as enemyListRef, breaking its
+        // drone targeting with enemyListRef.map is not a function.
+        if(enemy.className==='Carrier' && Array.isArray(enemy.drones)){
+          enemy.update(null,playerShip,false,false,[playerShip],true);
+        }else{
+          enemy.update(null,playerShip,false,[],true);
+        }
+      }
       else {const a=Math.atan2(playerShip.y-enemy.y,playerShip.x-enemy.x);enemy.vx=(enemy.vx+Math.cos(a)*0.04)*0.96;enemy.vy=(enemy.vy+Math.sin(a)*0.04)*0.96;enemy.x+=enemy.vx;enemy.y+=enemy.vy;}
     });
     this.checkMissionCompletion();
