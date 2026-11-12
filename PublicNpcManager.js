@@ -143,7 +143,8 @@ class PublicNpcManager {
     const oldRandom=Math.random;let state=seed||1;Math.random=function(){state=(state*1664525+1013904223)>>>0;return state/4294967296;};
     try {
       const level=system.level||1,c=4500,count=3+Math.floor(Math.random()*3);
-      const gx=c+(Math.random()-.5)*900,gy=c+(Math.random()-.5)*900;
+      // Keep the frontier skirmish close enough to the return rift for arriving pilots to see it.
+      const gx=1850+Math.random()*350,gy=c+(Math.random()-.5)*900;
       for(let i=0;i<count;i++){
         let cfg,combat=false;
         if(system.kind==='Mining Fleet')cfg=pickPirate(MINER_POOL);
@@ -860,7 +861,7 @@ class PublicNpcManager {
           : rarity === 'uncommon' ? '#3fb950'
           : '#e6edf3';
         const zoom = Math.max(0.45, Number(window.cameraZoom) || 1);
-        const label = 'PIRATE';
+        const label = npc.faction === 'miners' ? 'MINER' : 'PIRATE';
         const fontSize = 13 / zoom;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
