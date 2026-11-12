@@ -170,6 +170,30 @@ class BotManager {
         ship.cargo = s.cargo || 0;
         if (s.oreType) ship.oreType = s.oreType;
         ship.cargoByOre = s.cargoByOre && typeof s.cargoByOre === 'object' ? Object.assign({}, s.cargoByOre) : null;
+
+        // Migrate any cargo left by the retired miner-siphoning transport
+        // into corporation storage once, then start the new station-loading loop.
+        const isTransportHull =
+          ship.className === 'Transport Capital' ||
+          ship.className === 'Industrial Hauler' ||
+          ship.className === 'Freighter';
+        if (isTransportHull && (ship.cargo || 0) > 0) {
+          const corpHangar = this.playerData.corpStationOre ||
+            (this.playerData.corpStationOre = {});
+          const oldCargo = ship.cargoByOre || {
+            [ship.oreType || 'veldspar']: ship.cargo
+          };
+          for (const key of Object.keys(oldCargo)) {
+            const qty = Math.max(0, Math.floor(Number(oldCargo[key]) || 0));
+            if (qty > 0) {
+              corpHangar[key] = (corpHangar[key] || 0) + qty;
+            }
+          }
+          ship.cargo = 0;
+          ship.cargoByOre = {};
+          bot.transportState = 'loading';
+          bot.transportMapId = 'private_highsec';
+        }
       }
     }
     // Reconnect saved transport cargo to its original corp miner after all bots exist.
