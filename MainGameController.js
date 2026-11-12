@@ -2524,37 +2524,54 @@ function render() {
   const view = { x1: camX - hw - 200, x2: camX + hw + 200, y1: camY - hh - 200, y2: camY + hh + 200 };
   const pub = inPublicSpace();
 
-  if (inMissionSpace()) {
-    if (mapManager && mapManager.missionReturnGate) mapManager.missionReturnGate.draw(ctx);
-  } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
-    if(mapManager.frontierReturnGate)mapManager.frontierReturnGate.draw(ctx);
-    (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
-  } else if (!pub) {
-    if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
-    if (mapManager && mapManager.frontierEntryGate && typeof mapManager.frontierEntryGate.draw === 'function') mapManager.frontierEntryGate.draw(ctx);
-    if (mapManager && mapManager.publicGate && typeof mapManager.publicGate.draw === 'function') mapManager.publicGate.draw(ctx);
-    if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned && mapManager.missionEntryGate) mapManager.missionEntryGate.draw(ctx);
-  } else {
-    if (mapManager && mapManager.playerGates) {
-      for (let gate of mapManager.playerGates) {
-        if (gate && typeof gate.draw === 'function') gate.draw(ctx);
+  const worldTransform = [z, 0, 0, z, W / 2 - camX * z, H / 2 - camY * z];
+  const safeWorldDraw = (name, drawFn) => {
+    ctx.save();
+    try { drawFn(); }
+    catch (drawError) {
+      if (!safeWorldDraw.warned) safeWorldDraw.warned = new Set();
+      if (!safeWorldDraw.warned.has(name)) {
+        safeWorldDraw.warned.add(name);
+        console.error('[MiniSpace render] ' + name + ' failed:', drawError && drawError.stack ? drawError.stack : drawError);
       }
+    } finally {
+      try { ctx.restore(); } catch (_) {}
+      ctx.setTransform(...worldTransform);
+      ctx.globalAlpha = 1;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.setLineDash([]);
     }
-  }
-  if (asteroidBelt && typeof asteroidBelt.draw === 'function') asteroidBelt.draw(ctx, view);
-  if (debrisField && typeof debrisField.draw === 'function') debrisField.draw(ctx);
+  };
 
-  if (!pub && !inMissionSpace() && botManager && typeof botManager.draw === 'function') botManager.draw(ctx, asteroidBelt, debrisField);
-  if (!inMissionSpace() && publicNpcManager && typeof publicNpcManager.draw === 'function') publicNpcManager.draw(ctx, mapManager.currentMapId, asteroidBelt);
-  if (inMissionSpace() && missionManager) missionManager.drawMissionFleet(ctx);
+  safeWorldDraw('map gates/station', () => {
+    if (inMissionSpace()) {
+      if (mapManager && mapManager.missionReturnGate) mapManager.missionReturnGate.draw(ctx);
+    } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
+      if(mapManager.frontierReturnGate)mapManager.frontierReturnGate.draw(ctx);
+      (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
+    } else if (!pub) {
+      if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
+      if (mapManager && mapManager.frontierEntryGate && typeof mapManager.frontierEntryGate.draw === 'function') mapManager.frontierEntryGate.draw(ctx);
+      if (mapManager && mapManager.publicGate && typeof mapManager.publicGate.draw === 'function') mapManager.publicGate.draw(ctx);
+      if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned && mapManager.missionEntryGate) mapManager.missionEntryGate.draw(ctx);
+    } else if (mapManager && mapManager.playerGates) {
+      for (let gate of mapManager.playerGates) if (gate && typeof gate.draw === 'function') gate.draw(ctx);
+    }
+  });
+  if (asteroidBelt && typeof asteroidBelt.draw === 'function') safeWorldDraw('asteroid belt', () => asteroidBelt.draw(ctx, view));
+  if (debrisField && typeof debrisField.draw === 'function') safeWorldDraw('debris field', () => debrisField.draw(ctx));
 
-  if (!ship.docked && typeof ship.draw === 'function') {
+  if (!pub && !inMissionSpace() && botManager && typeof botManager.draw === 'function') safeWorldDraw('corp ships', () => botManager.draw(ctx, asteroidBelt, debrisField));
+  if (!inMissionSpace() && publicNpcManager && typeof publicNpcManager.draw === 'function') safeWorldDraw('public pirates', () => publicNpcManager.draw(ctx, mapManager.currentMapId, asteroidBelt));
+  if (inMissionSpace() && missionManager) safeWorldDraw('mission fleet', () => missionManager.drawMissionFleet(ctx));
+
+  if (!ship.docked && typeof ship.draw === 'function') safeWorldDraw('player ship', () => {
     const cargoBeforeDraw = Number(ship.cargo) || 0;
     ship.draw(ctx, asteroidBelt);
     const minedDuringDraw = Math.max(0, (Number(ship.cargo) || 0) - cargoBeforeDraw);
     if (minedDuringDraw > 0 && ['Mining Frigate','Mining Barge'].includes(ship.className)) awardPlayerXP('mining', minedDuringDraw / 100, 'Ore mined');
-  }
-  if (!inMissionSpace() && window.SiegeCapital) window.SiegeCapital.draw(ctx);
+  });
+  if (!inMissionSpace() && window.SiegeCapital) safeWorldDraw('siege capital', () => window.SiegeCapital.draw(ctx));
   const remote=window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers;
   if(remote)Object.values(remote).forEach(p=>{
     if(!p||p.mapId!==mapManager.currentMapId||!isFinite(Number(p.x))||!isFinite(Number(p.y)))return;
@@ -2612,7 +2629,13 @@ function gameLoop(timestamp) {
     simulationAccumulator += elapsed;
     let steps = 0;
     while (simulationAccumulator >= SIMULATION_STEP_MS && steps < 15) {
-      updateGame();
+      try { updateGame(); }
+      catch (updateError) {
+        if (!gameLoop._updateWarned) {
+          console.error('[MiniSpace update] Simulation step failed; rendering will continue:', updateError && updateError.stack ? updateError.stack : updateError);
+          gameLoop._updateWarned = true;
+        }
+      }
       simulationAccumulator -= SIMULATION_STEP_MS;
       steps++;
     }
