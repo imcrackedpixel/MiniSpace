@@ -2615,4 +2615,50 @@ if (
   }
 })();
 
+/* EMERGENCY MISSION RECOVERY AND CARRIER ART FIX */
+(function () {
+  // Fix the case-sensitive Carrier image filename.
+  if (window.ShipArt && window.ShipArt.ART['Carrier']) {
+    window.ShipArt.ART['Carrier'].file = 'Carrier.png';
+  }
+
+  // Escape a saved mission map without resetting the rest of the save.
+  if (
+    mapManager &&
+    String(mapManager.currentMapId).indexOf('mission_') === 0 &&
+    playerShip
+  ) {
+    if (missionManager) {
+      missionManager.activeMission = null;
+      missionManager.generateMissions();
+    }
+
+    playerData.activeMission = null;
+
+    const world = mapManager.jumpToPrivateSec(playerShip, mainStation);
+    asteroidBelt = world.asteroidBelt;
+    debrisField = world.debrisField;
+
+    playerShip.x = mainStation.x + 250;
+    playerShip.y = mainStation.y + 250;
+    playerShip.vx = 0;
+    playerShip.vy = 0;
+    playerShip.docked = false;
+
+    playerShip.currentTarget = null;
+    targetMovePos = null;
+    lockedTarget = null;
+    isDockingRequested = false;
+
+    mapManager.missionReturnGate = null;
+    gateCooldown = 180;
+
+    const stationUi = document.getElementById('station-ui');
+    if (stationUi) stationUi.style.display = 'none';
+
+    updateMissionsUI();
+    saveGameSession();
+  }
+})();
+
 
