@@ -2317,8 +2317,8 @@ function updateNearbySpacePanel(){
  else if(id.indexOf('mission_')===0)gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
  else{gate(mapManager.frontierEntryGate,'Frontier Tear',{destinationId:'frontier_ashen'});if(id!=='public_trade_hub')gate(mapManager.publicGate,'Arena Tear',{});if(mapManager.missionEntryGate&&missionManager&&missionManager.activeMission&&!missionManager.activeMission.returned)gate(mapManager.missionEntryGate,'Mission Tear',{mission:true});}
  if(id==='public_space'&&publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners))publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship)add('pirates',n.ship.pilotName||n.ship.name||n.className||'Pirate',n.ship,'pirate');});
- if(Array.isArray(asteroidBelt&&asteroidBelt.entities))asteroidBelt.entities.forEach((o,i)=>{if(o&&Number(o.oreYield)>0)add('ore',o.name||o.oreName||o.oreType||'Asteroid '+(i+1),o,'rock');});
- if(debrisField&&typeof debrisField.getEntities==='function')(debrisField.getEntities()||[]).forEach((o,i)=>{if(o&&(Number(o.oreYield)>0||Number(o.value)>0||o.isMineable!==false))add('ore',o.name||o.type||'Salvage '+(i+1),o,'salvage');});
+ if(Array.isArray(asteroidBelt&&asteroidBelt.entities))asteroidBelt.entities.forEach((o,i)=>{if(o&&Number(o.oreYield)>0)add('ore',itemLabel(o.oreType||'veldspar'),o,'rock');});
+ if(debrisField&&typeof debrisField.getEntities==='function')(debrisField.getEntities()||[]).forEach((o)=>{if(o&&Number(o.oreYield)>0)add('ore',itemLabel('debris_t'+(Number(o.tier)||1)),o,'salvage');});
  Object.keys(g).forEach(k=>g[k].sort((a,b)=>a.distance-b.distance));
  const tab=window._miniSpaceNearbyTab||'tears',rows=g[tab]||[],targets=[],esc=v=>String(v).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
  rows.slice(0,20).forEach(o=>{const i=targets.push(o)-1;list.insertAdjacentHTML('beforeend','');});
@@ -2439,6 +2439,35 @@ function manualControl() {
   }
 }
 
+function autoLootNearbyWrecks() {
+  if (!playerShip || playerShip.docked || !debrisField ||
+      typeof debrisField.getEntities !== 'function' ||
+      typeof addOreToCargo !== 'function') return 0;
+  let collected = 0;
+  const room = Math.max(0, Math.floor((Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)));
+  if (room < 1) return 0;
+  for (const wreck of debrisField.getEntities()) {
+    if (!wreck || !(Number(wreck.oreYield) > 0)) continue;
+    const range = Math.max(55, Number(wreck.radius) || 40) + 35;
+    if (Math.hypot(playerShip.x - wreck.x, playerShip.y - wreck.y) > range) continue;
+    const tier = Math.max(1, Math.min(5, Math.floor(Number(wreck.tier) || 1)));
+    const key = 'debris_t' + tier;
+    const amount = Math.min(room - collected, Math.floor(Number(wreck.oreYield) || 0));
+    if (amount <= 0) break;
+    const added = addOreToCargo(playerShip, key, amount);
+    if (added > 0) {
+      wreck.oreYield = Math.max(0, Number(wreck.oreYield) - added);
+      collected += added;
+    }
+    if (collected >= room) break;
+  }
+  if (collected > 0) {
+    updateCargoReadout();
+    if (typeof saveGameSession === 'function') saveGameSession();
+  }
+  return collected;
+}
+
 function updateGame() {
   normalizeWrecks();
   const pub = inPublicSpace();
@@ -2513,6 +2542,7 @@ function updateGame() {
     autoplayManager.debrisField = debrisField;
     autoplayManager.update(playerShip, asteroidBelt);
   }
+  autoLootNearbyWrecks();
   const minedByPlayer = Math.max(0, (Number(playerShip.cargo) || 0) - cargoBeforePilotUpdate);
   if (minedByPlayer > 0 && ['Mining Frigate','Mining Barge','Command Ship','Mining Capital'].includes(playerShip.className)) awardPlayerXP('mining', minedByPlayer / 100, 'Ore collected');
   if (playerShip.docked) return;
