@@ -2076,3 +2076,140 @@ if (
   updateMissionsUI();
   saveGameSession();
 }
+
+/* TRADE HUB CONNECTION - separate from Station Loot */
+(function () {
+  if (!window.MINISPACE_TRADE_HUB) return;
+
+  const tradeGate = {
+    x: 4200,
+    y: 2500,
+    radius: 100,
+    draw(ctx) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = '#36b99a';
+      ctx.lineWidth = 5;
+      ctx.shadowColor = '#36b99a';
+      ctx.shadowBlur = 20;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#8cebd0';
+      ctx.font = 'bold 13px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText('TRADE & SOCIAL HUB', this.x, this.y - 120);
+      ctx.fillText('SAFE ZONE', this.x, this.y - 104);
+      ctx.restore();
+    }
+  };
+
+  const hubReturnGate = {
+    x: 700,
+    y: 3500,
+    radius: 100,
+    draw(ctx) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+      ctx.strokeStyle = '#36b99a';
+      ctx.lineWidth = 5;
+      ctx.shadowColor = '#36b99a';
+      ctx.shadowBlur = 20;
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.fillStyle = '#8cebd0';
+      ctx.font = 'bold 13px Courier New';
+      ctx.textAlign = 'center';
+      ctx.fillText('RETURN TO HIGH-SEC', this.x, this.y - 120);
+      ctx.restore();
+    }
+  };
+
+  window.jumpToTradeHub = function () {
+    const hub = window.MINISPACE_TRADE_HUB;
+    mapManager.currentMapId = hub.id;
+
+    const world = hub.createWorld();
+    asteroidBelt = world.asteroidBelt;
+    debrisField = world.debrisField;
+
+    playerShip.x = hubReturnGate.x + 180;
+    playerShip.y = hubReturnGate.y;
+    playerShip.vx = 0;
+    playerShip.vy = 0;
+    playerShip.docked = false;
+
+    targetMovePos = null;
+    lockedTarget = null;
+    isDockingRequested = false;
+    gateCooldown = 180;
+
+    window.showCorpNotification('Welcome to the Trade & Social Hub. PvP is disabled here.');
+  };
+
+  const originalWorldSize = currentWorldSize;
+  currentWorldSize = function () {
+    return mapManager.currentMapId === 'public_trade_hub'
+      ? 7000
+      : originalWorldSize();
+  };
+
+  const originalUpdateGame = updateGame;
+  updateGame = function () {
+    originalUpdateGame();
+
+    if (!playerShip || gateCooldown > 0) return;
+
+    if (mapManager.currentMapId === 'public_trade_hub') {
+      if (Math.hypot(
+        playerShip.x - hubReturnGate.x,
+        playerShip.y - hubReturnGate.y
+      ) < hubReturnGate.radius) {
+        window.jumpToPrivateSec();
+        window.showCorpNotification('Returned to High-Sec.');
+      }
+      return;
+    }
+
+    if (
+      mapManager.currentMapId === 'private_highsec' &&
+      Math.hypot(
+        playerShip.x - tradeGate.x,
+        playerShip.y - tradeGate.y
+      ) < tradeGate.radius
+    ) {
+      window.jumpToTradeHub();
+    }
+  };
+
+  const originalRender = render;
+  render = function () {
+    originalRender();
+
+    if (!playerShip || !ctx) return;
+
+    const mapId = mapManager.currentMapId;
+    if (
+      mapId !== 'private_highsec' &&
+      mapId !== 'public_trade_hub'
+    ) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const z = cameraZoom * dpr;
+
+    ctx.setTransform(
+      z, 0, 0, z,
+      canvas.width / 2 - playerShip.x * z,
+      canvas.height / 2 - playerShip.y * z
+    );
+
+    if (mapId === 'private_highsec') {
+      tradeGate.draw(ctx);
+    } else {
+      hubReturnGate.draw(ctx);
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  };
+})();
