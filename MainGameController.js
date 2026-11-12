@@ -1621,9 +1621,20 @@ window.transferTradeGoodsToPrivate = async function(key,qty) {
   } catch(error) { window.showCorpNotification('Transfer failed: ' + (error.message || error)); }
 };
 
-window.loadHangarItemToShip = function(itemKey) {
+window.openHangarItem=function(itemKey){
+ const panel=document.getElementById('hangar-item-details');if(!panel)return;
+ if(!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS,itemKey))return;
+ const available=Math.max(0,Math.floor(Number(playerData.stationOre&&playerData.stationOre[itemKey])||0));
+ const room=playerShip?Math.max(0,Math.floor((Number(playerShip.maxCargo)||0)-(Number(playerShip.cargo)||0))):0;
+ const max=Math.min(available,room);
+ panel.innerHTML='<div class="hangar-item-detail-head"><strong>'+itemLabel(itemKey).toUpperCase()+'</strong><button onclick="window.closeHangarItem()" aria-label="Close">✕</button></div><p>Station storage: '+available.toLocaleString()+'</p><p>Available cargo space: '+room.toLocaleString()+'</p><label>Quantity to move <input id="hangar-detail-qty" type="number" min="1" max="'+max+'" value="'+max+'" inputmode="numeric"></label><button onclick="window.moveHangarItemToCargo(\''+itemKey+'\')" '+(!playerShip||!playerShip.docked||max<1?'disabled':'')+'>MOVE TO CARGO</button>';
+ panel.style.display='block';panel.scrollIntoView({behavior:'smooth',block:'nearest'});
+};
+window.closeHangarItem=function(){const p=document.getElementById('hangar-item-details');if(p){p.style.display='none';p.innerHTML='';}};
+window.moveHangarItemToCargo=function(itemKey){const input=document.getElementById('hangar-detail-qty');const qty=Math.floor(Number(input&&input.value)||0);window.loadHangarItemToShip(itemKey,qty);window.closeHangarItem();};
+window.loadHangarItemToShip = function(itemKey, requestedQty) {
   const input = document.getElementById('hangar-qty-' + itemKey);
-  const qty = Math.floor(Number(input && input.value) || 0);
+  const qty = requestedQty===undefined?Math.floor(Number(input && input.value) || 0):Math.floor(Number(requestedQty)||0);
   if (!playerShip || !playerShip.docked) {
     window.showCorpNotification('Dock your active ship before loading its cargo.');
     return;
@@ -1844,7 +1855,7 @@ function updateStationUI() {
     const rowInput = '<input id="hangar-qty-' + itemKey + '" type="number" min="1" max="' + Math.max(0, Math.floor(Number(qty) || 0)) + '" value="' + rowDefault + '" inputmode="numeric" style="width:72px;max-width:22%;background:#080d12;color:#fff;border:1px solid #40535c;padding:4px;">';
     const loadButton = '<button onclick="window.loadHangarItemToShip(\'' + itemKey + '\')" ' + (!playerShip || !playerShip.docked || inTradeHubNow || qty < 1 || loadRoom < 1 ? 'disabled' : '') + '>Load ship</button>';
     const sellButton = '<button onclick="window.sellHangarItemViaTransport(\'' + itemKey + '\')" ' + (!managerReady || inTradeHubNow || qty < 1 ? 'disabled' : '') + '>Sell via Transport</button>';
-    groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">'+(g==='debris'?'✧':'◈')+'</span><strong>'+displayName+'</strong><span class="slot-qty">'+qty.toLocaleString()+'</span><div class="slot-actions">'+rowInput+loadButton+sellButton+'</div></div>';
+    groupRows[g] += '<div class="inventory-slot" role="button" tabindex="0" onclick="window.openHangarItem(\''+itemKey+'\')" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();window.openHangarItem(\''+itemKey+'\')}"><span class="inventory-item-icon">'+(g==='debris'?'✧':'◈')+'</span><strong>'+displayName+'</strong><span class="slot-qty">'+qty.toLocaleString()+'</span><small>Tap for item actions</small><div class="slot-actions" onclick="event.stopPropagation()">'+rowInput+sellButton+'</div></div>';
     groupCount[g]++;
   }
 
@@ -1927,7 +1938,7 @@ function updateStationUI() {
       fit+='<div class="fitting-module-grid">';
       for(const mod of Object.keys(playerShip.moduleLevels)){
         const level=Number(playerShip.moduleLevels[mod])||1,cap=getCap(mod,playerShip.className);
-        fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+'</span><strong>LV '+level+' / '+cap+'</strong><small>'+(cap>5?'Chip-extended maximum':'Standard maximum')+'</small></div>';
+        const nextCost=level>=cap?null:upgradeCostAt(level); fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+'</span><strong>LV '+level+' / '+cap+'</strong><small>'+(cap>5?'Chip-extended maximum':'Standard maximum')+'</small><button onclick="window.upgradeFrigateModule(\''+mod+'\')" '+(!nextCost?'disabled':'')+'>'+(nextCost?'UPGRADE · '+fmtISK(nextCost):'MAX LEVEL')+'</button></div>';
       }
       fit+='</div>';
     }else fit+='<p>Board a ship to view its module slots.</p>';
@@ -1951,21 +1962,6 @@ function updateStationUI() {
   let hangarValueEl = document.getElementById('hangar-value');
   if (hangarValueEl) hangarValueEl.innerText = 'HANGAR: ' + fmtISK(hangarValue) + ' Scrap Metals';
 
-  let upgradesHtml = '';
-  if (playerShip && playerShip.moduleLevels) {
-    for (let mod in playerShip.moduleLevels) {
-      let lvl = playerShip.moduleLevels[mod] || 1;
-      let cap = getCap(mod);
-      let atMax = lvl >= cap;
-      let nextCost = atMax ? null : upgradeCostAt(lvl);
-      let costText = nextCost ? fmtISK(nextCost) + ' Scrap Metals' : 'MAX';
-      let levelText = 'Lv. ' + lvl + (cap > 5 ? ' / ' + cap : '');
-      let chipBtn = '';
-      upgradesHtml += '<tr><td>' + mod.toUpperCase() + '</td><td>' + levelText + '</td><td><button onclick="window.upgradeFrigateModule(\'' + mod + '\')" ' + (!nextCost ? 'disabled' : '') + '>Upgrade (' + costText + ')</button>' + chipBtn + '</td></tr>';
-    }
-  }
-  let upgradesEl = document.getElementById('upgrades-list');
-  if (upgradesEl) upgradesEl.innerHTML = upgradesHtml;
   window.setHangarView(window._miniHangarView||'items');
   if (typeof syncAutoplayButton === 'function') syncAutoplayButton();
 }
