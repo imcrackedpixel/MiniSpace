@@ -279,7 +279,7 @@ class MapManager {
  this.frontierReturnGate = null;
  this.frontierGates = [];
  this.frontierEntryGate = {
-   x: 4400, y: 2500, radius: 105,
+   x: 3500, y: 1450, radius: 115,
    draw: function(ctx) {
      drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.pvp, 18);
      drawPortalLabel(ctx, this.x, this.y, this.radius, 'ASHEN REACH', 'FRONTIER GATE · PVP ZONE', '#fb923c');
