@@ -3224,13 +3224,26 @@ if (
           const stateLabel =
             stateLabels[manager.transportState] || 'Transport Manager ready';
           const level = Math.max(1, Math.floor(Number(manager.transportLevel) || 1));
+          const queuedOrders = Array.isArray(manager.playerSaleQueue) ? manager.playerSaleQueue : [];
+          const queuedGoods = queuedOrders.reduce(function (sum, order) {
+            return sum + Object.keys(order.items || {}).reduce(function (n, key) {
+              return n + Math.max(0, Math.floor(Number(order.items[key]) || 0));
+            }, 0);
+          }, 0);
+          const idleLeft = manager.playerSaleIdleSince
+            ? Math.max(0, 30 - Math.floor((Date.now() - manager.playerSaleIdleSince) / 1000))
+            : 30;
+          const queueLabel = queuedGoods > 0
+            ? ' · Hangar ' + queuedGoods.toLocaleString() + ' waiting' +
+              (manager.transportState === 'loading' ? ' · Depart in ' + idleLeft + 's or when full' : '')
+            : '';
           row.cells[1].innerText =
             'LV ' + level + ' · ' + stateLabel + ' · ' +
             Math.floor(ship.cargo || 0).toLocaleString() + ' / ' +
-            maxCargo.toLocaleString() + ' (' + percent + '%)';
+            maxCargo.toLocaleString() + ' (' + percent + '%)' + queueLabel;
           if (row.cells[2]) {
             const upgradeCost = 25000 * level;
-            const busy = !!manager.transportTask || !!manager.playerSaleTask || !['loading', null].includes(manager.transportState);
+            const busy = !!manager.transportTask || !!manager.playerSaleTask || queuedOrders.length > 0 || !['loading', null].includes(manager.transportState);
             row.cells[2].innerHTML = '<button onclick="window.upgradeTransportManager()" ' +
               (busy ? 'disabled title="Wait until the Transport Manager returns to High-Sec"' : '') +
               '>UPGRADE CARGO · ' + fmtISK(upgradeCost) + ' Scrap Metals</button>';
