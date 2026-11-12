@@ -157,7 +157,8 @@ class PublicNpcManager {
         const elite=rarity==='elite'&&level===5&&combat;
         const hpScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;
         const dmgScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;
-        this.addPirate(cfg,gx+Math.cos(a)*d,gy+Math.sin(a)*d,'frontier_'+system.id+'_squad_n'+i,{dmg:combat?dmgScale:.04,aggro:combat,slot:0,elite:elite,frontierLevel:level,frontierKind:system.kind,frontierRarity:rarity,hpScale:hpScale});
+        const isMiner = system.kind === 'Mining Fleet' || (system.kind === 'Mixed Fleets' && !combat);
+        this.addPirate(cfg,gx+Math.cos(a)*d,gy+Math.sin(a)*d,'frontier_'+system.id+'_squad_n'+i,{dmg:combat?dmgScale:.04,aggro:false,slot:-1,role:isMiner?'mine':'patrol',faction:isMiner?'miners':'pirates',elite:elite,frontierLevel:level,frontierKind:system.kind,frontierRarity:rarity,hpScale:hpScale});
       }
     } finally {Math.random=oldRandom;}
   }
@@ -288,7 +289,8 @@ class PublicNpcManager {
       isAggro: false,
       aggroTimer: 0,
       lastHp: hp,
-      role: 'patrol',   // all pirate hulls keep moving between patrol waypoints
+      role: opts.role || 'patrol',   // frontier miners mine; pirate hulls patrol
+      faction: opts.faction || 'pirates',
       home: { x: x, y: y },                               // centre of its patrol area
       pos: { x: x, y: y },                                // authoritative position, owned by this manager
       patrolPt: null,
@@ -641,6 +643,18 @@ class PublicNpcManager {
       // Engaged = attacking the player: close enough, or an auto-aggro combat hull hunting them across the belt
       const hunting = npc.autoAggro && playerPresent;
       const engaged = playerPresent && (distToPlayer < PEACE_RANGE || hunting);
+      // Frontier NPCs have their own local conflict: pirate ships hunt miners and miners flee/defend
+      // only through their normal mining behaviour. This runs without a player being present.
+      let npcTarget = null;
+      let npcTargetDistance = 1550;
+      if (String(currentMapId).indexOf('frontier_') === 0 && !engaged) {
+        for (const other of this.publicNpcMiners) {
+          if (!other || other === npc || !other.isAlive || !other.ship || other.faction === npc.faction) continue;
+          const d = Math.hypot(other.ship.x - ship.x, other.ship.y - ship.y);
+          if (d < npcTargetDistance) { npcTarget = other; npcTargetDistance = d; }
+        }
+      }
+      const fightingNpc = !!(npcTarget && npc.combat);
 
       if (DEBUG_NPC && this._dbgFrame % 120 === 0 && SIEGE_HULLS[npc.className]) {
         console.log('[NPC]', npc.className, 'dist', Math.round(distToPlayer), 'ring', Math.round(this.ringRadius(npc)),
@@ -650,9 +664,10 @@ class PublicNpcManager {
 
       // 1-3. Let the ship's own update() run, then undo whatever movement it made.
       // Combat hulls always run it (so missiles keep moving); other hulls only when engaged.
-      if (npc.combat || engaged) {
+      if (npc.combat || engaged || fightingNpc) {
         const keepX = ship.x, keepY = ship.y;
-        this.runShipUpdate(npc, playerShip, playerPresent, engaged);
+        if (fightingNpc) this.runShipUpdate(npc, npcTarget.ship, true, true);
+        else this.runShipUpdate(npc, playerShip, playerPresent, engaged);
         this.setPos(ship, keepX, keepY);
       }
 
@@ -670,8 +685,18 @@ class PublicNpcManager {
             playerShip.structure -= 0.85 * (npc.dpsScale || 1);
           }
         }
+      } else if (fightingNpc) {
+        npc.isAgro = true;
+        this.engagePlayer(npc, npcTarget.ship);
+        const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
+        if (npcTargetDistance <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
+          const damage = 0.85 * (npc.dpsScale || 1);
+          if (typeof npcTarget.ship.takeDamage === 'function') npcTarget.ship.takeDamage(damage);
+          else if (typeof npcTarget.ship.structure === 'number') npcTarget.ship.structure -= damage;
+        }
+        ship.currentTarget = npcTarget.ship;
       } else {
-        // Player is away: patrol or mine in the belt
+        // Player is away: miners work asteroid fields; pirates patrol their system.
         npc.isAgro = false;
         this.peacefulBehaviour(npc, asteroidBelt);
       }
