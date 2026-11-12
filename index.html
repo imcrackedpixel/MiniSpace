@@ -53,6 +53,7 @@ try {
 </script>
 
 <button id="minispace-ui-toggle" type="button" onclick="window.toggleMiniSpaceHud(this)">HIDE UI</button>
+<button id="minispace-fullscreen-btn" type="button" onclick="window.toggleMiniSpaceFullscreen()">FULL SCREEN</button>
 
 <div id="ui-layer">
 <div style="display: flex; flex-direction: column; gap: 6px;">
@@ -234,6 +235,39 @@ try {
 window.MINISPACE_SERVER_URL = "wss://minispace-server.onrender.com";
 </script>
 <script src="OnlineClient.js"></script>
+<script>
+window.toggleMiniSpaceFullscreen = async function() {
+  const root = document.documentElement;
+  const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  try {
+    if (isFullscreen) {
+      if (document.exitFullscreen) await document.exitFullscreen();
+      else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+    } else {
+      if (root.requestFullscreen) await root.requestFullscreen();
+      else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+      // Android browsers generally allow orientation lock only after fullscreen.
+      if (screen.orientation && screen.orientation.lock) {
+        try { await screen.orientation.lock('landscape'); } catch (_) {}
+      }
+    }
+  } catch (error) {
+    console.warn('[MiniSpace] Fullscreen is not available in this browser:', error);
+  }
+  updateMiniSpaceFullscreenButton();
+};
+function updateMiniSpaceFullscreenButton() {
+  const button = document.getElementById('minispace-fullscreen-btn');
+  if (!button) return;
+  const active = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  button.textContent = active ? 'EXIT FULL' : 'FULL SCREEN';
+  button.setAttribute('aria-pressed', active ? 'true' : 'false');
+}
+document.addEventListener('fullscreenchange', updateMiniSpaceFullscreenButton);
+document.addEventListener('webkitfullscreenchange', updateMiniSpaceFullscreenButton);
+window.addEventListener('resize', updateMiniSpaceFullscreenButton);
+</script>
+
 <script>
 window.toggleMiniSpaceHud = function(button) {
   const hidden = document.body.classList.toggle("ui-hidden");
