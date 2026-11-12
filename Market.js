@@ -15,15 +15,15 @@ const ITEM_PRICES = {
 // total value of the building materials each ship needs (see SHIP_RECIPES below).
 const SHIP_PRICES = {
  frigate: 0, // Mining Frigate (Free Starter)
- combatfrigate: 25000, // Combat Frigate
- barge: 250000, // Mining Barge
- command: 1500000, // Command Ship
- carrier: 8000000, // Carrier
- capital: 25000000, // Mining Capital
- explorationfrigate: 50000, // Exploration Frigate
- siegecruiser: 1000000, // Siege Cruiser
- siegebattleship: 2300000, // Siege Battleship
- transportcapital: 4000000 // Transport Manager (corp), built in the Shipyard
+ combatfrigate: 250000, // Combat Frigate
+ barge: 2500000, // Mining Barge
+ command: 12000000, // Command Ship
+ carrier: 100000000, // Carrier
+ capital: 250000000, // Mining Capital
+ explorationfrigate: 500000, // Exploration Frigate
+ siegecruiser: 8000000, // Siege Cruiser
+ siegebattleship: 35000000, // Siege Battleship
+ transportcapital: 20000000 // Transport Manager (corp), built in the Shipyard
 };
 
 // Share of each ship's value paid by each material (shares add up to 1).
