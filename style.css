@@ -345,3 +345,9 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Highlight clickable frontier destinations in the universe chart. */
 .universe-node.reachable{cursor:pointer;pointer-events:auto;box-shadow:0 0 0 1px rgba(88,166,255,.45),0 0 18px rgba(88,166,255,.18)}
 .universe-node.reachable:hover{transform:translate(-50%,-50%) scale(1.08);filter:brightness(1.25)}
+
+/* Mobile-safe universe chart system buttons */
+.universe-node{appearance:none;-webkit-appearance:none;font:inherit;text-align:center;cursor:default;touch-action:manipulation}
+.universe-node.reachable{cursor:pointer;pointer-events:auto}
+.universe-node:disabled{opacity:.72}
+.universe-node.reachable:active{filter:brightness(1.35);transform:translate(-50%,-50%) scale(1.05)}
