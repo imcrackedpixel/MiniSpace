@@ -247,27 +247,32 @@ class CombatFrigate {
     this.thrustIntensity += ((isThrusting ? 1 : 0) - this.thrustIntensity) * 0.18;  
     this.glowPulse = (this.glowPulse + 0.08) % (Math.PI * 2);  
   
-    if (this.thrustIntensity > 0.05) {  
-      for (let i = 0; i < 3; i++) {  
-        if (this.particles.length >= this.maxParticles) this.particles.shift();  
-        this.particles.push({  
-          x: this.x - Math.cos(this.angle) * 28 + (Math.random() - 0.5) * 8,  
-          y: this.y - Math.sin(this.angle) * 28 + (Math.random() - 0.5) * 8,  
-          vx: -Math.cos(this.angle) * (2.5 + Math.random() * 2.5) + (Math.random() - 0.5) * 1.4,  
-          vy: -Math.sin(this.angle) * (2.5 + Math.random() * 2.5) + (Math.random() - 0.5) * 1.4,  
-          size: 2.2 + Math.random() * 3,  
-          alpha: 0.95,  
-          color: Math.random() > 0.4 ? '#38bdf8' : '#818cf8'  
-        });  
-      }  
+    if (this.disableThrusterEffects) {
+      this.particles.length = 0;
+      this.missileTrails.length = 0;
+    } else {
+      if (this.thrustIntensity > 0.05) {
+        for (let i = 0; i < 3; i++) {
+          if (this.particles.length >= this.maxParticles) this.particles.shift();
+          this.particles.push({
+            x: this.x - Math.cos(this.angle) * 28 + (Math.random() - 0.5) * 8,
+            y: this.y - Math.sin(this.angle) * 28 + (Math.random() - 0.5) * 8,
+            vx: -Math.cos(this.angle) * (2.5 + Math.random() * 2.5) + (Math.random() - 0.5) * 1.4,
+            vy: -Math.sin(this.angle) * (2.5 + Math.random() * 2.5) + (Math.random() - 0.5) * 1.4,
+            size: 2.2 + Math.random() * 3,
+            alpha: 0.95,
+            color: Math.random() > 0.4 ? '#38bdf8' : '#818cf8'
+          });
+        }
+      }
+
+      for (let p of this.particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.038;
+      }
+      this.particles = this.particles.filter(p => p.alpha > 0);
     }  
-  
-    for (let p of this.particles) {  
-      p.x += p.vx;  
-      p.y += p.vy;  
-      p.alpha -= 0.038;  
-    }  
-    this.particles = this.particles.filter(p => p.alpha > 0);  
   
     if (activeTarget && activeTarget.structure > 0) {  
       let distToTarget = Math.hypot(activeTarget.x - this.x, activeTarget.y - this.y);  
@@ -388,26 +393,28 @@ class CombatFrigate {
   }  
   
   draw(ctx) {  
-    for (let p of this.particles) {  
-      ctx.save();  
-      ctx.globalAlpha = p.alpha;  
-      ctx.fillStyle = p.color || '#38bdf8';  
-      ctx.beginPath();  
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);  
-      ctx.fill();  
-      ctx.restore();  
-    }  
-  
-    for (let t of this.missileTrails) {  
-      ctx.save();  
-      ctx.globalAlpha = t.alpha;  
-      ctx.fillStyle = '#fb7185';  
-      ctx.beginPath();  
-      ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);  
-      ctx.fill();  
-      ctx.restore();  
-    }  
-  
+    if (!this.disableThrusterEffects) {
+      for (let p of this.particles) {
+        ctx.save();
+        ctx.globalAlpha = p.alpha;
+        ctx.fillStyle = p.color || '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      for (let t of this.missileTrails) {
+        ctx.save();
+        ctx.globalAlpha = t.alpha;
+        ctx.fillStyle = '#fb7185';
+        ctx.beginPath();
+        ctx.arc(t.x, t.y, t.size, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+    }
+
     for (let m of this.missiles) {  
       ctx.save();  
       ctx.translate(m.x, m.y);  
