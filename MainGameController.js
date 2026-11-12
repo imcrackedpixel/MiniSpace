@@ -302,6 +302,9 @@ function saveGameSession() {
     playerData.upgrades[playerShip.className] = Object.assign({}, playerShip.moduleLevels);
   }
   sessionManager.save(playerData, playerShip);
+  if (typeof window.MINISPACE_SAVE_CLOUD === 'function') {
+    window.MINISPACE_SAVE_CLOUD();
+  }
 }
 
 function loadGameSession() {
@@ -1959,22 +1962,27 @@ function gameLoop() {
   }
 }
 
-loadGameSession();
+// Do not load or start a pilot until the email/password account has been verified.
+Promise.resolve(window.MINISPACE_AUTH_READY).then(function () {
+  loadGameSession();
 
-const _setupModal = document.getElementById('setup-modal');
-if (_setupModal && playerData.pilotName && playerData.race) _setupModal.style.display = 'none';
+  const _setupModal = document.getElementById('setup-modal');
+  if (_setupModal && playerData.pilotName && playerData.race) _setupModal.style.display = 'none';
 
-let _stationUi = document.getElementById('station-ui');
-if (_stationUi) _stationUi.style.display = 'none';
-if (playerShip) {
-  playerShip.x = mainStation.x + 250;
-  playerShip.y = mainStation.y + 250;
-}
-updateStationUI();
-updateCorpUI();
-updateMissionsUI();
-ensureAutoplayButton();
-gameLoop();
+  let _stationUi = document.getElementById('station-ui');
+  if (_stationUi) _stationUi.style.display = 'none';
+  if (playerShip) {
+    playerShip.x = mainStation.x + 250;
+    playerShip.y = mainStation.y + 250;
+  }
+  updateStationUI();
+  updateCorpUI();
+  updateMissionsUI();
+  ensureAutoplayButton();
+  gameLoop();
+}).catch(function (error) {
+  console.error('MiniSpace account startup failed:', error);
+});
 // ONLINE MULTIPLAYER: expose the current map
 window.getMiniSpaceMapId = function() {
   return mapManager?.currentMapId || 'private_highsec';
