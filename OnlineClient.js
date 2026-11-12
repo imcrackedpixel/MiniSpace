@@ -1,5 +1,5 @@
 
-/* MiniSpace Online - count, chat, friends and request window */
+/* MiniSpace Online - friends, requests, chat and online count */
 (function(){
  const state={
   socket:null,
@@ -8,10 +8,26 @@
   roomId:null,
   reconnectTimer:null,
   reconnectAttempts:0,
-  requests:[]
+  requests:[],
+  directory:[]
  };
 
  const $=id=>document.getElementById(id);
+ const FRIEND_KEY='minispace_friends';
+
+ function getFriends(){
+  try{return JSON.parse(localStorage.getItem(FRIEND_KEY)||'[]');}
+  catch{return [];}
+ }
+
+ function saveFriend(name){
+  const friends=getFriends();
+  if(!friends.some(n=>n.toLowerCase()===name.toLowerCase())){
+   friends.push(name);
+   localStorage.setItem(FRIEND_KEY,JSON.stringify(friends));
+  }
+  renderFriends();
+ }
 
  function getResumeToken(){
   let token=localStorage.getItem('minispace_resume_token');
@@ -36,6 +52,21 @@
    </header>
    <div id="online-content">
     <div id="online-count">0 pilots online</div>
+    <div class="online-actions" style="margin-top:8px;">
+     <button id="online-friends-button" style="width:100%;">FRIENDS</button>
+    </div>
+    <div id="online-friends-window" style="
+     display:none;
+     padding:8px;
+     margin:5px 0;
+     background:#101923;
+     color:#e6edf3;
+     border:1px solid #36b99a;
+     border-radius:7px;
+     max-height:150px;
+     overflow-y:auto;
+     font-size:13px;
+    "></div>
     <div class="online-actions">
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
      <button id="online-add-friend">ADD FRIEND</button>
@@ -61,6 +92,13 @@
    $('online-collapse').textContent=hidden?'−':'+';
   };
 
+  $('online-friends-button').onclick=()=>{
+   const box=$('online-friends-window');
+   const opening=box.style.display==='none';
+   box.style.display=opening?'block':'none';
+   if(opening)renderFriends();
+  };
+
   $('online-add-friend').onclick=()=>{
    const name=$('online-friend-name').value.trim();
    if(name){
@@ -75,6 +113,36 @@
   });
 
   requestWindow();
+  renderFriends();
+ }
+
+ function renderFriends(){
+  const box=$('online-friends-window');
+  if(!box)return;
+
+  box.replaceChildren();
+  const friends=getFriends();
+
+  if(!friends.length){
+   box.textContent='No friends saved yet. Accept a friend request to add someone.';
+   return;
+  }
+
+  const onlineNames=state.directory
+   .filter(p=>p&&p.name)
+   .map(p=>p.name.toLowerCase());
+
+  friends.forEach(name=>{
+   const row=document.createElement('div');
+   row.style.padding='5px 2px';
+   row.style.borderBottom='1px solid #34414d';
+
+   const online=onlineNames.includes(name.toLowerCase());
+   row.textContent=name+' · '+(online?'ONLINE':'OFFLINE');
+   row.style.color=online?'#3fb950':'#8b949e';
+
+   box.appendChild(row);
+  });
  }
 
  function requestWindow(){
@@ -131,7 +199,6 @@
  function renderRequests(){
   const box=$('friend-request-window');
   if(!box)return;
-
   box.replaceChildren();
 
   if(!state.requests.length){
@@ -278,6 +345,11 @@
     if(count)count.textContent=message.count+' pilots online';
    }
 
+   if(message.type==='online-directory'){
+    state.directory=Array.isArray(message.players)?message.players:[];
+    renderFriends();
+   }
+
    if(message.type==='welcome'){
     state.id=message.id;
     if(message.resumed)log('Welcome back! Your pilot session was restored.');
@@ -301,6 +373,7 @@
    }
 
    if(message.type==='friend-added'){
+    saveFriend(String(message.name||'').slice(0,16));
     log('You and '+message.name+' are now friends.');
    }
   };
