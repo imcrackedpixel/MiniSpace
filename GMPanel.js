@@ -88,7 +88,7 @@
     const targetDetails=document.getElementById('gm-target-details');
     document.getElementById('gm-inspect-target').onclick=async()=>{
       if(!targetName())return status('Enter the exact pilot callsign first.');
-      try{const info=await window.MINISPACE_GM.inspectPilot(targetName());targetDetails.textContent='PILOT: '+info.pilotName+'\nWALLET: '+Number(info.wallet||0).toLocaleString()+' ISK\\nBAN: '+(info.banned?'YES — '+info.banReason:'No')+'\nHANGARS: '+JSON.stringify(info.hangars||[]);status('Pilot inspection complete.');}
+      try{const info=await window.MINISPACE_GM.inspectPilot(targetName());targetDetails.textContent='PILOT: '+info.pilotName+'\nWALLET: '+Number(info.wallet||0).toLocaleString()+' ISK\nBAN: '+(info.banned?'YES — '+info.banReason:'No')+'\nPLAYER DATA: '+JSON.stringify(info.playerData||{})+'\nHANGARS: '+JSON.stringify(info.hangars||[]);status('Pilot inspection complete.');}
       catch(error){status(error.message||'Could not inspect pilot.');}
     };
     document.getElementById('gm-ban-target').onclick=async()=>{
