@@ -2548,4 +2548,51 @@ if (
   };
 })();
 
+/* TRADE HUB - CLEAN MINIMAP WITH ALIGNED STATION MARKER */
+(function () {
+  const previousDrawMinimap = drawMinimap;
+
+  drawMinimap = function () {
+    previousDrawMinimap();
+
+    if (mapManager.currentMapId !== 'public_trade_hub') return;
+    if (!minimapCtx || !playerShip) return;
+
+    const m = minimapCtx;
+    const scale = 120 / 7000;
+
+    // Clear old markers and draw the empty Hub map.
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.fillStyle = '#0d1117';
+    m.fillRect(0, 0, 120, 120);
+
+    // Green: return gate to Private High-Sec.
+    m.fillStyle = '#36b99a';
+    m.fillRect(
+      700 * scale - 3,
+      3500 * scale - 3,
+      6,
+      6
+    );
+
+    // Blue: Trade Hub station, exactly at its centre.
+    m.fillStyle = '#58a6ff';
+    m.fillRect(
+      3500 * scale - 3,
+      3500 * scale - 3,
+      6,
+      6
+    );
+
+    // White: your ship.
+    m.fillStyle = '#ffffff';
+    m.fillRect(
+      playerShip.x * scale - 2,
+      playerShip.y * scale - 2,
+      4,
+      4
+    );
+  };
+})();
+
 
