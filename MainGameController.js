@@ -2206,20 +2206,31 @@ if (
     y: 2500,
     radius: 100,
     draw(ctx) {
+      // Reuse the animated emerald space-tear effect used by mission gates.
+      drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 24);
+
+      // Keep the destination label legible at phone and desktop zoom levels.
+      const zoom = Math.max(0.45, Number(cameraZoom) || 1);
+      const fontSize = 18 / zoom;
+      const labelY = this.y - this.radius - (34 / zoom);
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.strokeStyle = '#36b99a';
-      ctx.lineWidth = 5;
-      ctx.shadowColor = '#36b99a';
-      ctx.shadowBlur = 20;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#8cebd0';
-      ctx.font = 'bold 13px Courier New';
       ctx.textAlign = 'center';
-      ctx.fillText('TRADE & SOCIAL HUB', this.x, this.y - 120);
-      ctx.fillText('SAFE ZONE', this.x, this.y - 104);
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+      const label = 'MARKET SYSTEM';
+      const width = ctx.measureText(label).width + (24 / zoom);
+      const height = 30 / zoom;
+      ctx.fillStyle = 'rgba(3, 15, 22, 0.88)';
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.beginPath();
+      ctx.roundRect(this.x - width / 2, labelY - height / 2, width, height, 7 / zoom);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ecfdf5';
+      ctx.shadowColor = '#34d399';
+      ctx.shadowBlur = 9 / zoom;
+      ctx.fillText(label, this.x, labelY);
       ctx.restore();
     }
   };
@@ -2229,19 +2240,30 @@ if (
     y: 3500,
     radius: 100,
     draw(ctx) {
+      // Matching return tear, so the route is visually consistent in both systems.
+      drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 25);
+
+      const zoom = Math.max(0.45, Number(cameraZoom) || 1);
+      const fontSize = 18 / zoom;
+      const labelY = this.y - this.radius - (34 / zoom);
       ctx.save();
-      ctx.beginPath();
-      ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
-      ctx.strokeStyle = '#36b99a';
-      ctx.lineWidth = 5;
-      ctx.shadowColor = '#36b99a';
-      ctx.shadowBlur = 20;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-      ctx.fillStyle = '#8cebd0';
-      ctx.font = 'bold 13px Courier New';
       ctx.textAlign = 'center';
-      ctx.fillText('RETURN TO HIGH-SEC', this.x, this.y - 120);
+      ctx.textBaseline = 'middle';
+      ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+      const label = 'MARKET SYSTEM';
+      const width = ctx.measureText(label).width + (24 / zoom);
+      const height = 30 / zoom;
+      ctx.fillStyle = 'rgba(3, 15, 22, 0.88)';
+      ctx.strokeStyle = '#34d399';
+      ctx.lineWidth = 1.5 / zoom;
+      ctx.beginPath();
+      ctx.roundRect(this.x - width / 2, labelY - height / 2, width, height, 7 / zoom);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = '#ecfdf5';
+      ctx.shadowColor = '#34d399';
+      ctx.shadowBlur = 9 / zoom;
+      ctx.fillText(label, this.x, labelY);
       ctx.restore();
     }
   };
