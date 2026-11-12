@@ -527,7 +527,7 @@ class PublicNpcManager {
     // Update all active NPC pirate ships
     this.publicNpcMiners.forEach(npc => {
       try {
-      if (!npc.isAlive) { if(npc.frontierLevel && npc.respawnAt && Date.now()>=npc.respawnAt)this.reviveFrontierNpc(npc); else return; }
+      if (!npc.isAlive) return;
       if (!npc.ship) return;
       const ship = npc.ship;
 
@@ -535,29 +535,11 @@ class PublicNpcManager {
       if (this.totalHp(ship) <= 0 && !npc.rewarded) {
         npc.rewarded = true;
         npc.isAlive = false;
-        // NPC-versus-NPC battles should not pay the player for kills they did not make.
-        if (npc.ship._minispaceNpcDamageAt && !npc.ship._minispacePlayerTagged) {
-          if (npc.frontierLevel) {
-            npc.respawnAt = Date.now() + 60000 + Math.floor(Math.random() * 60001);
-            if (window.MinispaceOnline && window.MinispaceOnline.send) window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});
-          }
-          return;
-        }
-        if(npc.frontierLevel){npc.respawnAt=Date.now()+60000+Math.floor(Math.random()*60001);if(window.MinispaceOnline&&window.MinispaceOnline.send)window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});}
+        if (npc.ship._minispaceNpcDamageAt && !npc.ship._minispacePlayerTagged) return;
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
         }
-        const frontierXP = npc.frontierLevel ? Math.round(140 + npc.frontierLevel * 110 + (npc.elite ? 450 : 0)) : 75;
-        if(playerData){
-          if(!playerData.stationOre)playerData.stationOre={};
-          const salvageTier=Math.max(1,Math.min(5,Number(npc.frontierLevel)||1));
-          const salvageKey='debris_t'+salvageTier;
-          const salvageQty=Math.round((350+salvageTier*250+Math.random()*200)*(npc.elite?2:1));
-          const loaded=typeof window.addOreToCargo==='function'?window.addOreToCargo(playerShip,salvageKey,salvageQty):0;
-          const overflow=Math.max(0,salvageQty-loaded);
-          // Any salvage that does not fit stays as a mineable wreck at the pirate's death position.
-          npc.salvageReward={key:salvageKey,qty:salvageQty,loaded:loaded,overflow:overflow};
-        }
+        const frontierXP = 75;
         if (typeof window.awardPlayerXP === 'function') {
           window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
         }
@@ -570,33 +552,11 @@ class PublicNpcManager {
           playerData.moduleDrops.push({id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1});
           if(typeof window.showCorpNotification==='function')window.showCorpNotification('MODULE DROP: '+rarity.toUpperCase()+' '+module);
         }
-        if(npc.elite&&npc.frontierLevel===5&&playerData){
-          const hull=npc.className==='Capital'?'Siege Capital':(npc.className||'Combat Frigate');
-          const keys=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
-          const module=keys[Math.floor(Math.random()*keys.length)];
-          if(!Array.isArray(playerData.skillChips))playerData.skillChips=[];
-          playerData.skillChips.push({id:'chip-'+npc.id+'-'+Date.now(),hull:hull,module:module,rarity:'purple',name:'Purple '+hull+' Skill Chip',source:'Elite Frontier Pirate'});
-          if(typeof window.showCorpNotification==='function')window.showCorpNotification('✦ PURPLE SKILL CHIP: '+hull+' · '+module+' max level +1 when fitted');
-          if(typeof saveGameSession==='function')saveGameSession();
-        }
         if (typeof window.showCorpNotification === 'function') {
           window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + frontierXP + ' XP · SALVAGE +' + (npc.salvageReward ? npc.salvageReward.qty + ' ' + npc.salvageReward.key.replace('debris_','T') : 'secured'));
         }
         if (typeof updateStationUI === 'function') updateStationUI();
         if (typeof saveGameSession === 'function') saveGameSession();
-        // Spawn only the cargo overflow as a visible, mineable salvage wreck.
-        const overflowDrop=npc.salvageReward&&Number(npc.salvageReward.overflow)||0;
-        if (overflowDrop>0 && debrisField && Array.isArray(debrisField.entities)) {
-          debrisField.entities.push({
-            x: ship.x,
-            y: ship.y,
-            radius: Math.max(26,Math.min(54,24+Math.sqrt(overflowDrop)*0.35)),
-            oreYield: overflowDrop,
-            oreType: npc.salvageReward.key,
-            salvageWreck: true,
-            sourceNpcId: npc.id
-          });
-        }
         return;
       }
 
@@ -728,7 +688,7 @@ class PublicNpcManager {
     });
 
     // Filter out dead NPCs
-    this.publicNpcMiners = this.publicNpcMiners.filter(n => n.isAlive || (n.frontierLevel && n.respawnAt));
+    this.publicNpcMiners = this.publicNpcMiners.filter(n => n.isAlive);
   }
 
   // Shield, armor and hull bars, each showing the ship's real current / max values
@@ -790,7 +750,7 @@ class PublicNpcManager {
 
         // Gate-style nameplate, scaled down for ships. Rarity colours the frame and title.
         ctx.save();
-        const rarity = npc.frontierLevel ? (npc.frontierRarity || 'common') : 'common';
+        const rarity = 'common';
         const accent = rarity === 'elite' ? '#bc8cff'
           : rarity === 'rare' ? '#58a6ff'
           : rarity === 'uncommon' ? '#3fb950'
