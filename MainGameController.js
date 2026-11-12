@@ -814,7 +814,7 @@ window.toggleOffensiveMode = function() {
   }
   saveGameSession();
   window.showCorpNotification(playerData.offensiveMode
-    ? 'Offensive systems armed. Your ship will engage pirates.'
+    ? 'Offensive systems armed. Your ship will engage pirates and hostile pilots in PvP space.'
     : 'Weapons safety ON. Your ship will not fire.');
 };
 window.toggleAutoplay = function() {
