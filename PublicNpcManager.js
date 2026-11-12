@@ -566,6 +566,14 @@ class PublicNpcManager {
       if (this.totalHp(ship) <= 0 && !npc.rewarded) {
         npc.rewarded = true;
         npc.isAlive = false;
+        // NPC-versus-NPC battles should not pay the player for kills they did not make.
+        if (npc.npcKilledByNpc) {
+          if (npc.frontierLevel) {
+            npc.respawnAt = Date.now() + 60000 + Math.floor(Math.random() * 60001);
+            if (window.MinispaceOnline && window.MinispaceOnline.send) window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});
+          }
+          return;
+        }
         if(npc.frontierLevel){npc.respawnAt=Date.now()+60000+Math.floor(Math.random()*60001);if(window.MinispaceOnline&&window.MinispaceOnline.send)window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});}
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
@@ -691,6 +699,7 @@ class PublicNpcManager {
         const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
         if (npcTargetDistance <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
           const damage = 0.85 * (npc.dpsScale || 1);
+          npcTarget.npcKilledByNpc = true;
           if (typeof npcTarget.ship.takeDamage === 'function') npcTarget.ship.takeDamage(damage);
           else if (typeof npcTarget.ship.structure === 'number') npcTarget.ship.structure -= damage;
         }
