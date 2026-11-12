@@ -1553,6 +1553,7 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     window.showCorpNotification('Choose a quantity up to the amount in your Private High-Sec hangar.');
     return;
   }
+  let deposited = 0;
   try {
     // A large hangar deposit is divided into cargo-sized shipment records.
     // This lets one selection exceed the manager's hold while every trip stays within capacity.
@@ -1568,7 +1569,6 @@ window.sellHangarItemViaTransport = async function(itemKey) {
       manager.ship.cargo = 0;
       manager.ship.cargoByOre = {};
     }
-    let deposited = 0;
     while (deposited < qty) {
       const chunk = Math.min(capacity, qty - deposited);
       const shipmentId = 'pilot-sale-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
@@ -1594,6 +1594,7 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     }, 0);
     window.showCorpNotification('Deposited ' + deposited.toLocaleString() + ' ' + itemLabel(itemKey) + ' in ' + Math.ceil(deposited / capacity) + ' cargo batch(es). ' + waiting.toLocaleString() + ' goods are waiting for delivery.');
   } catch (error) {
+    if (deposited > 0 && window.MINISPACE_MARKET && typeof window.MINISPACE_MARKET.applyToGame === 'function') window.MINISPACE_MARKET.applyToGame(playerData);
     if (manager.playerSaleQueue.length && typeof window.saveGameSession === 'function') window.saveGameSession();
     updateStationUI();
     updateCorpUI();
