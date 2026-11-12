@@ -331,7 +331,7 @@ class MapManager {
   let belt,debris;
   try{belt=new AsteroidBelt(cx,cy,0,size);belt.generate(75+system.level*12,system.level>=4?['pyroxeres','omber','scordite']:['veldspar','scordite','pyroxeres']);
    if(belt.entities)belt.entities.forEach((r,i)=>{const a=Math.random()*Math.PI*2,d=900+Math.random()*3300;r.x=cx+Math.cos(a)*d+(i%5-2)*180;r.y=cy+Math.sin(a)*d;});
-   debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size):null;if(debris&&debris.generate)debris.generate(system.level);
+   debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size,system.level):null;if(debris&&debris.generate)debris.generate(system.level);
   }finally{Math.random=oldRandom;}
   playerShip.x=this.frontierReturnGate.x+260;playerShip.y=this.frontierReturnGate.y;playerShip.vx=0;playerShip.vy=0;playerShip.angle=0;playerShip.docked=false;
   return {asteroidBelt:belt,debrisField:debris,size:size,system:system};
