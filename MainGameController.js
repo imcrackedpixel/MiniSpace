@@ -1831,7 +1831,7 @@ function updateStationUI() {
     const rowInput = '<input id="hangar-qty-' + itemKey + '" type="number" min="1" max="' + Math.max(0, Math.floor(Number(qty) || 0)) + '" value="' + rowDefault + '" inputmode="numeric" style="width:72px;max-width:22%;background:#080d12;color:#fff;border:1px solid #40535c;padding:4px;">';
     const loadButton = '<button onclick="window.loadHangarItemToShip(\'' + itemKey + '\')" ' + (!playerShip || !playerShip.docked || inTradeHubNow || qty < 1 || loadRoom < 1 ? 'disabled' : '') + '>Load ship</button>';
     const sellButton = '<button onclick="window.sellHangarItemViaTransport(\'' + itemKey + '\')" ' + (!managerReady || inTradeHubNow || qty < 1 ? 'disabled' : '') + '>Sell via Transport</button>';
-    groupRows[g] += '<tr><td><span class="inventory-item-icon">'+(g==='debris'?'✧':'◈')+'</span>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td style="white-space:normal;">' + rowInput + ' ' + loadButton + ' ' + sellButton + '</td></tr>';
+    groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">'+(g==='debris'?'✧':'◈')+'</span><strong>'+displayName+'</strong><span class="slot-qty">'+qty.toLocaleString()+'</span><div class="slot-actions">'+rowInput+loadButton+sellButton+'</div></div>';
     groupCount[g]++;
   }
 
@@ -1887,7 +1887,7 @@ function updateStationUI() {
   let hangarHtml = '';
   for (const g of ['ore', 'debris', 'explorer', 'mining', 'combat', 'capital']) {
     const body = groupRows[g] || '<tr><td colspan="3" style="text-align: center; color: #8b949e;">None</td></tr>';
-    hangarHtml += '<tr data-hangar-group="' + g + '"><td colspan="3" style="padding: 0;"><details data-hangar-group="' + g + '"><summary style="cursor: pointer; font-weight: bold; color: #58a6ff; padding: 4px 2px;">' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><table class="station-table">' + body + '</table></details></td></tr>';
+    hangarHtml += '<tr data-hangar-group="' + g + '"><td colspan="3" style="padding:0;"><details data-hangar-group="' + g + '" '+(g==='ore'||g==='debris'?'open':'')+'><summary>' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><div class="inventory-slot-grid">' + body + '</div></details></td></tr>';
   }
   if (playerData.chips > 0) {
     hangarHtml += '<tr data-hangar-group="debris"><td>ITEM LEVEL CHIP</td><td>' + playerData.chips + '</td><td style="color:#8b949e;">Applied on drop</td></tr>';
