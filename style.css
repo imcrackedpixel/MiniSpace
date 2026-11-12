@@ -432,3 +432,8 @@ body.ui-blank #ui-mode-controls [data-ui-mode="close"] { display: none; }
   filter: drop-shadow(0 0 4px rgba(117, 201, 168, .45));
 }
 .universe-node strong { display: flex; align-items: center; justify-content: center; gap: 2px; }
+
+/* Single reliable HUD visibility control */
+#minispace-ui-toggle{position:fixed;top:8px;right:8px;z-index:12000;min-height:34px;padding:6px 12px;border:1px solid #3b6570;border-radius:6px;background:rgba(8,20,29,.96);color:#bcefe0;font:700 11px system-ui,sans-serif;pointer-events:auto;touch-action:manipulation}
+body.ui-hidden #ui-layer,body.ui-hidden #online-panel,body.ui-hidden #corp-notification{display:none!important}
+@media(max-width:700px){#minispace-ui-toggle{top:6px;right:6px;min-height:32px}}
