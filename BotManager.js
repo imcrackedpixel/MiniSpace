@@ -63,7 +63,7 @@ class BotManager {
     ship.docked = false;
     ship.cargo = 0;
     const isTransportHull = ship.className === 'Transport Capital' || ship.className === 'Industrial Hauler' || ship.className === 'Freighter';
-    ship.maxCargo = isTransportHull ? 5000 : (ship.maxCargo || 50000);
+    ship.maxCargo = isTransportHull ? 20000 : (ship.maxCargo || 50000);
 
     // Corp carrier drones keep combat behaviour but emit no exhaust smoke.
     if (Array.isArray(ship.drones)) {
@@ -102,7 +102,7 @@ class BotManager {
     };
     if (ship.className === 'Transport Capital') {
       bot.transportLevel = 1;
-      ship.maxCargo = 5000;
+      ship.maxCargo = 20000;
     }
     ship.corpBot = bot;
 
@@ -148,7 +148,7 @@ class BotManager {
     }
     this.playerData.isk -= cost;
     bot.transportLevel = level + 1;
-    bot.ship.maxCargo = 5000 * bot.transportLevel;
+    bot.ship.maxCargo = 10000 + (10000 * bot.transportLevel);
     if (typeof window.saveGameSession === 'function') window.saveGameSession();
     if (typeof window.updateStationUI === 'function') window.updateStationUI();
     if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
@@ -196,7 +196,8 @@ class BotManager {
         playerSaleTask: b.playerSaleTask ? JSON.parse(JSON.stringify(b.playerSaleTask)) : null,
         playerSaleQueue: Array.isArray(b.playerSaleQueue) ? JSON.parse(JSON.stringify(b.playerSaleQueue)) : [],
         playerSaleIdleSince: Number(b.playerSaleIdleSince) || 0,
-        transportLevel: b.transportLevel || null
+        transportLevel: b.transportLevel || null,
+        transportBuildQueue: Array.isArray(b.transportBuildQueue) ? JSON.parse(JSON.stringify(b.transportBuildQueue)) : []
       };
     });
   }
@@ -232,6 +233,7 @@ class BotManager {
       bot.playerSaleQueue = Array.isArray(s.playerSaleQueue) ? JSON.parse(JSON.stringify(s.playerSaleQueue)) : [];
       bot.playerSaleIdleSince = Number(s.playerSaleIdleSince) || 0;
       bot.transportLevel = String(s.className).toLowerCase().includes('transport') ? Math.max(1, Math.floor(Number(s.transportLevel) || 1)) : null;
+      bot.transportBuildQueue = Array.isArray(s.transportBuildQueue) ? JSON.parse(JSON.stringify(s.transportBuildQueue)) : [];
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
@@ -241,7 +243,7 @@ class BotManager {
         if (typeof ship.applyStats === 'function') ship.applyStats();
       }
       if (ship) {
-        if (ship.className === 'Transport Capital') ship.maxCargo = 5000 * (bot.transportLevel || 1);
+        if (ship.className === 'Transport Capital') ship.maxCargo = 10000 + (10000 * (bot.transportLevel || 1));
         ship.cargo = s.cargo || 0;
         if (s.oreType) ship.oreType = s.oreType;
         ship.cargoByOre = s.cargoByOre && typeof s.cargoByOre === 'object' ? Object.assign({}, s.cargoByOre) : null;
@@ -979,6 +981,7 @@ class BotManager {
             bot.transportTask = null;
             bot.transportState = 'loading';
             if (typeof window.finishTransportShipBuild === 'function') window.finishTransportShipBuild(task, result);
+            if (typeof window.startNextTransportShipBuild === 'function') window.startNextTransportShipBuild(bot);
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
             if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
