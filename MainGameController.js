@@ -1541,11 +1541,11 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     window.showCorpNotification('Dock at your Private High-Sec station to dispatch a sale.');
     return;
   }
-  if (!manager || manager.transportState !== 'loading' || manager.transportTask || manager.playerSaleTask || (manager.ship.cargo || 0) > 0) {
+  if (!manager || manager.transportState !== 'loading' || manager.transportTask || manager.playerSaleTask) {
     window.showCorpNotification('Your Transport Manager is busy. Wait until he returns to High-Sec with an empty cargo hold.');
     return;
   }
-  const capacity = Math.max(0, Math.floor((Number(manager.ship.maxCargo) || 5000) - (Number(manager.ship.cargo) || 0)));
+  const capacity = Math.max(0, Math.floor(Number(manager.ship.maxCargo) || 5000));
   if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available || qty > capacity) {
     window.showCorpNotification('Choose a quantity up to your hangar stock and the Transport Manager capacity (' + capacity.toLocaleString() + ').');
     return;
@@ -1558,6 +1558,15 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     const receipt = Array.isArray(raw) ? raw[0] : raw;
     if (!receipt || receipt.success === false) throw new Error('The market could not reserve these goods.');
     if (!window.MINISPACE_MARKET.applyToGame(playerData)) throw new Error('The hangar reservation was accepted, but the local hangar could not refresh. Reopen the game before dispatching another sale.');
+    // Return any partial corporation load to its hangar before prioritising this player sale.
+    const corpHangar = playerData.corpStationOre || (playerData.corpStationOre = {});
+    const existingCorpCargo = manager.ship.cargoByOre || {};
+    Object.keys(existingCorpCargo).forEach(function (key) {
+      const amount = Math.max(0, Math.floor(Number(existingCorpCargo[key]) || 0));
+      if (amount > 0) corpHangar[key] = (Number(corpHangar[key]) || 0) + amount;
+    });
+    manager.ship.cargo = 0;
+    manager.ship.cargoByOre = {};
     manager.playerSaleTask = { shipmentId: shipmentId, items: items, status: 'reserved' };
     manager.transportState = 'loading';
     manager.transportMapId = 'private_highsec';
@@ -1605,7 +1614,7 @@ function updateStationUI() {
     let displayName = itemLabel(itemKey).toUpperCase();
     const g = itemKey.indexOf('debris_') === 0 ? 'debris' : 'ore';
     const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
-    const managerReady = !!(manager && (!manager.transportState || manager.transportState === 'loading') && !manager.transportTask && !manager.playerSaleTask && !(manager.ship.cargo || 0));
+    const managerReady = !!(manager && (!manager.transportState || manager.transportState === 'loading') && !manager.transportTask && !manager.playerSaleTask);
     const inTradeHubNow = typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub';
     const loadRoom = playerShip ? Math.max(0, (Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)) : 0;
     const rowDefault = Math.min(Math.max(0, Math.floor(Number(qty) || 0)), 5000);
