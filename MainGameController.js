@@ -47,6 +47,7 @@ function addOreToCargo(ship, key, amount) {
     cargoMap[key] = (Number(cargoMap[key]) || 0) + added;
     ship.cargo = (Number(ship.cargo) || 0) + added;
     ship.oreType = key;
+    if (ship === playerShip) refreshCargoCounter(true);
   }
   return added;
 }
@@ -59,6 +60,7 @@ function removeOreFromCargo(ship, key, amount) {
     cargoMap[key] = available - removed;
     if (cargoMap[key] <= 0) delete cargoMap[key];
     ship.cargo = Math.max(0, (Number(ship.cargo) || 0) - removed);
+    if (ship === playerShip) refreshCargoCounter(true);
   }
   return removed;
 }
@@ -2257,7 +2259,7 @@ function updateHUD() {
   updatePilotPanel();
   // Keep the pilot profile compact: show total cargo only, not the ore breakdown.
   ensureOreCargo(s);
-  setText('cargo-text', 'CARGO: ' + Math.floor(s.cargo || 0).toLocaleString() + ' / ' + Math.floor(s.maxCargo || 0).toLocaleString());
+  refreshCargoCounter(false);
   const walletText = fmtISK(playerData.isk || 0) + ' Scrap Metals';
   setText('isk-text', 'Scrap Metals: ' + fmtISK(playerData.isk || 0));
   // Keep the docked header and flight HUD tied to the same live wallet value.
@@ -2299,6 +2301,12 @@ function updateHUD() {
   }
 }
 
+function refreshCargoCounter(changed){
+ const s=playerShip,el=document.getElementById('cargo-text');if(!s||!el)return;
+ const amount=Math.floor(Number(s.cargo)||0),capacity=Math.floor(Number(s.maxCargo)||0);
+ el.textContent='CARGO: '+amount.toLocaleString()+' / '+capacity.toLocaleString();
+ if(changed){el.classList.remove('cargo-changed');void el.offsetWidth;el.classList.add('cargo-changed');}
+}
 function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
 window.setNearbySpaceTab=function(tab){if(!['tears','pirates','ore','players'].includes(tab))return;window._miniSpaceNearbyTab=tab;document.querySelectorAll('#nearby-space-tabs .nearby-tab').forEach(function(btn){btn.classList.toggle('active',btn.dataset.nearbyTab===tab);});updateNearbySpacePanel();};
 function updateNearbySpacePanel(){
@@ -2445,24 +2453,23 @@ function autoLootNearbyWrecks() {
       typeof debrisField.getEntities !== 'function' ||
       typeof addOreToCargo !== 'function') return 0;
   let collected = 0;
-  const room = Math.max(0, Math.floor((Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)));
-  if (room < 1) return 0;
-  for (const wreck of debrisField.getEntities()) {
-    if (!wreck || !(Number(wreck.oreYield) > 0)) continue;
-    const range = Math.max(55, Number(wreck.radius) || 40) + 35;
-    if (Math.hypot(playerShip.x - wreck.x, playerShip.y - wreck.y) > range) continue;
-    const tier = Math.max(1, Math.min(5, Math.floor(Number(wreck.tier) || 1)));
+  for (const crate of debrisField.getEntities()) {
+    if (!crate || crate.isLootCrate === false || !(Number(crate.oreYield) > 0)) continue;
+    if (Math.hypot(playerShip.x - crate.x, playerShip.y - crate.y) > 105) continue;
+    const tier = Math.max(1, Math.min(5, Math.floor(Number(crate.tier) || 1)));
     const key = 'debris_t' + tier;
-    const amount = Math.min(room - collected, Math.floor(Number(wreck.oreYield) || 0));
-    if (amount <= 0) break;
+    const room = Math.max(0, Math.floor((Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)));
+    if (room < 1) break;
+    const amount = Math.min(room, Math.floor(Number(crate.oreYield) || 0));
+    if (amount <= 0) continue;
     const added = addOreToCargo(playerShip, key, amount);
     if (added > 0) {
-      wreck.oreYield = Math.max(0, Number(wreck.oreYield) - added);
+      crate.oreYield = Math.max(0, Number(crate.oreYield) - added);
       collected += added;
     }
-    if (collected >= room) break;
   }
   if (collected > 0) {
+    refreshCargoCounter(true);
     updateCargoReadout();
     if (typeof saveGameSession === 'function') saveGameSession();
   }
