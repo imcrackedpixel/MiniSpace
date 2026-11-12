@@ -342,9 +342,10 @@ class AsteroidBelt {
       }
     };
 
-    if (f) {
-      if (f.player) checkShipOrDrones(f.player, null, 0);
-      if (f.bots) f.bots.forEach((b, i) => { if (b && b.ship) checkShipOrDrones(b.ship, b, i); });
+    if (f && f.player) {
+      // Asteroid collection particles are reserved for the player's ship.
+      // Corporation miners still collect normally, without homing visual effects.
+      checkShipOrDrones(f.player, null, 0);
     }
 
     return out.slice(0, 8);
