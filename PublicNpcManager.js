@@ -218,9 +218,6 @@ class PublicNpcManager {
       id: id,
       cfg: cfg,
       elite: !!opts.elite,
-      frontierLevel: Number(opts.frontierLevel)||0,
-      frontierKind: opts.frontierKind || '',
-      frontierRarity: opts.frontierRarity || (opts.elite ? 'elite' : 'common'),
       rewarded: false,
       ship: shipObj,
       className: cfg.name,
@@ -553,7 +550,7 @@ class PublicNpcManager {
           if(typeof window.showCorpNotification==='function')window.showCorpNotification('MODULE DROP: '+rarity.toUpperCase()+' '+module);
         }
         if (typeof window.showCorpNotification === 'function') {
-          window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + frontierXP + ' XP · SALVAGE +' + (npc.salvageReward ? npc.salvageReward.qty + ' ' + npc.salvageReward.key.replace('debris_','T') : 'secured'));
+          window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + pirateXP + ' XP · SALVAGE +' + (npc.salvageReward ? npc.salvageReward.qty + ' ' + npc.salvageReward.key.replace('debris_','T') : 'secured'));
         }
         if (typeof updateStationUI === 'function') updateStationUI();
         if (typeof saveGameSession === 'function') saveGameSession();
