@@ -593,7 +593,7 @@ window.openUniverse = function() {
   const xy = id => {
     if (id === 'private_highsec') return [380,240];
     const s = systems.find(v => v.id === id); if (!s) return [380,240];
-    const ring = Number(s.ring) || 1, radius = 5 + ring * 4.35;
+    const ring = Number(s.ring) || 1, radius = 5 + ring * 3.9;
     const peers = systems.filter(v => v.ring === ring), index = peers.findIndex(v => v.id === id);
     const angle = (index / Math.max(1, peers.length)) * Math.PI * 2 - Math.PI / 2 + ring * 0.19;
     return [(50 + Math.cos(angle) * radius) * 7.6, (50 + Math.sin(angle) * radius) * 4.8];
