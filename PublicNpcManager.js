@@ -187,7 +187,7 @@ class PublicNpcManager {
       const elite=rarity==='elite'&&level===5&&n.frontierKind!=='Mining Fleet';
       const hull=cfg.name==='Capital'?'Siege Capital':cfg.name;
       const old=this.publicNpcMiners;this.publicNpcMiners=[];
-      const levelScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;const damageScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:COMBAT_HULLS[cfg.name]?damageScale:.04,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity,hpScale:levelScale});
+      const levelScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;const damageScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:COMBAT_HULLS[cfg.name]?damageScale:.04,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,role:n.frontierKind==='Mining Fleet'?'mine':(n.role||'patrol'),faction:n.frontierKind==='Mining Fleet'?'miners':(n.faction||'pirates'),elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity,hpScale:levelScale});
       const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;
       if(fresh)Object.assign(n,fresh);
     }finally{Math.random=oldRandom;}
@@ -506,9 +506,9 @@ class PublicNpcManager {
       ship._vel = { x: 0, y: 0 };
       ship.angle = Math.atan2(dy, dx);
       ship.currentTarget = rock;
-      npc.miningProgress = (npc.miningProgress || 0) + 0.12;
-      rock.oreYield = Math.max(0, Number(rock.oreYield) - 0.12);
-      npc.minedCargo = (npc.minedCargo || 0) + 0.12;
+      npc.miningProgress = (npc.miningProgress || 0) + 2.5;
+      rock.oreYield = Math.max(0, Number(rock.oreYield) - 2.5);
+      npc.minedCargo = (npc.minedCargo || 0) + 2.5;
       if (rock.oreYield <= 0) {
         npc.rock = null;
         npc.patrolPt = null;
