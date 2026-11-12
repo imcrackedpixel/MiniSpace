@@ -126,7 +126,8 @@ function publicRoomFor(mapId) {
     room={
       id:'public:'+mapId+':'+number,
       mapId,
-      players:new Set()
+      players:new Set(),
+      deadNpcs:new Map()
     };
 
     publicRooms.set(room.id,room);
@@ -434,6 +435,18 @@ wss.on('connection',ws=>{
       return;
     }
 
+    if(m.type==='frontier-npc-killed') {
+      const mapId=String(m.mapId||'');
+      if(!p.roomId||p.roomType!=='public'||p.mapId!==mapId||mapId.indexOf('frontier_')!==0)return;
+      const room=publicRooms.get(p.roomId);if(!room)return;
+      const npcId=safeText(m.npcId,100);if(!npcId)return;
+      const existing=room.deadNpcs.get(npcId);if(existing&&existing>Date.now())return;
+      const respawnAt=Math.max(Date.now()+60000,Math.min(Date.now()+120000,Number(m.respawnAt)||Date.now()+90000));
+      room.deadNpcs.set(npcId,respawnAt);
+      broadcastRoom(p.roomId,{type:'frontier-npc-killed',mapId:mapId,npcId:npcId,respawnAt:respawnAt});
+      return;
+    }
+
     if(m.type==='state') {
       const requestedMap=safeText(m.mapId,48);
 
@@ -449,6 +462,8 @@ wss.on('connection',ws=>{
           );
 
       joinRoom(p,mapId);
+      const frontierRoom=publicRooms.get(p.roomId);
+      if(frontierRoom&&String(mapId).indexOf('frontier_')===0)send(ws,{type:'frontier-npc-state',mapId:mapId,deadNpcs:[...frontierRoom.deadNpcs.entries()].map(([npcId,respawnAt])=>({npcId,respawnAt}))});
 
       p.x=Number.isFinite(+m.x)
         ? Math.max(-10000,Math.min(10000,+m.x))
@@ -604,6 +619,10 @@ wss.on('connection',ws=>{
 
 setInterval(()=>{
   const now=Date.now();
+  for(const room of publicRooms.values()){
+    if(String(room.mapId).indexOf('frontier_')!==0||!room.deadNpcs)continue;
+    for(const [npcId,respawnAt] of room.deadNpcs.entries())if(respawnAt<=now){room.deadNpcs.delete(npcId);broadcastRoom(room.id,{type:'frontier-npc-respawn',mapId:room.mapId,npcId:npcId});}
+  }
 
   for(const p of players.values()) {
     if(p.ws && now-p.last>45000) {
