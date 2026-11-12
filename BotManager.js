@@ -142,7 +142,8 @@ class BotManager {
         oreType: ship.oreType || null,
         cargoByOre: Object.assign({}, (window.ensureOreCargo ? window.ensureOreCargo(ship) : ship.cargoByOre) || {}),
         transportState: b.transportState || null,
-        transportMapId: b.transportMapId || null
+        transportMapId: b.transportMapId || null,
+        transportShipmentId: b.transportShipmentId || null
       };
     });
   }
@@ -172,6 +173,8 @@ class BotManager {
       bot.cruiserBuilt = !!s.cruiserBuilt;
       bot.transportState = s.transportState || (String(s.className).toLowerCase().includes('transport') ? 'loading' : null);
       bot.transportMapId = s.transportMapId || (bot.transportState ? 'private_highsec' : null);
+      bot.transportShipmentId = s.transportShipmentId || null;
+      bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
         for (const m in s.moduleLevels) {
@@ -190,7 +193,7 @@ class BotManager {
           ship.className === 'Transport Capital' ||
           ship.className === 'Industrial Hauler' ||
           ship.className === 'Freighter';
-        if (isTransportHull && (ship.cargo || 0) > 0) {
+        if (isTransportHull && (ship.cargo || 0) > 0 && !s.transportState) {
           const corpHangar = this.playerData.corpStationOre ||
             (this.playerData.corpStationOre = {});
           const oldCargo = ship.cargoByOre || {
@@ -878,6 +881,9 @@ class BotManager {
 
           if ((ship.cargo || 0) >= maxCargo) {
             bot.transportState = 'to_trade_gate';
+            if (!bot.transportShipmentId) {
+              bot.transportShipmentId = 'corp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+            }
             if (typeof window.showCorpNotification === 'function') {
               window.showCorpNotification('Transport Manager loaded to 100% and is departing for the Trade Hub.');
             }
@@ -907,51 +913,73 @@ class BotManager {
           const marketX = 3500, marketY = 3500;
           if (Math.hypot(marketX - ship.x, marketY - ship.y) > 850) {
             moveTo(marketX, marketY);
-          } else {
-            const marketStock = this.playerData.marketStock ||
-              (this.playerData.marketStock = {});
-            let proceeds = 0;
-            const sold = [];
-
-            for (const key of Object.keys(ship.cargoByOre)) {
-              const qty = Math.max(0, Math.floor(Number(ship.cargoByOre[key]) || 0));
-              if (!qty) continue;
-              const unitPrice =
-                (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[key]) || 0;
-              if (!unitPrice) continue;
-              marketStock[key] = (marketStock[key] || 0) + qty;
-              proceeds += qty * unitPrice;
-              sold.push(qty.toLocaleString() + ' ' + key);
-            }
-
-            this.playerData.corpIsk =
-              (this.playerData.corpIsk || 0) + proceeds;
-            this.playerData.marketSales =
-              Array.isArray(this.playerData.marketSales)
-                ? this.playerData.marketSales
-                : [];
-            this.playerData.marketSales.push({
-              source: 'corporation_transport',
-              items: sold,
-              proceeds: proceeds,
-              time: Date.now()
-            });
-            if (this.playerData.marketSales.length > 100) {
-              this.playerData.marketSales.splice(0, this.playerData.marketSales.length - 100);
-            }
-
-            ship.cargo = 0;
-            ship.cargoByOre = {};
-            bot.transportState = 'to_return_gate';
-            if (typeof window.showCorpNotification === 'function') {
-              window.showCorpNotification(
-                'Transport Manager sold the corporation shipment for ' +
-                proceeds.toLocaleString() + ' Scrap Metals.'
-              );
-            }
-            if (typeof window.saveGameSession === 'function') window.saveGameSession();
-            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+            return;
           }
+
+          if (bot._corpMarketSupplyPending) return;
+          if (!window.MINISPACE_MARKET ||
+              typeof window.MINISPACE_MARKET.corpSupply !== 'function') {
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('Transport Manager is waiting for the shared market connection.');
+            }
+            return;
+          }
+
+          if (!bot.transportShipmentId) {
+            bot.transportShipmentId = 'corp-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+
+          const shipmentItems = {};
+          Object.keys(ship.cargoByOre || {}).forEach(function (key) {
+            const qty = Math.max(0, Math.floor(Number(ship.cargoByOre[key]) || 0));
+            if (qty > 0) shipmentItems[key] = qty;
+          });
+
+          bot._corpMarketSupplyPending = true;
+          window.MINISPACE_MARKET.corpSupply(bot.transportShipmentId, shipmentItems)
+            .then((result) => {
+              const receipt = Array.isArray(result) ? result[0] : result;
+              if (!receipt || receipt.success === false) {
+                throw new Error('The shared market did not confirm the shipment.');
+              }
+
+              const proceeds = Math.max(0, Math.floor(Number(receipt.proceeds) || 0));
+              this.playerData.corpIsk = (this.playerData.corpIsk || 0) + proceeds;
+              this.playerData.marketSales = Array.isArray(this.playerData.marketSales)
+                ? this.playerData.marketSales : [];
+              this.playerData.marketSales.push({
+                source: 'corporation_transport',
+                items: Object.keys(shipmentItems).map(function (key) {
+                  return shipmentItems[key].toLocaleString() + ' ' + key;
+                }),
+                proceeds: proceeds,
+                time: Date.now()
+              });
+              if (this.playerData.marketSales.length > 100) {
+                this.playerData.marketSales.splice(0, this.playerData.marketSales.length - 100);
+              }
+
+              ship.cargo = 0;
+              ship.cargoByOre = {};
+              bot.transportShipmentId = null;
+              bot.transportState = 'to_return_gate';
+              bot._corpMarketSupplyPending = false;
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification(
+                  'Transport Manager added the corporation shipment to the shared market for ' +
+                  proceeds.toLocaleString() + ' Scrap Metals.'
+                );
+              }
+              if (typeof window.saveGameSession === 'function') window.saveGameSession();
+              if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+            })
+            .catch((error) => {
+              bot._corpMarketSupplyPending = false;
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager market delivery failed; cargo is safe and will retry. ' + (error.message || error));
+              }
+            });
           return;
         }
 
