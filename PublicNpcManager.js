@@ -463,13 +463,17 @@ class PublicNpcManager {
       return;
     }
 
-    // Mining: keep the current rock until it is used up, otherwise pick the nearest one in range
-    const rocks = belt && typeof belt.getEntities === 'function' ? belt.getEntities() : [];
+    // Mining: AsteroidBelt stores rocks in .entities (getEntities is optional on older builds).
+    // Keep the current rock until it is exhausted, otherwise select the nearest available rock.
+    const rocks = belt
+      ? (typeof belt.getEntities === 'function' ? belt.getEntities() : (Array.isArray(belt.entities) ? belt.entities : []))
+      : [];
     if (!npc.rock || !(npc.rock.oreYield > 0)) {
       npc.rock = null;
-      let best = null, bd = 1400;
+      npc.miningProgress = 0;
+      let best = null, bd = Infinity;
       for (const r of rocks) {
-        if (!r || !(r.oreYield > 0)) continue;
+        if (!r || !(Number(r.oreYield) > 0)) continue;
         const d = Math.hypot(r.x - ship.x, r.y - ship.y);
         if (d < bd) { bd = d; best = r; }
       }
@@ -477,8 +481,13 @@ class PublicNpcManager {
     }
 
     if (!npc.rock) {
-      // no rocks nearby: drift back to its area
-      this.flyTo(ship, npc.home, speed * PATROL_SPEED_FRAC);
+      // No rocks remain: make a visible patrol circuit instead of freezing at the home point.
+      if (!npc.patrolPt || Math.hypot(npc.patrolPt.x - ship.x, npc.patrolPt.y - ship.y) < 100) {
+        const a = Math.random() * Math.PI * 2;
+        const radius = 350 + Math.random() * 850;
+        npc.patrolPt = { x: npc.home.x + Math.cos(a) * radius, y: npc.home.y + Math.sin(a) * radius };
+      }
+      this.flyTo(ship, npc.patrolPt, speed * PATROL_SPEED_FRAC);
       ship.currentTarget = null;
       return;
     }
@@ -487,17 +496,24 @@ class PublicNpcManager {
     const parkDist = 220;
     const dx = rock.x - ship.x, dy = rock.y - ship.y, d = Math.hypot(dx, dy);
     if (d > parkDist + 20) {
-      // fly in from the side it is already on
       const a = Math.atan2(ship.y - rock.y, ship.x - rock.x);
       this.flyTo(ship, { x: rock.x + Math.cos(a) * parkDist, y: rock.y + Math.sin(a) * parkDist }, speed * MINE_SPEED_FRAC);
       ship.currentTarget = null;
     } else {
-      // in position: hold, face the rock and show the mining laser
+      // Mine while holding position. Ore is depleted gradually so the NPC visibly works the belt.
       ship.vx = 0;
       ship.vy = 0;
       ship._vel = { x: 0, y: 0 };
       ship.angle = Math.atan2(dy, dx);
       ship.currentTarget = rock;
+      npc.miningProgress = (npc.miningProgress || 0) + 0.12;
+      rock.oreYield = Math.max(0, Number(rock.oreYield) - 0.12);
+      npc.minedCargo = (npc.minedCargo || 0) + 0.12;
+      if (rock.oreYield <= 0) {
+        npc.rock = null;
+        npc.patrolPt = null;
+        ship.currentTarget = null;
+      }
     }
   }
 
