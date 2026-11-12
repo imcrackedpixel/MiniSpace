@@ -3714,6 +3714,7 @@ if (
     } catch (_) {}
     try {
       const mapId = mapManager && mapManager.currentMapId;
+      if (mapId === 'private_highsec') plot(4200, 2500, '#36b99a', 4); // Trade Hub entrance
       if (mapManager && mapId !== 'public_trade_hub') {
         if (mapManager.publicGate && mapManager.publicGate.radius > 0) plot(mapManager.publicGate.x, mapManager.publicGate.y, '#f85149', 3);
         if (mapManager.frontierEntryGate) plot(mapManager.frontierEntryGate.x, mapManager.frontierEntryGate.y, '#fb923c', 3);
