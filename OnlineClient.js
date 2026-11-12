@@ -412,6 +412,9 @@
    if(message.type==='frontier-npc-state'||message.type==='frontier-npc-killed'||message.type==='frontier-npc-respawn'){
     window.dispatchEvent(new CustomEvent('minispace-'+message.type,{detail:message}));
    }
+   if(message.type==='pvp-hit'){
+    window.dispatchEvent(new CustomEvent('minispace-pvp-hit',{detail:message}));
+   }
 if(message.type==='chat'){
     log('['+message.channel+'] '+message.from+': '+message.text);
    }
@@ -441,7 +444,10 @@ if(message.type==='chat'){
     angle:Number(ship.angle)||0,
     ship:ship.className||ship.type||'Ship',
     system:$('system-text')?.textContent||'Unknown',
-    mapId:window.mapManager?.currentMapId||window.getMiniSpaceMapId?.()||'private_highsec'
+    mapId:window.mapManager?.currentMapId||window.getMiniSpaceMapId?.()||'private_highsec',
+    shield:Number(ship.shield)||0, armor:Number(ship.armor)||0, structure:Number(ship.structure)||0,
+    maxShield:Number(ship.maxShield)||0, maxArmor:Number(ship.maxArmor)||0, maxStructure:Number(ship.maxStructure)||0,
+    docked:!!ship.docked
    });
   }
  }
