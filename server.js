@@ -46,6 +46,13 @@ async function verifyPilotToken(accessToken) {
   }
 }
 
+async function hasCurrentGM(player) {
+  const identity=await verifyPilotToken(player.accessToken);
+  const allowed=!!(identity&&!identity.banned&&identity.isGM&&identity.accountId===player.accountId);
+  if(!allowed)player.isGM=false;
+  return allowed;
+}
+
 const PUBLIC_MAPS = new Set([
   'public_trade_hub',
   'public_lowsec',
@@ -355,6 +362,7 @@ wss.on('connection',ws=>{
         return;
       }
       p.accountId=identity.accountId;
+      p.accessToken=m.accessToken;
       p.isGM=!!identity.isGM;
       p.authenticated=true;
       send(ws,{type:'welcome',id:p.id,players:[],zones,resumed:!!p.roomId,authenticated:true,isGM:p.isGM});
@@ -366,7 +374,7 @@ wss.on('connection',ws=>{
     if(m.type!=='hello'&&!p.authenticated)return;
 
     if(m.type==='gm-list-online') {
-      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      if(!(await hasCurrentGM(p))){send(ws,{type:'gm-error',message:'GM access required'});return;}
       const online=[...players.values()].filter(q=>q.ws&&q.ws.readyState===WebSocket.OPEN&&q.authenticated).map(q=>({
         id:q.id,accountId:q.accountId||null,name:q.name,ship:q.ship,mapId:q.mapId,
         system:q.system,x:q.x,y:q.y,invisible:!!q.invisible
@@ -378,16 +386,19 @@ wss.on('connection',ws=>{
     if(m.type==='gm-kick-account') {
       if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
       const accountId=String(m.accountId||'');
-      const target=[...players.values()].find(q=>q.accountId===accountId&&q.id!==p.id&&q.ws);
-      if(!target){send(ws,{type:'gm-command-result',message:'That pilot is not currently online.'});return;}
+      const targets=[...players.values()].filter(q=>q.accountId===accountId&&q.id!==p.id&&q.ws);
+      if(!targets.length){send(ws,{type:'gm-command-result',message:'That pilot is not currently online.'});return;}
       const isBan=m.banned===true;
-      send(target.ws,{type:isBan?'account-banned':'account-kicked',message:isBan?'Your pilot account has been banned by a Game Master.':'A Game Master updated your pilot data. Reconnecting to load the changes.'});
-      try{target.ws.close(isBan?4003:4000,isBan?'Pilot account banned':'Pilot data updated');}catch(error){}
-      leaveRoom(target);
-      players.delete(target.id);
-      friends.delete(target.id);
-      if(target.resumeToken)resumeTokens.delete(target.resumeToken);
-      send(ws,{type:'gm-command-result',message:target.name+' disconnected.'});
+      const targetName=targets[0].name;
+      for(const target of targets){
+        send(target.ws,{type:isBan?'account-banned':'account-kicked',message:isBan?'Your pilot account has been banned by a Game Master.':'A Game Master updated your pilot data. Reconnecting to load the changes.'});
+        try{target.ws.close(isBan?4003:4000,isBan?'Pilot account banned':'Pilot data updated');}catch(error){}
+        leaveRoom(target);
+        players.delete(target.id);
+        friends.delete(target.id);
+        if(target.resumeToken)resumeTokens.delete(target.resumeToken);
+      }
+      send(ws,{type:'gm-command-result',message:targetName+' disconnected ('+targets.length+' session'+(targets.length===1?'':'s')+').'});
       return;
     }
 
