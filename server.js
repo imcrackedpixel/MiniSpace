@@ -452,7 +452,8 @@ wss.on('connection',ws=>{
       const target=players.get(safeText(m.targetId,100));
       const allowedMap=mapId==='public_space'||mapId.indexOf('frontier_')===0;
       if(!allowedMap||!p.roomId||p.roomType!=='public'||p.mapId!==mapId||!p.pvp||p.docked||
-         !target||target.id===p.id||target.roomId!==p.roomId||target.mapId!==mapId||!target.pvp||target.docked)return;
+         !target||target.id===p.id||target.roomId!==p.roomId||target.mapId!==mapId||!target.pvp||target.docked||
+         Math.hypot(p.x-target.x,p.y-target.y)>1600)return;
       const now=Date.now();
       if(!p.pvpHitTimes)p.pvpHitTimes=new Map();
       if(now-(p.pvpHitTimes.get(target.id)||0)<120)return;
