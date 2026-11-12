@@ -2302,12 +2302,28 @@ function updateHUD() {
 }
 
 function refreshCargoCounter(changed){
- const s=playerShip,el=document.getElementById('cargo-text');if(!s||!el)return;
- const amount=Math.floor(Number(s.cargo)||0),capacity=Math.floor(Number(s.maxCargo)||0);
- el.textContent='CARGO: '+amount.toLocaleString()+' / '+capacity.toLocaleString();
+ const s=playerShip,el=document.getElementById('cargo-text');if(!s)return;
+ const cargo=ensureOreCargo(s);
+ const amount=Object.keys(cargo).reduce((sum,key)=>sum+Math.max(0,Number(cargo[key])||0),0);
+ // Keep the headline total derived from the item-by-item cargo manifest.
+ s.cargo=Math.floor(amount);
+ if(!el)return;
+ const capacity=Math.floor(Number(s.maxCargo)||0);
+ el.textContent='CARGO: '+s.cargo.toLocaleString()+' / '+capacity.toLocaleString();
  if(changed){el.classList.remove('cargo-changed');void el.offsetWidth;el.classList.add('cargo-changed');}
 }
-function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
+function cargoIconMarkup(key){
+ const symbols={veldspar:'◆',scordite:'▰',pyroxeres:'⬟',omber:'✦',debris_t1:'⌁',debris_t2:'Ⅱ',debris_t3:'▦',debris_t4:'▣',debris_t5:'◈'};
+ const cls='cargo-icon-'+String(key).replace(/[^a-z0-9_-]/gi,'');
+ return '<span class="cargo-item-icon '+cls+'" aria-hidden="true">'+(symbols[key]||'◆')+'</span>';
+}
+function updateCargoReadout(){
+ const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');
+ if(!panel||!list||!playerShip)return;
+ const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);
+ panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';
+ list.innerHTML=keys.map(k=>'<div class="cargo-item-row"><span>'+cargoIconMarkup(k)+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');
+}
 window.setNearbySpaceTab=function(tab){if(!['tears','pirates','ore','players'].includes(tab))return;window._miniSpaceNearbyTab=tab;document.querySelectorAll('#nearby-space-tabs .nearby-tab').forEach(function(btn){btn.classList.toggle('active',btn.dataset.nearbyTab===tab);});updateNearbySpacePanel();};
 function updateNearbySpacePanel(){
  const list=document.getElementById('nearby-space-list');if(!list)return;
