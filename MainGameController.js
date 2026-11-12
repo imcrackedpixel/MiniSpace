@@ -716,47 +716,19 @@ window.claimMissionReward = function() {
 };
 window.updateMissionsUI = updateMissionsUI;
 
-window.sellStationItem = function(key, price) {
-  let qty = playerData.stationOre[key] || 0;
-  if (qty <= 0) return;
-  playerData.isk += qty * (price || itemPrices[key] || 10);
-  playerData.stationOre[key] = 0;
-  updateStationUI();
-  saveGameSession();
+// Legacy component trading is deliberately disabled. Ore and components now
+// move through the Trade Hub hangars and are bought/sold only on its shared market.
+window.sellStationItem = function() {
+  window.showCorpNotification('Components can only be sold through the Trade Hub Market.');
 };
-
-window.buyStationItem = function(key, qty) {
-  const price = itemPrices[key];
-  if (price === undefined) return;
-  let n = qty > 0 ? qty : Math.floor((playerData.isk || 0) / price);
-  n = Math.min(n, Math.floor((playerData.isk || 0) / price));
-  if (n <= 0) { window.showCorpNotification('Not enough Scrap Metals'); return; }
-  playerData.isk -= n * price;
-  playerData.stationOre[key] = (playerData.stationOre[key] || 0) + n;
-  window.showCorpNotification('Bought ' + n.toLocaleString() + ' ' + itemLabel(key) + ' for ' + fmtISK(n * price) + ' Scrap Metals');
-  updateStationUI();
-  updateMarketUI();
-  saveGameSession();
+window.buyStationItem = function() {
+  window.showCorpNotification('Components can only be bought through the Trade Hub Market.');
 };
-
 window.openBuyOre = function() {
-  const btn = Array.from(document.querySelectorAll('.station-tabs .tab-btn')).find(function(b) { return /'market'/.test(b.getAttribute('onclick') || ''); });
-  if (btn) window.switchTab('market', btn);
-  marketActiveTab = 'ore';
-  updateMarketUI();
+  window.showCorpNotification('Travel to the Trade Hub to buy or sell ore and components.');
 };
-
 window.quickSellAllVault = function() {
-  let total = 0;
-  for (let key in playerData.stationOre) {
-    let qty = playerData.stationOre[key] || 0;
-    total += qty * (itemPrices[key] || 10);
-    playerData.stationOre[key] = 0;
-  }
-  playerData.isk += total;
-  if (total > 0) window.showCorpNotification('Sold vault for ' + fmtISK(total) + ' Scrap Metals');
-  updateStationUI();
-  saveGameSession();
+  window.showCorpNotification('Use Trade Hangar to move materials, then sell them on the Trade Hub Market.');
 };
 
 window.upgradeFrigateModule = function(mod) {
@@ -1463,7 +1435,7 @@ function updateStationUI() {
     let sellPrice = itemPrices[itemKey] || 10;
     let displayName = itemLabel(itemKey).toUpperCase();
     const g = itemKey.indexOf('debris_') === 0 ? 'debris' : 'ore';
-    groupRows[g] += '<tr><td>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td><button onclick="window.sellStationItem(\'' + itemKey + '\', ' + sellPrice + ')" ' + (qty <= 0 ? 'disabled' : '') + '>Sell All (' + sellPrice + ' Scrap Metals/ea)</button></td></tr>';
+    groupRows[g] += '<tr><td>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td><span style="color:#8b949e;">Trade via Trade Hub</span></td></tr>';
     groupCount[g]++;
   }
 
@@ -1554,7 +1526,11 @@ function updateStationUI() {
 }
 
 var marketActiveTab = 'mining';
-window.setMarketTab = function(tab) { marketActiveTab = tab; updateMarketUI(); };
+window.setMarketTab = function(tab) {
+  if (!['mining','combat','explorer'].includes(tab)) return;
+  marketActiveTab = tab;
+  updateMarketUI();
+};
 
 function recipeHtml(recipe) {
   return recipe.map(function (entry) {
@@ -1615,33 +1591,21 @@ function marketShipRows(group) {
   return h;
 }
 
-function marketItemRows(debris) {
-  const stock = playerData.stationOre || {};
-  const keys = Object.keys(itemPrices).filter(function (k) { return (k.indexOf('debris_') === 0) === debris; });
-  keys.sort(function (a, b) { return itemPrices[a] - itemPrices[b]; });
-  let h = '';
-  for (const k of keys) {
-    const price = itemPrices[k];
-    const qty = Math.floor(stock[k] || 0);
-    h += '<tr><td>' + itemLabel(k) + '</td><td>' + price + ' Scrap Metals/ea<br>Have ' + qty.toLocaleString() + '</td>' +
-      '<td><button onclick="window.buyStationItem(\'' + k + '\', 100)" ' + (playerData.isk < price ? 'disabled' : '') + '>Buy 100</button>' +
-      '<button onclick="window.buyStationItem(\'' + k + '\', 0)" ' + (playerData.isk < price ? 'disabled' : '') + '>Buy Max</button>' +
-      '<button onclick="window.sellStationItem(\'' + k + '\', ' + price + ')" ' + (qty <= 0 ? 'disabled' : '') + '>Sell All</button></td></tr>';
-  }
-  return h || '<tr><td colspan="3" style="text-align:center;color:#8b949e;">None</td></tr>';
+function marketItemRows() {
+  return '<tr><td colspan="3" style="text-align:center;color:#8b949e;">Ore and components are traded exclusively through the Trade Hub Market.</td></tr>';
 }
 
 function updateMarketUI() {
   let el = document.getElementById('market-list');
   if (!el) return;
-  const tabs = [['mining', 'MINING YARD'], ['combat', 'COMBAT YARD'], ['explorer', 'EXPLORER YARD'], ['ore', 'ORE'], ['debris', 'COMPONENTS']];
+  const tabs = [['mining', 'MINING YARD'], ['combat', 'COMBAT YARD'], ['explorer', 'EXPLORER YARD']];
   let h = '<tr><td colspan="3" style="padding: 2px 0;">';
   for (const t of tabs) {
     const on = t[0] === marketActiveTab;
     h += '<button onclick="window.setMarketTab(\'' + t[0] + '\')" style="margin-right:4px;' + (on ? 'background:#1f6feb;color:#ffffff;' : '') + '">' + t[1] + '</button>';
   }
   h += '</td></tr>';
-  h += (marketActiveTab === 'ore' || marketActiveTab === 'debris') ? marketItemRows(marketActiveTab === 'debris') : marketShipRows(marketActiveTab);
+  h += marketShipRows(marketActiveTab);
   el.innerHTML = h;
   if (typeof syncAutoplayButton === 'function') syncAutoplayButton();
 }
