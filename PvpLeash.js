@@ -35,6 +35,7 @@
 
   const P = PublicNpcManager.prototype;
   const origInit = P.init;
+  const origUpdate = P.update;
 
   function dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); }
 
@@ -54,6 +55,7 @@
 
     // Belt pirates: home is the spawn their belt rings.
     this.publicNpcMiners.forEach(npc => {
+      if (!npc || npc.mapId) return;
       let home = M.spawns[0], best = Infinity;
       for (const sp of M.spawns) {
         const d = dist(npc.ship.x, npc.ship.y, sp.x, sp.y);
@@ -92,6 +94,10 @@
 
   // Replaces the original update(). Same signature and same station-boss behaviour.
   P.update = function (currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession, debrisField) {
+    // Frontier systems use the shared base manager for per-system guards and 3–5 minute respawns.
+    if (String(currentMapId || '').indexOf('frontier_') === 0) {
+      return origUpdate.apply(this, arguments);
+    }
     if (currentMapId !== 'public_space') return;
 
     // Station boss: takes damage while the player is close and not docked.
@@ -104,6 +110,7 @@
 
     this.publicNpcMiners.forEach(npc => {
       try {
+        if (npc.mapId ? npc.mapId !== currentMapId : currentMapId !== 'public_space') return;
         if (!npc.isAlive || !npc.ship) return;
         const ship = npc.ship;
 
