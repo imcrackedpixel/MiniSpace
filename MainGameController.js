@@ -2544,7 +2544,7 @@ function render() {
   if (asteroidBelt && typeof asteroidBelt.draw === 'function') asteroidBelt.draw(ctx, view);
   if (debrisField && typeof debrisField.draw === 'function') debrisField.draw(ctx);
 
-  if ((!pub || mapManager.currentMapId === 'public_space') && !inMissionSpace() && botManager && typeof botManager.draw === 'function') botManager.draw(ctx, asteroidBelt, debrisField);
+  if (!pub && !inMissionSpace() && botManager && typeof botManager.draw === 'function') botManager.draw(ctx, asteroidBelt, debrisField);
   if (!inMissionSpace() && publicNpcManager && typeof publicNpcManager.draw === 'function') publicNpcManager.draw(ctx, mapManager.currentMapId, asteroidBelt);
   if (inMissionSpace() && missionManager) missionManager.drawMissionFleet(ctx);
 
