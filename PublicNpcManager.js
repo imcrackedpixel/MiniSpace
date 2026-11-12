@@ -236,8 +236,6 @@ class PublicNpcManager {
       isAggro: false,
       aggroTimer: 0,
       lastHp: hp,
-      role: opts.role || 'patrol',   // frontier miners mine; pirate hulls patrol
-      faction: opts.faction || 'pirates',
       home: { x: x, y: y },                               // centre of its patrol area
       pos: { x: x, y: y },                                // authoritative position, owned by this manager
       patrolPt: null,
@@ -577,91 +575,22 @@ class PublicNpcManager {
       // Engaged = attacking the player: close enough, or an auto-aggro combat hull hunting them across the belt
       const hunting = npc.autoAggro && playerPresent;
       const engaged = playerPresent && (distToPlayer < PEACE_RANGE || hunting);
-      // Frontier NPCs have their own local conflict: pirate ships hunt miners and miners flee/defend
-      // only through their normal mining behaviour. This runs without a player being present.
-      let npcTarget = null;
-      let npcTargetDistance = 3200;
-      if (String(currentMapId).indexOf('frontier_') === 0 && !engaged) {
-        for (const other of this.publicNpcMiners) {
-          if (!other || other === npc || !other.isAlive || !other.ship || other.faction === npc.faction) continue;
-          const d = Math.hypot(other.ship.x - ship.x, other.ship.y - ship.y);
-          if (d < npcTargetDistance) { npcTarget = other; npcTargetDistance = d; }
-        }
+      if(npc.combat||engaged){
+        const keepX=ship.x,keepY=ship.y;
+        this.runShipUpdate(npc,playerShip,playerPresent,engaged);
+        this.setPos(ship,keepX,keepY);
       }
-      const fightingNpc = !!(npcTarget && npc.combat);
-
-      if (DEBUG_NPC && this._dbgFrame % 120 === 0 && SIEGE_HULLS[npc.className]) {
-        console.log('[NPC]', npc.className, 'dist', Math.round(distToPlayer), 'ring', Math.round(this.ringRadius(npc)),
-          'weaponRange', ship.weaponRange, 'speed', this.npcSpeed(npc, playerShip).toFixed(2),
-          'pos', Math.round(ship.x), Math.round(ship.y), 'engaged', engaged);
-      }
-
-      // 1-3. Let the ship's own update() run, then undo whatever movement it made.
-      // Combat hulls always run it (so missiles keep moving); other hulls only when engaged.
-      if (npc.combat || engaged || fightingNpc) {
-        const keepX = ship.x, keepY = ship.y;
-        if (fightingNpc) this.runShipUpdate(npc, npcTarget.ship, true, true);
-        else this.runShipUpdate(npc, playerShip, playerPresent, engaged);
-        this.setPos(ship, keepX, keepY);
-      }
-
-      // 4. Movement
-      if (engaged) {
-        npc.isAgro = true;
-        this.engagePlayer(npc, playerShip);
-
-        // Deal damage to the player if inside weapon range (or on the ring, whichever is further)
-        const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
-        if (distToPlayer <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
-          if (typeof playerShip.takeDamage === 'function') {
-            playerShip.takeDamage(0.85 * (npc.dpsScale || 1));
-          } else {
-            playerShip.structure -= 0.85 * (npc.dpsScale || 1);
-          }
+      if(engaged){
+        npc.isAgro=true;
+        this.engagePlayer(npc,playerShip);
+        const wr=Number(ship.weaponRange)>0?Number(ship.weaponRange):RING_DEFAULT_RANGE;
+        if(distToPlayer<=Math.max(wr,this.ringRadius(npc)*1.1)){
+          if(typeof playerShip.takeDamage==='function')playerShip.takeDamage(0.85*(npc.dpsScale||1));
+          else playerShip.structure-=0.85*(npc.dpsScale||1);
         }
-      } else if (fightingNpc) {
-        npc.isAgro = true;
-        this.engagePlayer(npc, npcTarget.ship);
-        const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
-        if (npcTargetDistance <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
-          // NPC damage tuning is player-combat-scaled; raise it for frontier-vs-frontier fights.
-          const damage = Math.max(1.2, 0.85 * (npc.dpsScale || 1) * 20);
-          const previousDamageSource = window.__MINISPACE_NPC_ATTACK_SOURCE;
-          window.__MINISPACE_NPC_ATTACK_SOURCE = npc.id;
-          npcTarget.ship._minispaceNpcDamageAt = Date.now();
-          try {
-            if (typeof npcTarget.ship.takeDamage === 'function') npcTarget.ship.takeDamage(damage);
-            else {
-              let remaining = damage;
-              for (const layer of ['shield', 'armor', 'structure']) {
-                const hp = Math.max(0, Number(npcTarget.ship[layer]) || 0);
-                const hit = Math.min(hp, remaining);
-                npcTarget.ship[layer] = hp - hit; remaining -= hit;
-                if (remaining <= 0) break;
-              }
-            }
-          } finally {
-            window.__MINISPACE_NPC_ATTACK_SOURCE = previousDamageSource;
-          }
-        }
-        ship.currentTarget = npcTarget.ship;
-      } else if (npcTarget && !npc.combat && npc.role === 'mine') {
-        // Miners actively evade hostile ships instead of continuing to sit on an asteroid
-        // while a pirate closes in. Pick a point well away from the threat and keep moving.
-        npc.isAgro = true;
-        const dx = ship.x - npcTarget.ship.x, dy = ship.y - npcTarget.ship.y;
-        const d = Math.max(1, Math.hypot(dx, dy));
-        const fleeDistance = 1500;
-        const fleePoint = {
-          x: Math.max(250, Math.min(8750, ship.x + dx / d * fleeDistance)),
-          y: Math.max(250, Math.min(8750, ship.y + dy / d * fleeDistance))
-        };
-        this.flyTo(ship, fleePoint, this.npcSpeed(npc, npcTarget.ship) * 0.9);
-        ship.currentTarget = null;
-      } else {
-        // Player is away: miners work asteroid fields; pirates patrol and hunt hostile miners.
-        npc.isAgro = false;
-        this.peacefulBehaviour(npc, asteroidBelt);
+      }else{
+        npc.isAgro=false;
+        this.peacefulBehaviour(npc,asteroidBelt);
       }
 
       // Debug: engaged but not getting anywhere? Report once with everything needed to see why.
@@ -753,7 +682,7 @@ class PublicNpcManager {
           : rarity === 'uncommon' ? '#3fb950'
           : '#e6edf3';
         const zoom = Math.max(0.45, Number(window.cameraZoom) || 1);
-        const label = npc.faction === 'miners' ? 'MINER' : 'PIRATE';
+        const label = 'PIRATE';
         const fontSize = 13 / zoom;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
