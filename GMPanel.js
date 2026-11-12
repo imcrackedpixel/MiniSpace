@@ -68,8 +68,13 @@
       if(!pilots.length){onlineBox.textContent='No pilots currently online.';return;}
       pilots.forEach(pilot=>{
         const row=document.createElement('div');row.className='pilot';
-        row.textContent=pilot.name+' · '+(pilot.ship||'Unknown ship')+' · '+(pilot.system||pilot.mapId||'Unknown location')+(pilot.invisible?' · INVISIBLE':'');
-        onlineBox.appendChild(row);
+        const label=document.createElement('div');
+        label.textContent=pilot.name+' · '+(pilot.ship||'Unknown ship')+' · '+(pilot.system||pilot.mapId||'Unknown location')+(pilot.invisible?' · INVISIBLE':'');
+        const actions=document.createElement('div');actions.style.cssText='display:flex;gap:5px;margin-top:5px;flex-wrap:wrap';
+        const selectPilot=document.createElement('button');selectPilot.textContent='SELECT';selectPilot.onclick=()=>{document.getElementById('gm-target-name').value=pilot.name;row.style.borderLeft='2px solid #42d6b5';};
+        const teleport=document.createElement('button');teleport.textContent='TP TO';teleport.onclick=()=>{window.MinispaceOnline.send({type:'gm-teleport-to-player',accountId:pilot.accountId});status('Requesting teleport to '+pilot.name+'…');};
+        const unstick=document.createElement('button');unstick.textContent='UNSTICK';unstick.onclick=()=>{if(!confirm('Return '+pilot.name+' to Private High-Sec?'))return;window.MinispaceOnline.send({type:'gm-unstick-pilot',accountId:pilot.accountId});status('Sending unstick command…');};
+        actions.append(selectPilot,teleport,unstick);row.append(label,actions);onlineBox.appendChild(row);
       });
     }
     window.addEventListener('minispace-gm-online-list',event=>renderOnlinePilots(event.detail||[]));
