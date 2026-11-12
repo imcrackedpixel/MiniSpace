@@ -451,8 +451,8 @@ wss.on('connection',ws=>{
       const mapId=safeText(m.mapId,48);
       const target=players.get(safeText(m.targetId,100));
       const allowedMap=mapId==='public_space'||mapId.indexOf('frontier_')===0;
-      if(!allowedMap||!p.roomId||p.roomType!=='public'||p.mapId!==mapId||!p.pvp||p.docked||
-         !target||target.id===p.id||target.roomId!==p.roomId||target.mapId!==mapId||!target.pvp||target.docked||
+      if(!allowedMap||!p.roomId||!['public','match'].includes(p.roomType)||p.mapId!==mapId||!p.pvp||p.docked||
+         !target||target.id===p.id||target.roomId!==p.roomId||target.roomType!==p.roomType||target.mapId!==mapId||!target.pvp||target.docked||
          target.structure<=0||p.structure<=0||Math.hypot(p.x-target.x,p.y-target.y)>1600)return;
       const now=Date.now();
       if(!p.pvpHitTimes)p.pvpHitTimes=new Map();
