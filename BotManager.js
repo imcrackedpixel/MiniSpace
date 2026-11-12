@@ -1092,6 +1092,7 @@ class BotManager {
               const waiting = Array.isArray(bot.playerSaleQueue) ? bot.playerSaleQueue.length : 0;
               window.showCorpNotification(waiting ? 'Back at High-Sec. ' + waiting + ' deposited sale(s) waiting; loading for the next trip.' : 'All deposited sales delivered. Transport Manager is ready.');
             }
+            if (typeof window.startNextTransportShipBuild === 'function') window.startNextTransportShipBuild(bot);
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
             if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
@@ -1311,6 +1312,7 @@ class BotManager {
             if (typeof window.showCorpNotification === 'function') {
               window.showCorpNotification('Transport Manager returned to High-Sec and is ready to load the next shipment.');
             }
+            if (typeof window.startNextTransportShipBuild === 'function') window.startNextTransportShipBuild(bot);
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
             if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
