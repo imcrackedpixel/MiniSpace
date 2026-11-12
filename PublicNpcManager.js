@@ -593,7 +593,7 @@ class PublicNpcManager {
     // Update all active NPC pirate ships
     this.publicNpcMiners.forEach(npc => {
       try {
-      if (npc.mapId && npc.mapId !== currentMapId) return;
+      if (npc.mapId ? npc.mapId !== currentMapId : currentMapId !== 'public_space') return;
       if (!npc.isAlive) return;
       if (!npc.ship) return;
       const ship = npc.ship;
@@ -778,7 +778,7 @@ class PublicNpcManager {
     // Draw all live NPC pirate ships, health bars, and labels
     this.publicNpcMiners.forEach(npc => {
       try {
-      if (npc.mapId && npc.mapId !== currentMapId) return;
+      if (npc.mapId ? npc.mapId !== currentMapId : currentMapId !== 'public_space') return;
       if (npc.isAlive && npc.ship && typeof npc.ship.draw === 'function') {
         // Draw at the manager's position, in case something moved the ship after update()
         if (npc.pos) this.setPos(npc.ship, npc.pos.x, npc.pos.y);
