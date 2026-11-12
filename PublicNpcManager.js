@@ -158,18 +158,32 @@ class PublicNpcManager {
   applyFrontierState(d){if(!d||d.mapId!==this.frontierMapId)return;(d.deadNpcs||[]).forEach(x=>this.applyFrontierDeath(x));}
   applyFrontierDeath(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n){n.isAlive=false;n.respawnAt=Number(d.respawnAt)||Date.now()+90000;}}
   applyFrontierRespawn(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n&&!n.isAlive)this.reviveFrontierNpc(n);}
-  reviveFrontierNpc(n){if(!n||!n.cfg)return;let cfg=n.cfg;let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;const oldRandom=Math.random;let st=seed||1;Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};try{if(n.frontierKind!=='Mining Fleet'&&n.frontierLevel<=3&&Math.random()<.3)cfg=pickPirate(MINER_POOL);}finally{Math.random=oldRandom;}const old=this.publicNpcMiners;this.publicNpcMiners=[];const deadEnd=String(this.frontierMapId||'').includes('blackstar')||String(this.frontierMapId||'').includes('crypt');
-    const roll=Math.random(),rarity=deadEnd?(roll<.38?'common':roll<.68?'uncommon':roll<.88?'rare':'elite'):(roll<.58?'common':roll<.83?'uncommon':roll<.96?'rare':'elite');
-    const level=n.frontierLevel||1;
-    if(n.frontierKind!=='Mining Fleet'){
-      if(level>=5)cfg=rarity==='elite'?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
-      else if(level>=4)cfg=rarity==='elite'?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;
-      else if(level>=3)cfg=rarity==='rare'||rarity==='elite'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
-      else if(rarity==='rare'||rarity==='elite')cfg=PIRATE_TYPES.siegeCruiser;
-      else if(Math.random()<.30)cfg=pickPirate(MINER_POOL);
-    }else if(rarity==='rare'||rarity==='elite')cfg=pickPirate([{t:'barge',w:2},{t:'command',w:1}]);
-    const elite=rarity==='elite'&&level>=4&&n.frontierKind!=='Mining Fleet';
-    this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity});const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;if(fresh)Object.assign(n,fresh);}
+  reviveFrontierNpc(n){
+    if(!n||!n.cfg)return;
+    let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;
+    seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;
+    const oldRandom=Math.random;let st=seed||1;
+    Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};
+    try{
+      let cfg=n.cfg;
+      const deadEnd=String(this.frontierMapId||'').includes('blackstar')||String(this.frontierMapId||'').includes('crypt');
+      const roll=Math.random(),rarity=deadEnd?(roll<.38?'common':roll<.68?'uncommon':roll<.88?'rare':'elite'):(roll<.58?'common':roll<.83?'uncommon':roll<.96?'rare':'elite');
+      const level=n.frontierLevel||1;
+      if(n.frontierKind!=='Mining Fleet'){
+        if(level>=5)cfg=rarity==='elite'?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
+        else if(level>=4)cfg=rarity==='elite'?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;
+        else if(level>=3)cfg=rarity==='rare'||rarity==='elite'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
+        else if(rarity==='rare'||rarity==='elite')cfg=PIRATE_TYPES.siegeCruiser;
+        else if(Math.random()<.30)cfg=pickPirate(MINER_POOL);
+      }else if(rarity==='rare'||rarity==='elite')cfg=pickPirate([{t:'barge',w:2},{t:'command',w:1}]);
+      const elite=rarity==='elite'&&level>=4&&n.frontierKind!=='Mining Fleet';
+      const hull=cfg.name==='Capital'?'Siege Capital':cfg.name;
+      const old=this.publicNpcMiners;this.publicNpcMiners=[];
+      this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity});
+      const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;
+      if(fresh)Object.assign(n,fresh);
+    }finally{Math.random=oldRandom;}
+  }
 
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
@@ -545,8 +559,8 @@ class PublicNpcManager {
           playerData.isk += Math.floor(npc.bounty);
         }
         if(npc.elite&&npc.frontierLevel>=4&&playerData){
-          const hull=npc.className||'Combat Frigate';
-          const keys=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Capital':['guns','shield','resistance','propulsion'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
+          const hull=npc.className==='Capital'?'Siege Capital':(npc.className||'Combat Frigate');
+          const keys=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
           const module=keys[Math.floor(Math.random()*keys.length)];
           if(!Array.isArray(playerData.skillChips))playerData.skillChips=[];
           playerData.skillChips.push({id:'chip-'+npc.id+'-'+Date.now(),hull:hull,module:module,rarity:'purple',name:'Purple '+hull+' Skill Chip',source:'Elite Frontier Pirate'});
