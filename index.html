@@ -109,10 +109,20 @@ MINIMAP
 
 <div class="station-content">
 <div id="tab-hangar" class="tab-pane" style="display: block;">
-<table class="station-table">
+<div class="hangar-inventory-layout">
+<nav class="hangar-side-tabs" aria-label="Hangar inventory">
+<button class="hangar-side-btn active" data-hangar-view="items" onclick="window.setHangarView('items')">▦<span>Items</span></button>
+<button class="hangar-side-btn" data-hangar-view="ships" onclick="window.setHangarView('ships')">◇<span>Ships</span></button>
+<button class="hangar-side-btn" data-hangar-view="fitting" onclick="window.setHangarView('fitting')">⚙<span>Fitting</span></button>
+</nav>
+<div class="hangar-bag-main">
+<div id="hangar-fitting-panel" style="display:none;"></div>
+<table id="hangar-items-table" class="station-table">
 <thead><tr><th>Item / Debris</th><th>Quantity</th><th>Action</th></tr></thead>
 <tbody id="items-hanger-list"></tbody>
 </table>
+</div>
+</div>
 </div>
 
 <div id="tab-upgrades" class="tab-pane" style="display: none;">
