@@ -672,30 +672,37 @@ button[onclick*="adjustZoom"],
   display: none !important;
 }
 
-/* Floating fullscreen toggle stays available both docked and while flying. */
+/* Fullscreen stays permanently beside HIDE UI in phone landscape. */
 #minispace-fullscreen-btn {
   position:fixed;
-  top:48px;
-  right:8px;
+  top:8px;
+  right:82px;
   z-index:12001;
   display:none;
-  min-height:28px;
-  height:28px;
-  padding:4px 8px;
+  min-height:34px;
+  height:34px;
+  padding:6px 9px;
   color:#9be7d4;
   background:rgba(9,20,27,.96);
   border:1px solid #34785d;
-  border-radius:5px;
-  font-size:8px;
-  font-weight:bold;
-  letter-spacing:.2px;
+  border-radius:6px;
+  font:700 9px system-ui,sans-serif;
   white-space:nowrap;
   pointer-events:auto;
   touch-action:manipulation;
 }
 @media screen and (orientation:landscape) and (max-width:950px) {
-  #minispace-fullscreen-btn { display:inline-flex; align-items:center; justify-content:center; }
-  body.ui-hidden #minispace-fullscreen-btn { display:none; }
+  #minispace-fullscreen-btn {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    top:max(4px, env(safe-area-inset-top));
+    right:calc(max(5px, env(safe-area-inset-right)) + 76px);
+    min-height:28px;
+    height:28px;
+    padding:4px 7px;
+    font-size:8px;
+  }
 }
 html:fullscreen, html:-webkit-full-screen {
   width:100%;
