@@ -560,3 +560,18 @@ body.ui-hidden #ui-layer,body.ui-hidden #online-panel,body.ui-hidden #corp-notif
 .nearby-empty{padding:7px 3px;color:#8196a1;font-size:9px;text-align:center}
 @media screen and (orientation:landscape) and (max-width:950px){#minimap-panel{width:min(190px,28vw);max-height:48vh}#nearby-space-list{max-height:calc(48vh - 58px)}}
 @media screen and (max-height:390px) and (orientation:landscape){#minimap-panel{width:min(165px,26vw);max-height:55vh}#nearby-space-list{max-height:calc(55vh - 58px)}.nearby-entry{min-height:21px;padding:2px 4px}}
+
+
+/* Camera gestures: keep browser scrolling/zooming from stealing game gestures. */
+#gameCanvas {
+  touch-action: none;
+}
+
+/* The camera is now controlled by pinch gestures and mouse-wheel scrolling. */
+#zoom-controls,
+.zoom-controls,
+.zoom-buttons,
+button[onclick*="adjustZoom"],
+[onclick*="adjustZoom"] {
+  display: none !important;
+}
