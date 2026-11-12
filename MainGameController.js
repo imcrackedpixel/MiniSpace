@@ -2032,3 +2032,47 @@ if (
   playerShip.angle = savedPosition.angle;
   playerShip.docked = savedPosition.docked;
 }
+// RESTORE ACTIVE MISSION AREA AFTER RELOAD
+const savedMissionPosition = window.MINISPACE_SAVED_POSITION;
+
+if (
+  savedMissionPosition &&
+  typeof savedMissionPosition.mapId === 'string' &&
+  savedMissionPosition.mapId.indexOf('mission_') === 0 &&
+  missionManager &&
+  missionManager.activeMission &&
+  !missionManager.activeMission.returned
+) {
+  const mission = missionManager.activeMission;
+
+  // Rebuild the mission area.
+  const missionWorld = mapManager.jumpToMissionSystem(playerShip, mission);
+  asteroidBelt = missionWorld.asteroidBelt;
+  debrisField = missionWorld.debrisField;
+
+  // Restore the saved ship position.
+  playerShip.x = savedMissionPosition.x;
+  playerShip.y = savedMissionPosition.y;
+  playerShip.vx = savedMissionPosition.vx;
+  playerShip.vy = savedMissionPosition.vy;
+  playerShip.angle = savedMissionPosition.angle;
+  playerShip.docked = false;
+
+  // Restart the encounter without changing its mission or reward.
+  if (!mission.completed) {
+    mission.kills = 0;
+    mission.fleet = [];
+    mission.spawnedFleet = false;
+    missionManager.spawnMissionFleet(asteroidBelt, playerShip);
+  } else {
+    mission.fleet = [];
+    mission.spawnedFleet = true;
+  }
+
+  targetMovePos = null;
+  lockedTarget = null;
+  isDockingRequested = false;
+
+  updateMissionsUI();
+  saveGameSession();
+}
