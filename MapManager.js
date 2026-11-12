@@ -221,41 +221,65 @@ function drawSpaceRift(ctx, x, y, R, pal, seed) {
   ctx.restore();
 }
   
+// Shared high-visibility portal label, styled to match the Trade Hub entrance.
+function drawPortalLabel(ctx, x, y, radius, title, subtitle, accent) {
+  const zoom = Math.max(0.45, Number(window.cameraZoom) || 1);
+  const fontSize = 18 / zoom;
+  const titleText = String(title || '').toUpperCase();
+  const subText = subtitle ? String(subtitle).toUpperCase() : '';
+  ctx.save();
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+  const titleWidth = ctx.measureText(titleText).width;
+  ctx.font = '600 ' + (13 / zoom) + 'px system-ui, sans-serif';
+  const subWidth = subText ? ctx.measureText(subText).width : 0;
+  const width = Math.max(titleWidth, subWidth) + 24 / zoom;
+  const height = (subText ? 48 : 30) / zoom;
+  const labelY = y - radius - (subText ? 48 : 34) / zoom;
+  ctx.fillStyle = 'rgba(3, 15, 22, 0.9)';
+  ctx.strokeStyle = accent || '#34d399';
+  ctx.lineWidth = 1.5 / zoom;
+  ctx.beginPath();
+  ctx.roundRect(x - width / 2, labelY - height / 2, width, height, 7 / zoom);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowColor = accent || '#34d399';
+  ctx.shadowBlur = 8 / zoom;
+  ctx.fillStyle = '#ecfdf5';
+  ctx.font = 'bold ' + fontSize + 'px system-ui, sans-serif';
+  ctx.fillText(titleText, x, labelY - (subText ? 8 : 0) / zoom);
+  if (subText) {
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#a7f3d0';
+    ctx.font = '600 ' + (13 / zoom) + 'px system-ui, sans-serif';
+    ctx.fillText(subText, x, labelY + 13 / zoom);
+  }
+  ctx.restore();
+}
+
 class MapManager {  
  constructor() {  
  this.currentMapId = 'private_highsec';  
  this.missionReturnGate = null;
  this.missionEntryGate = { x: 4450, y: 4450, radius: 105, destinationName: '', draw: function(ctx) {
    drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 12);
-   ctx.save();
-   ctx.fillStyle = '#34d399';
-   ctx.font = 'bold 11px Courier New';
-   ctx.textAlign = 'center';
-   ctx.fillText('MISSION TEAR', this.x, this.y - this.radius - 24);
-   ctx.font = '10px Courier New';
-   ctx.fillText(this.destinationName ? 'TO ' + this.destinationName.toUpperCase() : 'MISSION DESTINATION', this.x, this.y - this.radius - 10);
-   ctx.restore();
+   drawPortalLabel(ctx, this.x, this.y, this.radius, 'MISSION PORTAL',
+     this.destinationName ? 'TO ' + this.destinationName.toUpperCase() : 'MISSION DESTINATION', '#34d399');
  } };
  this.anomalyAngle = 0;  
  this.anomalyPulse = 0;
   
- this.publicGate = {  
- x: 2500,  
- y: 4200,  
- radius: 90,  
- draw: function(ctx) {  
- drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.pvp, 1);
+ this.publicGate = {
+ x: 2500,
+ y: 4200,
+ radius: 90,
+ draw: function(ctx) {
+   drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.pvp, 1);
+   drawPortalLabel(ctx, this.x, this.y, this.radius, '3V3 ARENA', 'PUBLIC PVP', '#fb923c');
+ }
+ };
 
- // Label
- ctx.save();
- ctx.fillStyle = '#f85149';
- ctx.font = '10px "Courier New"';
- ctx.textAlign = 'center';
- ctx.fillText('SPACE TEAR: PUBLIC PVP', this.x, this.y - this.radius * 1.25 - 10);
- ctx.restore();
- }  
- };  
-  
  this.playerGates = [  
  {  
  x: 1000, y: 4500, radius: 80, playerIndex: 0,  
@@ -276,15 +300,9 @@ class MapManager {
  }  
   
  // Called with the gate as `this` (bound in the constructor)
- drawGate(ctx, label) {  
+ drawGate(ctx, label) {
  drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 2 + (this.playerIndex || 0) * 3);
-
- ctx.save();
- ctx.fillStyle = '#3fb950';  
- ctx.font = '10px "Courier New"';  
- ctx.textAlign = 'center';  
- ctx.fillText(label, this.x, this.y - this.radius * 1.25 - 10);  
- ctx.restore();  
+ drawPortalLabel(ctx, this.x, this.y, this.radius, label.replace(' RETURN GATE', ''), 'RETURN TO HIGH-SEC', '#34d399');
  }  
   
  jumpToMissionSystem(playerShip, mission) {
@@ -293,8 +311,7 @@ class MapManager {
    const cx = size / 2, cy = size / 2;
    this.missionReturnGate = { x: 700, y: cy, radius: 95, draw(ctx) {
      drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 24);
-     ctx.save(); ctx.fillStyle = '#34d399'; ctx.font = '12px Courier New'; ctx.textAlign = 'center';
-     ctx.fillText('RETURN TO HIGH-SEC', this.x, this.y - this.radius - 14); ctx.restore();
+     drawPortalLabel(ctx, this.x, this.y, this.radius, 'RETURN PORTAL', 'HIGH-SEC 1.0', '#34d399');
    }};
    const belt = new AsteroidBelt(cx, cy, 0, size);
    belt.generate(65, ['veldspar', 'scordite', 'pyroxeres', 'omber']);
