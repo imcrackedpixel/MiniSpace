@@ -1548,20 +1548,14 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     window.showCorpNotification('Your Transport Manager is busy with a different job and cannot accept goods right now.');
     return;
   }
-  const capacity = Math.max(0, Math.floor(Number(manager.ship.maxCargo) || 5000));
-  if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available || qty > capacity) {
-    window.showCorpNotification('Choose a quantity up to your hangar stock and one trip capacity (' + capacity.toLocaleString() + ').');
+  const capacity = Math.max(1, Math.floor(Number(manager.ship.maxCargo) || 5000));
+  if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available) {
+    window.showCorpNotification('Choose a quantity up to the amount in your Private High-Sec hangar.');
     return;
   }
-  const shipmentId = 'pilot-sale-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
-  const items = {};
-  items[itemKey] = qty;
   try {
-    const raw = await window.MINISPACE_MARKET.reserveTransportSale(shipmentId, items);
-    const receipt = Array.isArray(raw) ? raw[0] : raw;
-    if (!receipt || receipt.success === false) throw new Error('The market could not reserve these goods.');
-    if (!window.MINISPACE_MARKET.applyToGame(playerData)) throw new Error('The hangar reservation was accepted, but the local hangar could not refresh. Reopen the game before depositing more goods.');
-    // The manager's collection hangar is the persistent queue of separately owned shipments.
+    // A large hangar deposit is divided into cargo-sized shipment records.
+    // This lets one selection exceed the manager's hold while every trip stays within capacity.
     if (!Array.isArray(manager.playerSaleQueue)) manager.playerSaleQueue = [];
     if (canReceiveAtStation && !manager.playerSaleTask && manager.transportState === 'loading') {
       // Put any partially loaded corporation cargo safely back before starting player sales.
@@ -1574,7 +1568,21 @@ window.sellHangarItemViaTransport = async function(itemKey) {
       manager.ship.cargo = 0;
       manager.ship.cargoByOre = {};
     }
-    manager.playerSaleQueue.push({ shipmentId: shipmentId, items: items, status: 'deposited', owner: 'current_pilot' });
+    let deposited = 0;
+    while (deposited < qty) {
+      const chunk = Math.min(capacity, qty - deposited);
+      const shipmentId = 'pilot-sale-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+      const items = {};
+      items[itemKey] = chunk;
+      const raw = await window.MINISPACE_MARKET.reserveTransportSale(shipmentId, items);
+      const receipt = Array.isArray(raw) ? raw[0] : raw;
+      if (!receipt || receipt.success === false) throw new Error('The market could not reserve the next cargo batch.');
+      manager.playerSaleQueue.push({ shipmentId: shipmentId, items: items, status: 'deposited', owner: 'current_pilot' });
+      deposited += chunk;
+    }
+    if (!window.MINISPACE_MARKET.applyToGame(playerData)) {
+      throw new Error('The goods were reserved, but the local hangar could not refresh. Reopen the game before depositing more.');
+    }
     if (canReceiveAtStation && !manager.playerSaleTask && !manager.playerSaleIdleSince) {
       manager.playerSaleIdleSince = Date.now();
     }
@@ -1584,9 +1592,12 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     const waiting = manager.playerSaleQueue.reduce(function (sum, order) {
       return sum + Object.keys(order.items || {}).reduce(function (n, key) { return n + Math.max(0, Math.floor(Number(order.items[key]) || 0)); }, 0);
     }, 0);
-    window.showCorpNotification('Deposited ' + qty.toLocaleString() + ' ' + itemLabel(itemKey) + ' in the Transport Manager hangar. ' + waiting.toLocaleString() + ' goods are waiting for delivery. He will depart when full or after 30 seconds idle.');
+    window.showCorpNotification('Deposited ' + deposited.toLocaleString() + ' ' + itemLabel(itemKey) + ' in ' + Math.ceil(deposited / capacity) + ' cargo batch(es). ' + waiting.toLocaleString() + ' goods are waiting for delivery.');
   } catch (error) {
-    window.showCorpNotification('Transport deposit failed: ' + (error.message || error));
+    if (manager.playerSaleQueue.length && typeof window.saveGameSession === 'function') window.saveGameSession();
+    updateStationUI();
+    updateCorpUI();
+    window.showCorpNotification('Transport deposit stopped after ' + (typeof deposited === 'number' ? deposited.toLocaleString() : '0') + ' items: ' + (error.message || error) + '. Any batches already accepted remain queued.');
   }
 };
 
