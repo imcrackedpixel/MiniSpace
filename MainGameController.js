@@ -1809,7 +1809,7 @@ function updateStationUI() {
     const rowInput = '<input id="hangar-qty-' + itemKey + '" type="number" min="1" max="' + Math.max(0, Math.floor(Number(qty) || 0)) + '" value="' + rowDefault + '" inputmode="numeric" style="width:72px;max-width:22%;background:#080d12;color:#fff;border:1px solid #40535c;padding:4px;">';
     const loadButton = '<button onclick="window.loadHangarItemToShip(\'' + itemKey + '\')" ' + (!playerShip || !playerShip.docked || inTradeHubNow || qty < 1 || loadRoom < 1 ? 'disabled' : '') + '>Load ship</button>';
     const sellButton = '<button onclick="window.sellHangarItemViaTransport(\'' + itemKey + '\')" ' + (!managerReady || inTradeHubNow || qty < 1 ? 'disabled' : '') + '>Sell via Transport</button>';
-    groupRows[g] += '<tr><td>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td style="white-space:normal;">' + rowInput + ' ' + loadButton + ' ' + sellButton + '</td></tr>';
+    groupRows[g] += '<tr><td><span class="inventory-item-icon">'+(g==='debris'?'✧':'◈')+'</span>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td style="white-space:normal;">' + rowInput + ' ' + loadButton + ' ' + sellButton + '</td></tr>';
     groupCount[g]++;
   }
 
@@ -1880,9 +1880,9 @@ function updateStationUI() {
   const hasHangarGoods = Object.keys(GAME_ITEM_LABELS).some(function(key) {
     return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
   });
-  hangarHtml = '<div style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" ' +
+  hangarHtml = '<tr><td colspan="3" style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" 
     (!canSellAllHangar || !hasHangarGoods || !playerShip || !playerShip.docked || inTradeHub ? 'disabled' : '') +
-    ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></div>' + hangarHtml;
+    ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></td></tr>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
   if (hangarEl) hangarEl.innerHTML = hangarHtml;
   const fittingEl=document.getElementById('hangar-fitting-panel');
