@@ -191,6 +191,65 @@ function isFrontierSpace() { return !!(mapManager && String(mapManager.currentMa
 function inPublicSpace() { return !!(mapManager && (mapManager.currentMapId === 'public_space' || isFrontierSpace())); }
 function inMissionSpace() { return !!(mapManager && String(mapManager.currentMapId).indexOf('mission_') === 0); }
 function autoplayIsOn() { return !!(autoplayManager && autoplayManager.isAutoplay); }
+
+window.addEventListener('minispace-pvp-hit', function(event) {
+  const hit = event && event.detail;
+  if (!hit || !playerShip || !mapManager || hit.mapId !== mapManager.currentMapId || playerShip.docked) return;
+  playerShip.shield = Math.max(0, Number(hit.shield) || 0);
+  playerShip.armor = Math.max(0, Number(hit.armor) || 0);
+  playerShip.structure = Math.max(0, Number(hit.structure) || 0);
+  if (playerShip.structure <= 0) window.showCorpNotification('Your ship was destroyed by another pilot.');
+});
+
+function getRemotePvpTargets() {
+  const online = window.MinispaceOnline && window.MinispaceOnline.state;
+  const remote = online && online.remotePlayers;
+  if (!remote || !mapManager) return [];
+  const cache = window._miniSpacePvpTargets || (window._miniSpacePvpTargets = Object.create(null));
+  const active = new Set(), targets = [];
+  Object.values(remote).forEach(p => {
+    if (!p || !p.id || p.id === online.id || p.mapId !== mapManager.currentMapId || p.pvp === false || p.docked) return;
+    const structure = Math.max(1, Number(p.structure) || Number(p.maxStructure) || 1000);
+    if (structure <= 0) return;
+    active.add(p.id);
+    let proxy = cache[p.id];
+    if (!proxy) {
+      proxy = {
+        takeDamage: function(amount) {
+          const damage = Math.max(0, Math.min(500, Number(amount) || 0));
+          const now = Date.now();
+          if (!damage || now - (this._lastPvpSend || 0) < 120) return;
+          this._lastPvpSend = now;
+          if (window.MinispaceOnline && typeof window.MinispaceOnline.send === 'function') {
+            window.MinispaceOnline.send({ type: 'pvp-damage', targetId: this._targetId, mapId: this._mapId, damage: damage });
+          }
+        }
+      };
+      cache[p.id] = proxy;
+    }
+    Object.assign(proxy, {
+      _targetId: p.id, _mapId: p.mapId,
+      x: Number(p.x) || 0, y: Number(p.y) || 0,
+      angle: Number(p.angle) || 0,
+      shield: Math.max(0, Number(p.shield) || 0),
+      armor: Math.max(0, Number(p.armor) || 0),
+      structure: structure,
+      maxShield: Number(p.maxShield) || 0,
+      maxArmor: Number(p.maxArmor) || 0,
+      maxStructure: Number(p.maxStructure) || structure,
+      className: p.ship || 'Pilot Ship',
+      pilotName: p.name || 'Pilot',
+      isPlayerPilot: true,
+      isPirate: false,
+      docked: !!p.docked
+    });
+    targets.push(proxy);
+  });
+  Object.keys(cache).forEach(id => {
+    if (!active.has(id)) { cache[id].structure = 0; delete cache[id]; }
+  });
+  return targets;
+}
 function balancedShips() {
   const list = [playerShip];
   if (botManager && botManager.bots) botManager.bots.forEach(b => list.push(b.ship));
@@ -2476,7 +2535,7 @@ function updateNearbySpacePanel(){
  if(id.indexOf('frontier_')===0){gate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});(Array.isArray(mapManager.frontierGates)?mapManager.frontierGates:[]).forEach(o=>{const d=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===o.destinationId);gate(o,(d?d.name:'Frontier')+' Tear',{destinationId:o.destinationId});});}
  else if(id.indexOf('mission_')===0)gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
  else{(mapManager.frontierEntryGates||[mapManager.frontierEntryGate]).forEach(o=>{if(!o)return;const d=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===o.destinationId);gate(o,(d?d.name:'Frontier')+' Tear',{destinationId:o.destinationId||'frontier_ashen'});});if(id!=='public_trade_hub')gate(mapManager.publicGate,'Arena Tear',{});if(mapManager.missionEntryGate&&missionManager&&missionManager.activeMission&&!missionManager.activeMission.returned)gate(mapManager.missionEntryGate,'Mission Tear',{mission:true});}
- if(id==='public_space'&&window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers){Object.values(window.MinispaceOnline.state.remotePlayers).forEach(p=>{if(!p||!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))return;const pname=String(p.name||p.pilotName||'Pilot').slice(0,16);add('players',pname,p,'player');});}
+ if((id==='public_space'||id.indexOf('frontier_')===0)&&window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers){Object.values(window.MinispaceOnline.state.remotePlayers).forEach(p=>{if(!p||!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))return;const pname=String(p.name||p.pilotName||'Pilot').slice(0,16);add('players',pname,p,'player');});}
  if((id==='public_space'||id.indexOf('frontier_')===0)&&publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners))publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship&&(n.mapId?n.mapId===id:id==='public_space'))add('pirates',(n.stationGuard?'Station Guard · ':'')+(n.ship.pilotName||n.ship.name||n.className||'Pirate'),n.ship,'pirate');});
  if(Array.isArray(asteroidBelt&&asteroidBelt.entities))asteroidBelt.entities.forEach((o,i)=>{if(o&&Number(o.oreYield)>0)add('ore',itemLabel(o.oreType||'veldspar'),o,'rock');});
  if(debrisField&&typeof debrisField.getEntities==='function')(debrisField.getEntities()||[]).forEach((o)=>{if(o&&Number(o.oreYield)>0)add('ore',itemLabel('debris_t'+(Number(o.tier)||1)),o,'salvage');});
@@ -2576,12 +2635,12 @@ function manualControl() {
     const list = isExplorerClass(cls) ? (debrisField ? debrisField.getEntities() : []) : (asteroidBelt ? asteroidBelt.entities : []);
     tgt = isExplorerClass(cls) ? lockedTarget : (lockedTarget || nearestIn(list, ship.x, ship.y, 3000));
   }
-  const enemies = playerData.offensiveMode
-    ? (pub && publicNpcManager && publicNpcManager.publicNpcMiners
+  const enemies = playerData.offensiveMode && pub
+    ? (publicNpcManager && publicNpcManager.publicNpcMiners
       ? publicNpcManager.publicNpcMiners.filter(function(n) {
           return n && n.isAlive && n.ship && (n.mapId ? n.mapId === mapManager.currentMapId : mapManager.currentMapId === 'public_space');
         }).map(function(n) { return n.ship; })
-      : [])
+      : []).concat(getRemotePvpTargets())
     : [];
   if (playerData.offensiveMode && inMissionSpace() && missionManager) enemies.push.apply(enemies, missionManager.getLivingEnemies());
   ship.ignoreStationBoss = !playerData.offensiveMode;
