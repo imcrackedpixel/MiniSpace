@@ -161,7 +161,10 @@
     if (!session || !session.user || !session.user.id) throw new Error('Pilot login required');
     const pilotId = encodeURIComponent(session.user.id);
     const results = await Promise.all([
-      api('/rest/v1/pilot_wallets?select=isk,legacy_imported,game_state_synced&pilot_id=eq.' + pilotId, { method: 'GET' }),
+      api('/rest/v1/pilot_wallets?select=isk,legacy_imported,game_state_synced&pilot_id=eq.' + pilotId, { method: 'GET' })
+        .catch(function () {
+          return api('/rest/v1/pilot_wallets?select=isk,legacy_imported&pilot_id=eq.' + pilotId, { method: 'GET' });
+        }),
       api('/rest/v1/pilot_hangars?select=station_id,item_key,quantity&pilot_id=eq.' + pilotId + '&order=station_id,item_key', { method: 'GET' }),
       api('/rest/v1/market_items?select=item_key,display_name,unit_price,stock,player_stock,npc_stock&order=item_key', { method: 'GET' })
     ]);
