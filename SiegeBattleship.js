@@ -9,7 +9,7 @@
     maxShield: 6000,
     maxArmor: 5000,
     maxStructure: 5000,
-    maxCargo: 2000
+    maxCargo: 1000
   };
 
   const ACCEL = 0.1;
