@@ -455,7 +455,7 @@ class PublicNpcManager {
     if (npc.role === 'patrol') {
       if (!npc.patrolPt || Math.hypot(npc.patrolPt.x - ship.x, npc.patrolPt.y - ship.y) < 80) {
         const a = Math.random() * Math.PI * 2;
-        const r = 350 + Math.random() * 850;
+        const r = 900 + Math.random() * 900;
         npc.patrolPt = { x: npc.home.x + Math.cos(a) * r, y: npc.home.y + Math.sin(a) * r };
       }
       this.flyTo(ship, npc.patrolPt, speed * PATROL_SPEED_FRAC);
@@ -484,7 +484,7 @@ class PublicNpcManager {
       // No rocks remain: make a visible patrol circuit instead of freezing at the home point.
       if (!npc.patrolPt || Math.hypot(npc.patrolPt.x - ship.x, npc.patrolPt.y - ship.y) < 100) {
         const a = Math.random() * Math.PI * 2;
-        const radius = 350 + Math.random() * 850;
+        const radius = 900 + Math.random() * 900;
         npc.patrolPt = { x: npc.home.x + Math.cos(a) * radius, y: npc.home.y + Math.sin(a) * radius };
       }
       this.flyTo(ship, npc.patrolPt, speed * PATROL_SPEED_FRAC);
@@ -670,7 +670,7 @@ class PublicNpcManager {
       // Frontier NPCs have their own local conflict: pirate ships hunt miners and miners flee/defend
       // only through their normal mining behaviour. This runs without a player being present.
       let npcTarget = null;
-      let npcTargetDistance = 1550;
+      let npcTargetDistance = 3200;
       if (String(currentMapId).indexOf('frontier_') === 0 && !engaged) {
         for (const other of this.publicNpcMiners) {
           if (!other || other === npc || !other.isAlive || !other.ship || other.faction === npc.faction) continue;
@@ -720,8 +720,21 @@ class PublicNpcManager {
           else if (typeof npcTarget.ship.structure === 'number') npcTarget.ship.structure -= damage;
         }
         ship.currentTarget = npcTarget.ship;
+      } else if (npcTarget && !npc.combat && npc.role === 'mine') {
+        // Miners actively evade hostile ships instead of continuing to sit on an asteroid
+        // while a pirate closes in. Pick a point well away from the threat and keep moving.
+        npc.isAgro = true;
+        const dx = ship.x - npcTarget.ship.x, dy = ship.y - npcTarget.ship.y;
+        const d = Math.max(1, Math.hypot(dx, dy));
+        const fleeDistance = 1500;
+        const fleePoint = {
+          x: Math.max(250, Math.min(8750, ship.x + dx / d * fleeDistance)),
+          y: Math.max(250, Math.min(8750, ship.y + dy / d * fleeDistance))
+        };
+        this.flyTo(ship, fleePoint, this.npcSpeed(npc, npcTarget.ship) * 0.9);
+        ship.currentTarget = null;
       } else {
-        // Player is away: miners work asteroid fields; pirates patrol their system.
+        // Player is away: miners work asteroid fields; pirates patrol and hunt hostile miners.
         npc.isAgro = false;
         this.peacefulBehaviour(npc, asteroidBelt);
       }
