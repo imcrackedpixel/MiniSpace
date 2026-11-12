@@ -351,3 +351,14 @@ setInterval(function () {
       ' · Y ' + Math.round(other.y);
   }
 }, 500);
+// USE THE GAME'S REAL PILOT NAME
+setInterval(function () {
+  const name = document.getElementById('ui-pilot-name')?.textContent?.trim();
+
+  if (name && name !== 'Pilot' && window.MinispaceOnline?.state?.socket?.readyState === 1) {
+    window.MinispaceOnline.send({
+      type: 'hello',
+      name: name.slice(0, 16)
+    });
+  }
+}, 2000);
