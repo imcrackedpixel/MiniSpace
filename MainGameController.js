@@ -1055,6 +1055,20 @@ window.buildTransportManager = function() {
   return true;
 };
 
+window.upgradeTransportManager = function() {
+  if (!botManager || typeof botManager.upgradeTransportManager !== 'function') return false;
+  const result = botManager.upgradeTransportManager();
+  if (!result.success) {
+    window.showCorpNotification(result.message || 'Transport Manager upgrade unavailable.');
+    return false;
+  }
+  window.showCorpNotification(
+    'Transport Manager reached Level ' + result.level + '! Cargo capacity increased to ' +
+    result.capacity.toLocaleString() + '. Next upgrade cost will increase.'
+  );
+  return true;
+};
+
 window.donateCruiserIsk = function(amount) {
   if (!botManager) return;
   if (playerData.isk < amount) { window.showCorpNotification('Not enough Scrap Metals to donate ' + fmtISK(amount)); return; }
@@ -3035,6 +3049,7 @@ if (
       saved.transportMapId = bot.transportMapId || null;
       saved.transportShipmentId = bot.transportShipmentId || null;
       saved.transportTask = bot.transportTask ? JSON.parse(JSON.stringify(bot.transportTask)) : null;
+      saved.transportLevel = bot.transportLevel || null;
     });
   };
 
@@ -3080,9 +3095,18 @@ if (
           };
           const stateLabel =
             stateLabels[manager.transportState] || 'Transport Manager ready';
+          const level = Math.max(1, Math.floor(Number(manager.transportLevel) || 1));
           row.cells[1].innerText =
-            stateLabel + ' (' + percent + '%)';
-
+            'LV ' + level + ' · ' + stateLabel + ' · ' +
+            Math.floor(ship.cargo || 0).toLocaleString() + ' / ' +
+            maxCargo.toLocaleString() + ' (' + percent + '%)';
+          if (row.cells[2]) {
+            const upgradeCost = 25000 * level;
+            const busy = !!manager.transportTask || !['loading', null].includes(manager.transportState);
+            row.cells[2].innerHTML = '<button onclick="window.upgradeTransportManager()" ' +
+              (busy ? 'disabled title="Wait until the Transport Manager returns to High-Sec"' : '') +
+              '>UPGRADE CARGO · ' + fmtISK(upgradeCost) + ' Scrap Metals</button>';
+          }
         }
       }
     }
