@@ -1538,20 +1538,19 @@ window.sellHangarItemViaTransport = async function(itemKey) {
   const available = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[itemKey]) || 0));
   const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
   const saleStates = ['sell_to_trade_gate', 'sell_to_market', 'sell_to_return_gate', 'sell_returning'];
-  const queue = manager && Array.isArray(manager.playerSaleQueue) ? manager.playerSaleQueue : [];
-  const isActiveSaleRun = !!(manager && (manager.playerSaleTask || queue.length) && saleStates.includes(manager.transportState));
-  const isIdleAtHighSec = !!(manager && manager.transportState === 'loading' && !manager.transportTask && !manager.playerSaleTask);
+  const canReceiveWhileTravelling = !!(manager && saleStates.includes(manager.transportState));
+  const canReceiveAtStation = !!(manager && manager.transportState === 'loading' && !manager.transportTask);
   if (!playerShip || !playerShip.docked || (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
-    window.showCorpNotification('Dock at your Private High-Sec station to queue a sale.');
+    window.showCorpNotification('Dock at your Private High-Sec station to deposit goods with the Transport Manager.');
     return;
   }
-  if (!manager || manager.transportTask || (!isIdleAtHighSec && !isActiveSaleRun)) {
-    window.showCorpNotification('Your Transport Manager is busy with another job. Queue sales while he is already on a player sale run, or wait until he returns.');
+  if (!manager || manager.transportTask || (!canReceiveAtStation && !canReceiveWhileTravelling)) {
+    window.showCorpNotification('Your Transport Manager is busy with a different job and cannot accept goods right now.');
     return;
   }
   const capacity = Math.max(0, Math.floor(Number(manager.ship.maxCargo) || 5000));
   if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available || qty > capacity) {
-    window.showCorpNotification('Choose a quantity up to your hangar stock and one trip capacity (' + capacity.toLocaleString() + '). You can queue multiple trips.');
+    window.showCorpNotification('Choose a quantity up to your hangar stock and one trip capacity (' + capacity.toLocaleString() + ').');
     return;
   }
   const shipmentId = 'pilot-sale-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
@@ -1561,35 +1560,33 @@ window.sellHangarItemViaTransport = async function(itemKey) {
     const raw = await window.MINISPACE_MARKET.reserveTransportSale(shipmentId, items);
     const receipt = Array.isArray(raw) ? raw[0] : raw;
     if (!receipt || receipt.success === false) throw new Error('The market could not reserve these goods.');
-    if (!window.MINISPACE_MARKET.applyToGame(playerData)) throw new Error('The hangar reservation was accepted, but the local hangar could not refresh. Reopen the game before queuing another sale.');
-    const shipment = { shipmentId: shipmentId, items: items, status: 'reserved' };
-    if (isActiveSaleRun) {
-      manager.playerSaleQueue = queue;
-      manager.playerSaleQueue.push(shipment);
-      if (typeof window.showCorpNotification === 'function') {
-        window.showCorpNotification('Queued ' + qty.toLocaleString() + ' ' + itemLabel(itemKey) + ' for the Transport Manager. ' + manager.playerSaleQueue.length.toLocaleString() + ' trip(s) waiting behind the current delivery.');
-      }
-    } else {
-      // Return any partial corporation load to its hangar before starting the player's sale run.
+    if (!window.MINISPACE_MARKET.applyToGame(playerData)) throw new Error('The hangar reservation was accepted, but the local hangar could not refresh. Reopen the game before depositing more goods.');
+    // The manager's collection hangar is the persistent queue of separately owned shipments.
+    if (!Array.isArray(manager.playerSaleQueue)) manager.playerSaleQueue = [];
+    if (canReceiveAtStation && !manager.playerSaleTask && manager.transportState === 'loading') {
+      // Put any partially loaded corporation cargo safely back before starting player sales.
       const corpHangar = playerData.corpStationOre || (playerData.corpStationOre = {});
-      const existingCorpCargo = manager.ship.cargoByOre || {};
-      Object.keys(existingCorpCargo).forEach(function (key) {
-        const amount = Math.max(0, Math.floor(Number(existingCorpCargo[key]) || 0));
+      const oldCargo = manager.ship.cargoByOre || {};
+      Object.keys(oldCargo).forEach(function (key) {
+        const amount = Math.max(0, Math.floor(Number(oldCargo[key]) || 0));
         if (amount > 0) corpHangar[key] = (Number(corpHangar[key]) || 0) + amount;
       });
       manager.ship.cargo = 0;
       manager.ship.cargoByOre = {};
-      manager.playerSaleTask = shipment;
-      manager.transportState = 'loading';
-      manager.transportMapId = 'private_highsec';
-      manager.ship.docked = true;
-      window.showCorpNotification('Transport Manager queued ' + qty.toLocaleString() + ' ' + itemLabel(itemKey) + ' and is preparing the Trade Hub delivery. Commission: 10%.');
+    }
+    manager.playerSaleQueue.push({ shipmentId: shipmentId, items: items, status: 'deposited', owner: 'current_pilot' });
+    if (canReceiveAtStation && !manager.playerSaleTask && !manager.playerSaleIdleSince) {
+      manager.playerSaleIdleSince = Date.now();
     }
     if (typeof window.saveGameSession === 'function') window.saveGameSession();
     updateStationUI();
     updateCorpUI();
+    const waiting = manager.playerSaleQueue.reduce(function (sum, order) {
+      return sum + Object.keys(order.items || {}).reduce(function (n, key) { return n + Math.max(0, Math.floor(Number(order.items[key]) || 0)); }, 0);
+    }, 0);
+    window.showCorpNotification('Deposited ' + qty.toLocaleString() + ' ' + itemLabel(itemKey) + ' in the Transport Manager hangar. ' + waiting.toLocaleString() + ' goods are waiting for delivery. He will depart when full or after 30 seconds idle.');
   } catch (error) {
-    window.showCorpNotification('Transport sale could not be queued: ' + (error.message || error));
+    window.showCorpNotification('Transport deposit failed: ' + (error.message || error));
   }
 };
 
@@ -1627,7 +1624,7 @@ function updateStationUI() {
     let displayName = itemLabel(itemKey).toUpperCase();
     const g = itemKey.indexOf('debris_') === 0 ? 'debris' : 'ore';
     const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
-    const managerReady = !!(manager && !manager.transportTask && ((manager.transportState === 'loading' && !manager.playerSaleTask) || (['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState) && (!!manager.playerSaleTask || (Array.isArray(manager.playerSaleQueue) && manager.playerSaleQueue.length > 0)))));
+    const managerReady = !!(manager && !manager.transportTask && (manager.transportState === 'loading' || ['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState)));
     const inTradeHubNow = typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub';
     const loadRoom = playerShip ? Math.max(0, (Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)) : 0;
     const rowDefault = Math.min(Math.max(0, Math.floor(Number(qty) || 0)), 5000);
@@ -3174,6 +3171,7 @@ if (
       saved.transportTask = bot.transportTask ? JSON.parse(JSON.stringify(bot.transportTask)) : null;
       saved.playerSaleTask = bot.playerSaleTask ? JSON.parse(JSON.stringify(bot.playerSaleTask)) : null;
       saved.playerSaleQueue = Array.isArray(bot.playerSaleQueue) ? JSON.parse(JSON.stringify(bot.playerSaleQueue)) : [];
+      saved.playerSaleIdleSince = Number(bot.playerSaleIdleSince) || 0;
       saved.transportLevel = bot.transportLevel || null;
     });
   };
