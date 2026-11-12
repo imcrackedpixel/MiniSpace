@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -25,13 +26,13 @@
 <div style="font-size: 7px; color: #8b949e; margin-top: 2px;">Combat Frigate</div>
 </div>
 </div>
-<!-- Hidden input to maintain compatibility with initialization logic -->
 <input type="hidden" id="pilot-race-input" value="miner">
 </div>
 <div id="setup-error" style="color: #b5605a; font-size: 9px; min-height: 12px; margin-top: 6px;"></div>
 <button onclick="window.initializeNewGameSession()" style="width: 100%; background: #2a434b; color: #dfe7ea; padding: 7px; font-weight: bold; margin-top: 4px;">ENTER SPACE</button>
 </div>
 </div>
+
 <script>
 window.selectRaceOption = function(raceValue, element) {
   document.getElementById('pilot-race-input').value = raceValue;
@@ -43,7 +44,6 @@ window.selectRaceOption = function(raceValue, element) {
   element.style.borderColor = '#8aa8b3';
 };
 
-// Ensure modal stays visible if there is no valid save data
 try {
   if (!localStorage.getItem('minispace_save')) {
     const setupModal = document.getElementById('setup-modal');
@@ -55,7 +55,7 @@ try {
 <div id="ui-layer">
 <div style="display: flex; flex-direction: column; gap: 6px;">
 <div class="panel" id="pilot-panel" onclick="window.openSkillsUI()" title="Open pilot talent tree" style="max-width: 230px;cursor:pointer;">
-<div><strong>PILOT:</strong> <span id="ui-pilot-name">CRACKED</span></div>
+<div id="pilot-panel-heading"><strong>PILOT:</strong> <span id="ui-pilot-name">CRACKED</span></div>
 <div id="pilot-level-text" style="color:#36b99a;font-weight:bold;">LEVEL 1 · 0 TALENT POINTS</div>
 <div><span id="cargo-text">CARGO: 0 / 200</span></div>
 <div><span id="isk-text">ISK: 1,000,000</span></div>
@@ -64,6 +64,7 @@ try {
 <div class="health-bar-container"><span style="width: 45px; color: #b8955a;">ARMOR:</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="armor-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#b8955a;"></div></div></div>
 <div class="health-bar-container"><span style="width: 45px; color: #b5605a;">STRUCT:</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="structure-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#b5605a;"></div></div></div>
 </div>
+
 <div class="panel" style="display: flex; flex-direction: column; gap: 3px; background: rgba(22, 27, 34, 0.95); border: 1px solid #8aa8b3; max-width: 230px;">
 <button id="dock-btn" onclick="window.requestDock()" style="background: #1a1f25; color: #7fa88a; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%;">DOCK AT STATION</button>
 <button id="autoplay-btn" onclick="window.toggleAutoplay()" style="background: #1a1f25; color: #dfe7ea; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%;">AUTO: OFF</button>
@@ -77,6 +78,7 @@ try {
 </div>
 </div>
 </div>
+
 <div style="display: flex; gap: 4px;">
 <div class="panel" style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
 <div style="font-size: 8px; font-weight: bold; color: #8aa8b3;">MINIMAP</div>
@@ -85,7 +87,6 @@ try {
 </div>
 </div>
 
-<!-- STATION UI MODAL -->
 <div id="station-ui">
 <div class="station-header">
 <span class="station-name">Ore HQ Station</span>
@@ -101,37 +102,36 @@ try {
 </div>
 
 <div class="station-content">
- <div id="tab-hangar" class="tab-pane" style="display: block;">
- <table class="station-table">
- <thead><tr><th>Item / Debris</th><th>Quantity</th><th>Action</th></tr></thead>
- <tbody id="items-hanger-list"></tbody>
- </table>
- </div>
+<div id="tab-hangar" class="tab-pane" style="display: block;">
+<table class="station-table">
+<thead><tr><th>Item / Debris</th><th>Quantity</th><th>Action</th></tr></thead>
+<tbody id="items-hanger-list"></tbody>
+</table>
+</div>
 
- <div id="tab-upgrades" class="tab-pane" style="display: none;">
- <table class="station-table">
- <thead><tr><th>Module</th><th>Level</th><th>Action</th></tr></thead>
- <tbody id="upgrades-list"></tbody>
- </table>
- </div>
+<div id="tab-upgrades" class="tab-pane" style="display: none;">
+<table class="station-table">
+<thead><tr><th>Module</th><th>Level</th><th>Action</th></tr></thead>
+<tbody id="upgrades-list"></tbody>
+</table>
+</div>
 
- <div id="tab-corp" class="tab-pane" style="display: none;">
- <div class="section-title">Corporation roster and dividends</div>
- <table class="station-table">
- <thead><tr><th>Division / Asset</th><th>Status</th><th>Actions</th></tr></thead>
- <tbody id="corp-list"></tbody>
- </table>
- </div>
+<div id="tab-corp" class="tab-pane" style="display: none;">
+<div class="section-title">Corporation roster and dividends</div>
+<table class="station-table">
+<thead><tr><th>Division / Asset</th><th>Status</th><th>Actions</th></tr></thead>
+<tbody id="corp-list"></tbody>
+</table>
+</div>
 
- <div id="tab-missions" class="tab-pane" style="display: none;"><div id="missions-list"></div></div>
+<div id="tab-missions" class="tab-pane" style="display: none;"><div id="missions-list"></div></div>
 
- <div id="tab-market" class="tab-pane" style="display: none;">
- <table class="station-table">
- <thead><tr><th>Item / Ship</th><th>Price</th><th>Action</th></tr></thead>
- <tbody id="market-list">
- </tbody>
- </table>
- </div>
+<div id="tab-market" class="tab-pane" style="display: none;">
+<table class="station-table">
+<thead><tr><th>Item / Ship</th><th>Price</th><th>Action</th></tr></thead>
+<tbody id="market-list"></tbody>
+</table>
+</div>
 </div>
 
 <div class="station-footer">
@@ -152,6 +152,7 @@ try {
 
 <div id="corp-notification"></div>
 <canvas id="gameCanvas"></canvas>
+
 <script src="ExplorerCruiserArt.js"></script>
 <script src="ShipArt.js"></script>
 <script src="Frigate.js"></script>
@@ -188,8 +189,45 @@ try {
 <script src="SiegeBattleshipUI.js"></script>
 <script src="HudValues.js"></script>
 <script src="StationEnhance.js"></script>
-<script>window.MINISPACE_SERVER_URL = "wss://minispace-server.onrender.com";
+
+<script>
+window.MINISPACE_SERVER_URL = "wss://minispace-server.onrender.com";
 </script>
 <script src="OnlineClient.js"></script>
+
+<!-- PILOT PANEL COLLAPSE -->
+<script>
+(function() {
+  const panel = document.getElementById('pilot-panel');
+  if (!panel) return;
+
+  const heading = document.getElementById('pilot-panel-heading');
+  if (!heading) return;
+
+  const button = document.createElement('button');
+  button.textContent = '−';
+  button.title = 'Collapse pilot information';
+  button.style.cssText =
+    'float:right;background:#203943;color:#dce8ed;border:1px solid #45616c;padding:2px 8px;font-size:12px;cursor:pointer;';
+
+  heading.appendChild(button);
+
+  let collapsed = false;
+  const details = Array.from(panel.children).filter(child => child !== heading);
+
+  button.addEventListener('click', function(event) {
+    event.stopPropagation();
+    collapsed = !collapsed;
+
+    details.forEach(item => {
+      item.style.display = collapsed ? 'none' : '';
+    });
+
+    button.textContent = collapsed ? '+' : '−';
+    button.title = collapsed ? 'Expand pilot information' : 'Collapse pilot information';
+  });
+})();
+</script>
+
 </body>
 </html>
