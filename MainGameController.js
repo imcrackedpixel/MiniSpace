@@ -2336,3 +2336,50 @@ if (
     previousRender();
   };
 })();
+
+/* TRADE HUB - SHOW THE UNIQUE TRADE STATION */
+(function () {
+  const previousRender = render;
+
+  render = function () {
+    const inHub =
+      mapManager &&
+      mapManager.currentMapId === 'public_trade_hub';
+
+    const oldDraw = mainStation && mainStation.draw;
+
+    // Hide the normal High-Sec station in the Trade Hub
+    if (inHub && mainStation) {
+      mainStation.draw = function () {};
+    }
+
+    try {
+      previousRender();
+    } finally {
+      if (inHub && mainStation) {
+        mainStation.draw = oldDraw;
+      }
+    }
+
+    if (!inHub || !playerShip || !ctx || !canvas) return;
+
+    const station =
+      window.MINISPACE_TRADE_HUB &&
+      window.MINISPACE_TRADE_HUB.station;
+
+    if (!station || typeof station.draw !== 'function') return;
+
+    const dpr = window.devicePixelRatio || 1;
+    const z = cameraZoom * dpr;
+
+    ctx.setTransform(
+      z, 0, 0, z,
+      canvas.width / 2 - playerShip.x * z,
+      canvas.height / 2 - playerShip.y * z
+    );
+
+    station.draw(ctx);
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  };
+})();
