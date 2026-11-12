@@ -39,3 +39,13 @@ Do not delete or rerun the original tables manually. The upgrade is additive and
 The current game stores pilot ISK and hangar inventory in browser save data, and its WebSocket server does not yet authenticate pilots. The SQL schema is deliberately not wired to the live market until the next integration step moves pilot identity, wallet, inventory imports, and market actions behind the online server. This avoids pretending that local browser balances are secure or that the market is already shared.
 
 The corporation bot supply cap (5–10%) will be enforced by the trusted server integration, not by a browser setting.
+
+
+## Separate hangars upgrade
+
+After `market_pool.sql` succeeds, run `market_hangars.sql` in a new SQL Editor query. This creates separate database storage for:
+
+- `private_highsec`: the pilot's private High-Sec station hangar.
+- `trade_hub`: goods bought from or transferred to the shared Trade Hub.
+
+The legacy-save import writes existing goods to the private hangar. Market purchases go into the Trade Hub hangar, market sales can only use Trade Hub goods, and `market_transfer_to_trade` moves goods between the two without changing the wallet. The game UI still needs its next integration change before these actions are available in-game.
