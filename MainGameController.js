@@ -334,6 +334,7 @@ function saveGameSession() {
 function loadGameSession() {
   playerShip = sessionManager.load(playerData, botManager, playerShip);
   if (!playerData.upgrades) playerData.upgrades = {};
+  if (!Array.isArray(playerData.moduleDrops)) playerData.moduleDrops = [];
   if (typeof playerData.offensiveMode !== 'boolean') playerData.offensiveMode = false;
   if (!playerData.designs) playerData.designs = {};
   if (typeof playerData.designs.explorer !== 'number') playerData.designs.explorer = 0;
@@ -1918,6 +1919,9 @@ function updateStationUI() {
       fit+='</div>';
     }else fit+='<p>Board a ship to view its module slots.</p>';
     const chips=Array.isArray(playerData.skillChips)?playerData.skillChips:[];
+    const drops=Array.isArray(playerData.moduleDrops)?playerData.moduleDrops:[];
+    fit+='<div class="fitting-heading"><strong>FRONTIER MODULE DROPS</strong><span>'+drops.length+' stored</span></div>';
+    if(drops.length)fit+='<div class="fitting-chip-list">'+drops.map(d=>'<div class="fitting-chip rarity-'+d.rarity+'"><span class="chip-glyph">⬡</span><div><strong>'+d.name+'</strong><small>'+d.hull+' · '+d.module+' · '+d.rarity.toUpperCase()+'</small></div></div>').join('')+'</div>';
     fit+='<div class="fitting-heading"><strong>PURPLE SKILL CHIPS</strong><span>'+chips.length+' stored</span></div>';
     if(!chips.length)fit+='<p class="fitting-empty">No purple chips yet. Hunt elite pirates in Level 4–5 frontier systems.</p>';
     else fit+='<div class="fitting-chip-list">'+chips.map(ch=>{
