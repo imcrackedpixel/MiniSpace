@@ -300,6 +300,22 @@
         return result;
       });
     },
+    corpSupply: function (shipmentId, items) {
+      return queueMarketTask(async function () {
+        await initializeMarketBridge();
+        if (!marketState.gameStateSynced) throw new Error('Game economy sync is not ready.');
+        if (!shipmentId || !items || typeof items !== 'object') throw new Error('Invalid corporation shipment.');
+        const result = await api('/rest/v1/rpc/market_corp_supply', {
+          method: 'POST',
+          body: JSON.stringify({
+            p_shipment_id: String(shipmentId),
+            p_items: items
+          })
+        });
+        await refreshMarketState();
+        return result;
+      });
+    },
     transfer: function (itemKey, quantity) {
       return queueMarketTask(async function () {
         await initializeMarketBridge();
