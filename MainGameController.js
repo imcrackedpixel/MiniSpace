@@ -548,7 +548,7 @@ window.jumpToFrontierSystem = function(id) {
 window.findFrontierRoute = function(from, to) {
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
   const linksFor = id => id === 'private_highsec' ? systems.filter(s => s.ring === 1).map(s => s.id) :
-    ((systems.find(s => s.id === id) || {}).links || []);
+    (((systems.find(s => s.id === id) || {}).links || []).filter(next => next !== 'private_highsec' || to === 'private_highsec'));
   const queue = [[from]], seen = new Set([from]);
   while (queue.length) {
     const path = queue.shift(), last = path[path.length - 1];
