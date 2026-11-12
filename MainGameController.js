@@ -1627,7 +1627,7 @@ function updateStationUI() {
     let displayName = itemLabel(itemKey).toUpperCase();
     const g = itemKey.indexOf('debris_') === 0 ? 'debris' : 'ore';
     const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
-    const managerReady = !!(manager && !manager.transportTask && ((manager.transportState === 'loading' && !manager.playerSaleTask) || (['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState) && !!manager.playerSaleTask)));
+    const managerReady = !!(manager && !manager.transportTask && ((manager.transportState === 'loading' && !manager.playerSaleTask) || (['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState) && (!!manager.playerSaleTask || (Array.isArray(manager.playerSaleQueue) && manager.playerSaleQueue.length > 0)))));
     const inTradeHubNow = typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub';
     const loadRoom = playerShip ? Math.max(0, (Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)) : 0;
     const rowDefault = Math.min(Math.max(0, Math.floor(Number(qty) || 0)), 5000);
