@@ -576,8 +576,8 @@ class PublicNpcManager {
           const salvageQty=Math.round((350+salvageTier*250+Math.random()*200)*(npc.elite?2:1));
           const loaded=typeof window.addOreToCargo==='function'?window.addOreToCargo(playerShip,salvageKey,salvageQty):0;
           const overflow=Math.max(0,salvageQty-loaded);
-          if(overflow)playerData.stationOre[salvageKey]=(Number(playerData.stationOre[salvageKey])||0)+overflow;
-          npc.salvageReward={key:salvageKey,qty:salvageQty};
+          // Any salvage that does not fit stays as a mineable wreck at the pirate's death position.
+          npc.salvageReward={key:salvageKey,qty:salvageQty,loaded:loaded,overflow:overflow};
         }
         if (typeof window.awardPlayerXP === 'function') {
           window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
@@ -605,14 +605,17 @@ class PublicNpcManager {
         }
         if (typeof updateStationUI === 'function') updateStationUI();
         if (typeof saveGameSession === 'function') saveGameSession();
-        // Spawn loot wreckage
-        if (typeof DebrisField !== 'undefined' && debrisField && debrisField.entities) {
+        // Spawn only the cargo overflow as a visible, mineable salvage wreck.
+        const overflowDrop=npc.salvageReward&&Number(npc.salvageReward.overflow)||0;
+        if (overflowDrop>0 && debrisField && Array.isArray(debrisField.entities)) {
           debrisField.entities.push({
             x: ship.x,
             y: ship.y,
-            radius: 40,
-            oreYield: 8000,
-            oreType: 'debris_t3'
+            radius: Math.max(26,Math.min(54,24+Math.sqrt(overflowDrop)*0.35)),
+            oreYield: overflowDrop,
+            oreType: npc.salvageReward.key,
+            salvageWreck: true,
+            sourceNpcId: npc.id
           });
         }
         return;
