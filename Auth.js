@@ -145,6 +145,91 @@
     return gate;
   }
 
+  // Authenticated bridge to the pooled market and separate station hangars.
+  // The browser can call only user-scoped RPCs; it never receives the service-role key.
+  let marketState = { wallet: null, hangars: [], items: [] };
+  let marketReadyPromise = null;
+
+  async function refreshMarketState() {
+    if (!session || !session.user || !session.user.id) throw new Error('Pilot login required');
+    const pilotId = encodeURIComponent(session.user.id);
+    const results = await Promise.all([
+      api('/rest/v1/pilot_wallets?select=isk,legacy_imported&pilot_id=eq.' + pilotId, { method: 'GET' }),
+      api('/rest/v1/pilot_hangars?select=station_id,item_key,quantity&pilot_id=eq.' + pilotId + '&order=station_id,item_key', { method: 'GET' }),
+      api('/rest/v1/market_items?select=item_key,display_name,unit_price,stock,player_stock,npc_stock&order=item_key', { method: 'GET' })
+    ]);
+    marketState = {
+      wallet: Array.isArray(results[0]) && results[0][0] ? results[0][0] : null,
+      hangars: Array.isArray(results[1]) ? results[1] : [],
+      items: Array.isArray(results[2]) ? results[2] : []
+    };
+    return JSON.parse(JSON.stringify(marketState));
+  }
+
+  async function initializeMarketBridge() {
+    if (marketReadyPromise) return marketReadyPromise;
+    marketReadyPromise = (async function () {
+      // One-time import of a real existing pilot save. New accounts with no save
+      // keep the starter wallet created by the database trigger.
+      const raw = localStorage.getItem('minispace_save');
+      if (raw) {
+        try {
+          const saved = JSON.parse(raw);
+          const data = saved && saved.playerData;
+          if (data && data.pilotName && Number.isFinite(Number(data.isk)) &&
+              data.stationOre && typeof data.stationOre === 'object') {
+            const walletRows = await api('/rest/v1/pilot_wallets?select=legacy_imported&pilot_id=eq.' +
+              encodeURIComponent(session.user.id), { method: 'GET' });
+            if (Array.isArray(walletRows) && walletRows[0] && !walletRows[0].legacy_imported) {
+              await api('/rest/v1/rpc/market_import_legacy_save', {
+                method: 'POST',
+                body: JSON.stringify({
+                  p_isk: Math.max(0, Math.floor(Number(data.isk))),
+                  p_inventory: data.stationOre
+                })
+              });
+            }
+          }
+        } catch (error) {
+          console.warn('Legacy market import will need retry:', error.message || error);
+        }
+      }
+      return refreshMarketState();
+    })();
+    try { return await marketReadyPromise; }
+    catch (error) { marketReadyPromise = null; throw error; }
+  }
+
+  window.MINISPACE_MARKET = {
+    ready: function () { return initializeMarketBridge(); },
+    refresh: refreshMarketState,
+    state: function () { return JSON.parse(JSON.stringify(marketState)); },
+    buy: async function (itemKey, quantity) {
+      const result = await api('/rest/v1/rpc/market_buy', {
+        method: 'POST',
+        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+      });
+      await refreshMarketState();
+      return result;
+    },
+    sell: async function (itemKey, quantity) {
+      const result = await api('/rest/v1/rpc/market_sell', {
+        method: 'POST',
+        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+      });
+      await refreshMarketState();
+      return result;
+    },
+    transfer: async function (itemKey, quantity) {
+      const result = await api('/rest/v1/rpc/market_transfer_to_trade', {
+        method: 'POST',
+        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+      });
+      await refreshMarketState();
+      return result;
+    }
+  };
+
   async function loadCloudSave() {
     if (!session || !session.user || !session.user.id) return;
     const rows = await api('/rest/v1/pilot_saves?select=save_data&pilot_id=eq.' + encodeURIComponent(session.user.id), {
@@ -165,6 +250,7 @@
         body: JSON.stringify({ pilot_id: session.user.id, save_data: saveData })
       });
     }
+    await initializeMarketBridge();
   }
 
   let saveTimer = null;
