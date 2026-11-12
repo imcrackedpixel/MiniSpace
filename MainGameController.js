@@ -633,6 +633,7 @@ window.requestDock = function() {
 // and which zones are allowed live in AutoplayManager.toggle().
 window.toggleAutoplay = function() {
   if (!autoplayManager) return;
+  if(mapManager&&String(mapManager.currentMapId).indexOf('frontier_')===0&&!autoplayManager.isAutoplay){window.showCorpNotification('Autoplay is disabled in frontier systems. Manual flight only.');return;}
   autoplayManager.toggle();
   syncAutoplayButton();
 };
