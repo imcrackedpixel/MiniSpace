@@ -1,16 +1,11 @@
 
-/* MiniSpace Online: multiplayer, reconnect and global pilot directory */
+/* MiniSpace Online - count, chat and friends only */
 (function(){
  const state={
   socket:null,
   id:null,
-  players:new Map(),
-  directory:[],
   connected:false,
-  channel:'global',
   roomId:null,
-  roomType:null,
-  mapId:null,
   reconnectTimer:null,
   reconnectAttempts:0
  };
@@ -19,21 +14,12 @@
 
  function getResumeToken(){
   let token=localStorage.getItem('minispace_resume_token');
-
   if(!token){
-   if(window.crypto&&crypto.randomUUID){
-    token=crypto.randomUUID();
-   }else{
-    const bytes=new Uint8Array(24);
-    crypto.getRandomValues(bytes);
-    token=Array.from(bytes)
-     .map(b=>b.toString(16).padStart(2,'0'))
-     .join('');
-   }
-
+   token=window.crypto?.randomUUID
+    ? crypto.randomUUID()
+    : String(Date.now())+Math.random().toString(36).slice(2);
    localStorage.setItem('minispace_resume_token',token);
   }
-
   return token;
  }
 
@@ -42,32 +28,18 @@
 
   const el=document.createElement('section');
   el.id='online-panel';
-
   el.innerHTML=`
    <header id="online-header">
     <span>MINISPACE ONLINE <span id="online-status">OFFLINE</span></span>
     <button id="online-collapse">−</button>
    </header>
-
    <div id="online-content">
     <div id="online-count">0 pilots online</div>
-
-    <div style="margin-top:8px;font-weight:bold;">
-     ALL PILOTS
-    </div>
-    <div id="online-directory">
-     Waiting for pilot directory...
-    </div>
-
-    <div id="online-roster"></div>
-
     <div class="online-actions">
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
      <button id="online-add-friend">ADD FRIEND</button>
     </div>
-
     <div id="online-chat-log" aria-live="polite"></div>
-
     <div class="online-actions">
      <select id="online-channel">
       <option value="global">Global</option>
@@ -79,7 +51,6 @@
     </div>
    </div>
   `;
-
   document.body.appendChild(el);
 
   $('online-collapse').onclick=()=>{
@@ -90,19 +61,17 @@
   };
 
   $('online-add-friend').onclick=()=>{
-   send({
-    type:'friend-request',
-    name:$('online-friend-name').value
-   });
+   const name=$('online-friend-name').value.trim();
+   if(name){
+    send({type:'friend-request',name});
+    $('online-friend-name').value='';
+   }
   };
 
   $('online-send').onclick=chat;
-
   $('online-chat-input').addEventListener('keydown',e=>{
    if(e.key==='Enter')chat();
   });
-
-  renderDirectory();
  }
 
  function send(message){
@@ -114,20 +83,15 @@
  function log(line){
   const box=$('online-chat-log');
   if(!box)return;
-
   const d=document.createElement('div');
   d.textContent=line;
   box.appendChild(d);
   box.scrollTop=box.scrollHeight;
-
-  while(box.children.length>60){
-   box.firstChild.remove();
-  }
+  while(box.children.length>60)box.firstChild.remove();
  }
 
  function chat(){
   const input=$('online-chat-input');
-
   if(input.value.trim()){
    send({
     type:'chat',
@@ -135,180 +99,17 @@
     text:input.value
    });
   }
-
   input.value='';
- }
-
- function updatePlayer(p){
-  if(!p||!p.id)return;
-
-  if(state.roomId&&p.roomId&&p.roomId!==state.roomId){
-   return;
-  }
-
-  const old=state.players.get(p.id)||{};
-
-  state.players.set(p.id,{
-   ...old,
-   ...p,
-   renderX:old.renderX??p.x,
-   renderY:old.renderY??p.y,
-   renderAngle:old.renderAngle??p.angle
-  });
- }
-
- function renderDirectory(){
-  const box=$('online-directory');
-  if(!box)return;
-
-  box.replaceChildren();
-
-  if(!state.directory.length){
-   box.textContent='No pilots online';
-   return;
-  }
-
-  state.directory.forEach(p=>{
-   const row=document.createElement('div');
-   row.className='online-pilot';
-
-   const name=document.createElement('span');
-   name.textContent=(p.name||'Pilot')+' · '+(p.ship||'Unknown ship');
-
-   row.append(name);
-
-   if(p.id!==state.id){
-    const button=document.createElement('button');
-    button.textContent='FRIEND';
-
-    button.onclick=()=>{
-     send({
-      type:'friend-request',
-      name:p.name
-     });
-    };
-
-    row.append(button);
-   }
-
-   box.append(row);
-  });
- }
-
- function render(){
-  if(!$('online-roster'))return;
-
-  const players=[...state.players.values()];
-
-  $('online-roster').replaceChildren();
-
-  players.slice(0,12).forEach(p=>{
-   const row=document.createElement('div');
-   row.className='online-pilot';
-
-   const name=document.createElement('span');
-   name.textContent=p.name+' · '+p.ship;
-
-   const button=document.createElement('button');
-   button.textContent='FRIEND';
-
-   button.onclick=()=>{
-    send({
-     type:'friend-request',
-     name:p.name
-    });
-   };
-
-   row.append(name,button);
-   $('online-roster').append(row);
-  });
- }
-
- function drawRemotePlayers(ctx){
-  const local=window.playerShip;
-  if(!local||local.docked||!window.ShipArt)return;
-
-  const localSystem=$('system-text')?.textContent||'';
-
-  for(const p of state.players.values()){
-   if(!p.id||p.id===state.id)continue;
-   if(state.roomId&&p.roomId!==state.roomId)continue;
-   if(!p.system||p.system!==localSystem)continue;
-
-   p.renderX+=(p.x-p.renderX)*0.35;
-   p.renderY+=(p.y-p.renderY)*0.35;
-
-   let angleDiff=(p.angle||0)-(p.renderAngle||0);
-   while(angleDiff>Math.PI)angleDiff-=Math.PI*2;
-   while(angleDiff< -Math.PI)angleDiff+=Math.PI*2;
-   p.renderAngle+=angleDiff*0.35;
-
-   const drawn=originalShipDraw(
-    ctx,
-    p.ship,
-    p.renderX,
-    p.renderY,
-    p.renderAngle
-   );
-
-   if(!drawn){
-    ctx.save();
-    ctx.fillStyle='#58a6ff';
-    ctx.beginPath();
-    ctx.arc(p.renderX,p.renderY,15,0,Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-   }
-
-   ctx.save();
-   ctx.font='bold 13px Arial';
-   ctx.textAlign='center';
-   ctx.lineWidth=3;
-   ctx.strokeStyle='#071018';
-   ctx.fillStyle='#8fc7d5';
-   ctx.strokeText(p.name||'Pilot',p.renderX,p.renderY-55);
-   ctx.fillText(p.name||'Pilot',p.renderX,p.renderY-55);
-   ctx.restore();
-  }
- }
-
- let originalShipDraw=null;
-
- function installShipRenderer(){
-  if(!window.ShipArt||!window.ShipArt.draw)return false;
-  if(window.ShipArt.draw._onlineRenderer)return true;
-
-  originalShipDraw=window.ShipArt.draw;
-
-  const wrapped=function(ctx,className,x,y,angle){
-   const result=originalShipDraw.apply(this,arguments);
-
-   const local=window.playerShip;
-
-   if(local&&x===local.x&&y===local.y){
-    drawRemotePlayers(ctx);
-   }
-
-   return result;
-  };
-
-  wrapped._onlineRenderer=true;
-  window.ShipArt.draw=wrapped;
-  return true;
  }
 
  function scheduleReconnect(){
   if(state.reconnectTimer)return;
-
   state.reconnectAttempts++;
-
   const delay=Math.min(
    15000,
    1000*Math.pow(2,Math.min(state.reconnectAttempts-1,4))
   );
-
   $('online-status').textContent='RECONNECTING';
-
   state.reconnectTimer=setTimeout(()=>{
    state.reconnectTimer=null;
    connect();
@@ -317,24 +118,19 @@
 
  function connect(){
   panel();
-  installShipRenderer();
 
   if(state.socket&&(
    state.socket.readyState===WebSocket.OPEN||
    state.socket.readyState===WebSocket.CONNECTING
-  )){
-   return;
-  }
+  ))return;
 
   const url=window.MINISPACE_SERVER_URL;
-
   if(!url){
    $('online-status').textContent='SERVER NOT CONFIGURED';
    return;
   }
 
   let socket;
-
   try{
    socket=new WebSocket(url);
    state.socket=socket;
@@ -346,31 +142,22 @@
 
   socket.onopen=()=>{
    if(state.socket!==socket)return;
-
    state.connected=true;
    state.reconnectAttempts=0;
    $('online-status').textContent='CONNECTED';
-
    send({
     type:'hello',
     name:localStorage.getItem('minispace_pilot_name')||'Pilot',
     resumeToken:getResumeToken()
    });
-
    tick();
   };
 
   socket.onclose=()=>{
    if(state.socket!==socket)return;
-
    state.connected=false;
    state.socket=null;
    state.roomId=null;
-   state.players.clear();
-   state.directory=[];
-   render();
-   renderDirectory();
-
    scheduleReconnect();
   };
 
@@ -382,67 +169,26 @@
 
   socket.onmessage=e=>{
    if(state.socket!==socket)return;
-
    let message;
-
-   try{
-    message=JSON.parse(e.data);
-   }catch{
-    return;
-   }
+   try{message=JSON.parse(e.data);}catch{return;}
 
    if(message.type==='online-count'){
     const count=$('online-count');
-
-    if(count){
-     count.textContent=message.count+' pilots online';
-    }
-   }
-
-   if(message.type==='online-directory'){
-    state.directory=Array.isArray(message.players)
-     ? message.players
-     : [];
-
-    renderDirectory();
+    if(count)count.textContent=message.count+' pilots online';
    }
 
    if(message.type==='welcome'){
     state.id=message.id;
-    render();
-    renderDirectory();
-
-    if(message.resumed){
-     log('Welcome back! Your pilot session was restored.');
-    }
+    if(message.resumed)log('Welcome back! Your pilot session was restored.');
    }
 
    if(message.type==='room-joined'){
     state.roomId=message.roomId;
-    state.roomType=message.roomType;
-    state.mapId=message.mapId;
-
-    state.players.clear();
-    render();
-
     log('Entered '+message.mapId+' ('+message.roomType+' instance)');
    }
 
-   if(message.type==='player'){
-    updatePlayer(message.player);
-    render();
-   }
-
-   if(message.type==='player-left'){
-    state.players.delete(message.id);
-    render();
-   }
-
    if(message.type==='chat'){
-    log(
-     '['+message.channel+'] '+
-     message.from+': '+message.text
-    );
+    log('['+message.channel+'] '+message.from+': '+message.text);
    }
 
    if(message.type==='friend-request'){
@@ -456,11 +202,8 @@
  }
 
  function tick(){
-  installShipRenderer();
-
   if(state.socket?.readyState===1&&window.playerShip){
    const ship=window.playerShip;
-
    send({
     type:'state',
     x:Number(ship.x)||0,
@@ -474,28 +217,17 @@
  }
 
  function resumeConnection(){
-  if(state.socket&&state.socket.readyState===WebSocket.OPEN){
-   tick();
-  }else{
-   connect();
-  }
+  if(state.socket&&state.socket.readyState===WebSocket.OPEN)tick();
+  else connect();
  }
 
  window.addEventListener('online',resumeConnection);
  window.addEventListener('pageshow',resumeConnection);
-
  document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden){
-   resumeConnection();
-  }
+  if(!document.hidden)resumeConnection();
  });
 
- window.MinispaceOnline={
-  connect,
-  send,
-  tick,
-  state
- };
+ window.MinispaceOnline={connect,send,tick,state};
 
  if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',()=>{
@@ -510,15 +242,10 @@
  }
 })();
 
-// USE THE GAME'S REAL PILOT NAME
+/* Keep the actual in-game pilot name updated */
 setInterval(function(){
  const name=document.getElementById('ui-pilot-name')?.textContent?.trim();
-
- if(
-  name&&
-  name!=='Pilot'&&
-  window.MinispaceOnline?.state?.socket?.readyState===1
- ){
+ if(name&&name!=='Pilot'&&window.MinispaceOnline?.state?.socket?.readyState===1){
   window.MinispaceOnline.send({
    type:'hello',
    name:name.slice(0,16)
