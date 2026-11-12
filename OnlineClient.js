@@ -5,6 +5,9 @@
   socket:null,
   id:null,
   connected:false,
+  authReady:false,
+  authenticated:false,
+  isGM:false,
   roomId:null,
   reconnectTimer:null,
   reconnectAttempts:0,
@@ -286,6 +289,7 @@
 
  function connect(){
   panel();
+  if(!state.authReady)return;
 
   if(state.socket&&(
    state.socket.readyState===WebSocket.OPEN||
@@ -356,6 +360,13 @@
     if(message.resumed)log('Welcome back! Your pilot session was restored.');
    }
 
+   if(message.type==='auth-status'){
+    state.authenticated=!!message.authenticated;
+    state.isGM=!!message.isGM;
+    if(!state.authenticated)log('Account verification failed. Please reload and sign in again.');
+    else if(state.isGM)log('GAME MASTER permissions verified by server.');
+   }
+
    if(message.type==='room-joined'){
     state.roomId=message.roomId;
     log('Entered '+message.mapId+' ('+message.roomType+' instance)');
@@ -407,6 +418,17 @@
  });
 
  window.MinispaceOnline={connect,send,tick,state};
+
+ // Wait for Supabase login/session restoration before opening the online socket,
+ // so the first hello always carries the real account token.
+ window.MINISPACE_AUTH_READY.then(()=>{
+  state.authReady=true;
+  connect();
+ }).catch(error=>{
+  const status=$('online-status');
+  if(status)status.textContent='ACCOUNT NOT READY';
+  console.warn('MiniSpace online authentication is not ready:',error);
+ });
 
  if(document.readyState==='loading'){
   document.addEventListener('DOMContentLoaded',()=>{
