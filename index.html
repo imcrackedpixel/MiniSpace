@@ -52,6 +52,13 @@ try {
 } catch (e) {}
 </script>
 
+<div id="ui-mode-controls" aria-label="Interface display controls">
+<button type="button" data-ui-mode="minimal" onclick="window.setMiniSpaceUiMode('minimal')">MINIMAL</button>
+<button type="button" data-ui-mode="blank" onclick="window.setMiniSpaceUiMode('blank')">BLANK</button>
+<button type="button" data-ui-mode="close" onclick="window.closeMiniSpaceWindows()">CLOSE WINDOWS</button>
+<button type="button" data-ui-mode="restore" onclick="window.setMiniSpaceUiMode('restore')">SHOW UI</button>
+</div>
+
 <div id="ui-layer">
 <div style="display: flex; flex-direction: column; gap: 6px;">
 
@@ -232,6 +239,31 @@ MINIMAP
 window.MINISPACE_SERVER_URL = "wss://minispace-server.onrender.com";
 </script>
 <script src="OnlineClient.js"></script>
+<script>
+window.setMiniSpaceUiMode = function(mode) {
+  const body = document.body;
+  if (!body) return;
+  if (mode === "minimal") {
+    body.classList.remove("ui-blank");
+    body.classList.toggle("ui-minimal");
+  } else if (mode === "blank") {
+    body.classList.remove("ui-minimal");
+    body.classList.add("ui-blank");
+  } else {
+    body.classList.remove("ui-minimal", "ui-blank");
+  }
+};
+window.closeMiniSpaceWindows = function() {
+  const station = document.getElementById("station-ui");
+  if (station) station.style.display = "none";
+  if (typeof window.closeUniverse === "function") window.closeUniverse();
+  if (typeof window.closeSkillsUI === "function") window.closeSkillsUI();
+  ["gm-panel", "gm-modal", "online-friends-window"].forEach(function(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
+};
+</script>
 
 <!-- PILOT PANEL COLLAPSE -->
 <script>
