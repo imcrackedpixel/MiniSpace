@@ -522,6 +522,18 @@ window.jumpToFrontierSystem=function(id){
  window.showCorpNotification('Warp complete: '+r.system.name+'. Threat level '+r.system.level+'. Manual flight only.');
  if(typeof saveGameSession==='function')saveGameSession();window.closeUniverse();
 };
+window.flyToFrontierGate=function(id){
+ if(!playerShip||!mapManager)return;
+ const current=mapManager.currentMapId;
+ const allowed=current==='private_highsec'?id==='frontier_ashen':(String(current).indexOf('frontier_')===0&&(window.MINISPACE_UNIVERSE_SYSTEMS||[]).some(s=>s.id===current&&s.links.includes(id)));
+ if(!allowed){window.showCorpNotification('That system is not connected. Fly to a highlighted gate first.');return;}
+ const gate=current==='private_highsec'?mapManager.frontierEntryGate:(mapManager.frontierGates||[]).find(g=>g.destinationId===id);
+ if(!gate){window.showCorpNotification('The route gate is unavailable in this system.');return;}
+ if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
+ lockedTarget=null;targetMovePos={x:gate.x,y:gate.y};isDockingRequested=false;
+ window.closeUniverse();
+ window.showCorpNotification('Autopilot engaged: flying to the '+(id==='frontier_ashen'?'Ashen Reach':'frontier')+' gate. You will jump when you reach it.');
+};
 window.openUniverse=function(){
  const modal=document.getElementById('universe-modal'),host=document.getElementById('universe-systems');if(!modal||!host)return;
  const systems=window.MINISPACE_UNIVERSE_SYSTEMS||[],current=mapManager.currentMapId;
@@ -529,7 +541,7 @@ window.openUniverse=function(){
  const xy=id=>{const p=pos[id]||[50,50];return [p[0]*7.6,p[1]*4.8];};
  const routes=[];systems.forEach(s=>s.links.forEach(id=>{if(s.id<id){const a=xy(s.id),b=xy(id);routes.push('<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" class="universe-route-line"/>');}}));
  const stars=systems.map(s=>{const p=xy(s.id),col=['#8aa8b3','#75c9a8','#5ca8d8','#b18be8','#ed6a70'][s.level-1]||'#8aa8b3';return '<g><circle cx="'+p[0]+'" cy="'+p[1]+'" r="23" fill="'+col+'" opacity=".10"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="10" fill="'+col+'" opacity=".16"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+col+'"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="15" fill="none" stroke="'+col+'" stroke-opacity=".5" stroke-dasharray="2 5"/></g>';}).join('');
- const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];return '<div class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%"><strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+'</small></div>';}).join('');
+ const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];const reachable=current==='private_highsec'?s.id==='frontier_ashen':(String(current).indexOf('frontier_')===0&&(systems.find(v=>v.id===current)?.links||[]).includes(s.id));return '<div class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+(reachable?' reachable':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" '+(reachable?'onclick="window.flyToFrontierGate(&quot;'+s.id+'&quot;)">':'aria-disabled="true">')+'<strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+(reachable?' · FLY TO GATE':'')+'</small></div>';}).join('');
  host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Fly to the Ashen Reach gate in High-Sec, then travel between connected systems through their gates. The chart is navigation only; it cannot teleport you. Autoplay is disabled in frontier space.</p>';
  modal.style.display='flex';
 };
