@@ -2449,3 +2449,44 @@ if (
   };
 })();
 
+/* TRADE HUB - DRAW STATION BEHIND SHIPS */
+(function () {
+  const previousRender = render;
+
+  render = function () {
+    const inHub =
+      mapManager &&
+      mapManager.currentMapId === 'public_trade_hub';
+
+    const station =
+      window.MINISPACE_TRADE_HUB &&
+      window.MINISPACE_TRADE_HUB.station;
+
+    if (!inHub || !station || !playerShip) {
+      return previousRender();
+    }
+
+    const oldDraw = station.draw;
+
+    const dpr = window.devicePixelRatio || 1;
+    const z = cameraZoom * dpr;
+
+    ctx.setTransform(
+      z, 0, 0, z,
+      canvas.width / 2 - playerShip.x * z,
+      canvas.height / 2 - playerShip.y * z
+    );
+
+    station.draw(ctx);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+    station.draw = function () {};
+
+    try {
+      previousRender();
+    } finally {
+      station.draw = oldDraw;
+    }
+  };
+})();
+
