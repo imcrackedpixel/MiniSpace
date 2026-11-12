@@ -252,7 +252,10 @@ function publicPlayer(p) {
     mapId:p.mapId,
     roomId:p.roomId,
     zone:p.zone,
-    pvp:p.pvp
+    pvp:p.pvp,
+    shield:p.shield, armor:p.armor, structure:p.structure,
+    maxShield:p.maxShield, maxArmor:p.maxArmor, maxStructure:p.maxStructure,
+    docked:p.docked
   };
 }
 
@@ -288,6 +291,9 @@ wss.on('connection',ws=>{
     roomId:null,
     roomType:'private',
     zone:'high-sec',
+    shield:0, armor:0, structure:1000,
+    maxShield:0, maxArmor:0, maxStructure:1000,
+    docked:false,
     last:Date.now(),
     resumeToken:null,
     graceTimer:null,
@@ -441,6 +447,27 @@ wss.on('connection',ws=>{
       return;
     }
 
+    if(m.type==='pvp-damage') {
+      const mapId=safeText(m.mapId,48);
+      const target=players.get(safeText(m.targetId,100));
+      const allowedMap=mapId==='public_space'||mapId.indexOf('frontier_')===0;
+      if(!allowedMap||!p.roomId||p.roomType!=='public'||p.mapId!==mapId||!p.pvp||p.docked||
+         !target||target.id===p.id||target.roomId!==p.roomId||target.mapId!==mapId||!target.pvp||target.docked)return;
+      const now=Date.now();
+      if(!p.pvpHitTimes)p.pvpHitTimes=new Map();
+      if(now-(p.pvpHitTimes.get(target.id)||0)<120)return;
+      p.pvpHitTimes.set(target.id,now);
+      let remaining=Math.min(500,Math.max(0,Number(m.damage)||0));
+      if(!remaining)return;
+      if(target.shield>0){const hit=Math.min(target.shield,remaining);target.shield-=hit;remaining-=hit;}
+      if(remaining>0&&target.armor>0){const hit=Math.min(target.armor,remaining);target.armor-=hit;remaining-=hit;}
+      if(remaining>0)target.structure=Math.max(0,(target.structure||0)-remaining);
+      send(target.ws,{type:'pvp-hit',mapId:mapId,attackerId:p.id,damage:Math.min(500,Number(m.damage)||0),
+        shield:target.shield,armor:target.armor,structure:target.structure});
+      broadcastRoom(p.roomId,{type:'player',player:publicPlayer(target)},null);
+      return;
+    }
+
     if(m.type==='frontier-npc-killed') {
       const mapId=String(m.mapId||'');
       if(!p.roomId||p.roomType!=='public'||p.mapId!==mapId||mapId.indexOf('frontier_')!==0)return;
@@ -484,6 +511,11 @@ wss.on('connection',ws=>{
       p.angle=Number(m.angle)||0;
       p.ship=safeText(m.ship,32);
       p.system=safeText(m.system,48);
+      p.docked=!!m.docked;
+      for (const key of ['shield','armor','structure','maxShield','maxArmor','maxStructure']) {
+        const value=Number(m[key]);
+        if(Number.isFinite(value))p[key]=Math.max(0,Math.min(100000000,value));
+      }
 
       const z=zoneAt(p.x,p.y);
       p.zone=z.id;
