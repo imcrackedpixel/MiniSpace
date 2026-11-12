@@ -145,7 +145,7 @@ class PublicNpcManager {
       for(let g=0;g<groups;g++){const count=1+Math.floor(Math.random()*5),a=2*Math.PI*g/groups+Math.random()*.3,r=1100+g*500,gx=c+Math.cos(a)*r,gy=c+Math.sin(a)*r;
         for(let i=0;i<count;i++){let cfg,combat=false,elite=false;
           if(system.kind==='Mining Fleet')cfg=pickPirate(MINER_POOL);
-          else if(level===5){elite=system.id==='frontier_blackstar'&&Math.random()<.45;cfg=elite?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
+          else if(level===5){elite=system.id==='frontier_blackstar'?Math.random()<.45:Math.random()<.12;cfg=elite?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
           else if(level===4){cfg=Math.random()<.25?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;combat=true;}
           else if(level===3){cfg=Math.random()<.5?PIRATE_TYPES.siegeCruiser:PIRATE_TYPES.siegeBattleship;combat=true;}
           else if(system.kind==='Mixed Fleets'&&Math.random()<.45)cfg=pickPirate(MINER_POOL);
