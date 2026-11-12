@@ -167,13 +167,14 @@ class PublicNpcManager {
     try{
       let cfg=n.cfg;
       const deadEnd=String(this.frontierMapId||'').includes('blackstar')||String(this.frontierMapId||'').includes('crypt');
-      const roll=Math.random(),rarity=deadEnd?(roll<.38?'common':roll<.68?'uncommon':roll<.88?'rare':'elite'):(roll<.58?'common':roll<.83?'uncommon':roll<.96?'rare':'elite');
-      const level=n.frontierLevel||1;
+      const roll=Math.random(),level=n.frontierLevel||1;
+      let rarity=deadEnd?(roll<.38?'common':roll<.68?'uncommon':roll<.88?'rare':'elite'):(roll<.58?'common':roll<.83?'uncommon':roll<.96?'rare':'elite');
+      if(level<4&&rarity==='elite')rarity='rare';
       if(n.frontierKind!=='Mining Fleet'){
         if(level>=5)cfg=rarity==='elite'?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
         else if(level>=4)cfg=rarity==='elite'?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;
-        else if(level>=3)cfg=rarity==='rare'||rarity==='elite'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
-        else if(rarity==='rare'||rarity==='elite')cfg=PIRATE_TYPES.siegeCruiser;
+        else if(level===3)cfg=rarity==='rare'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
+        else if(level<=2&&rarity==='rare')cfg=PIRATE_TYPES.combatFrigate;
         else if(Math.random()<.30)cfg=pickPirate(MINER_POOL);
       }else if(rarity==='rare'||rarity==='elite')cfg=pickPirate([{t:'barge',w:2},{t:'command',w:1}]);
       const elite=rarity==='elite'&&level>=4&&n.frontierKind!=='Mining Fleet';
@@ -720,10 +721,11 @@ class PublicNpcManager {
         npc.ship.draw(ctx);
 
         ctx.save();
-        ctx.fillStyle = '#f85149';
-        ctx.font = '8px "Courier New"';
+        const rarity=npc.frontierLevel?(npc.frontierRarity||'common'):'pirate';
+        ctx.fillStyle = rarity==='elite'?'#d8a2ff':rarity==='rare'?'#72b9ff':rarity==='uncommon'?'#80d8a8':'#f28b82';
+        ctx.font = 'bold 8px "Courier New"';
         ctx.textAlign = 'center';
-        ctx.fillText('[PIRATE] ' + npc.className, npc.ship.x, npc.ship.y - 48);
+        ctx.fillText(npc.frontierLevel?'['+rarity.toUpperCase()+'] '+npc.className:'[PIRATE] '+npc.className, npc.ship.x, npc.ship.y - 48);
         ctx.restore();
 
         this.drawBars(ctx, npc);
