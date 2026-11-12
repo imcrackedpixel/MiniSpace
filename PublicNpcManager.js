@@ -157,7 +157,7 @@ class PublicNpcManager {
   }
   applyFrontierState(d){if(!d||d.mapId!==this.frontierMapId)return;(d.deadNpcs||[]).forEach(x=>this.applyFrontierDeath(x));}
   applyFrontierDeath(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n){n.isAlive=false;n.respawnAt=Number(d.respawnAt)||Date.now()+90000;}}
-  applyFrontierRespawn(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n)this.reviveFrontierNpc(n);}
+  applyFrontierRespawn(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n&&!n.isAlive)this.reviveFrontierNpc(n);}
   reviveFrontierNpc(n){if(!n||!n.cfg)return;let cfg=n.cfg;let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;const oldRandom=Math.random;let st=seed||1;Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};try{if(n.frontierKind!=='Mining Fleet'&&n.frontierLevel<=3&&Math.random()<.3)cfg=pickPirate(MINER_POOL);}finally{Math.random=oldRandom;}const old=this.publicNpcMiners;this.publicNpcMiners=[];this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:n.elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind});const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;if(fresh)Object.assign(n,fresh);}
 
 
