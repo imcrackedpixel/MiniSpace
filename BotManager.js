@@ -1101,30 +1101,6 @@ class BotManager {
             }
             return;
           }
-
-          // Player-ordered sales take priority over the corporation's automatic market stock.
-          if (bot.playerSaleTask && (ship.cargo || 0) <= 0) {
-            const saleItems = bot.playerSaleTask.items || {};
-            const saleTotal = Object.keys(saleItems).reduce(function (sum, key) {
-              return sum + Math.max(0, Math.floor(Number(saleItems[key]) || 0));
-            }, 0);
-            if (saleTotal > 0 && saleTotal <= maxCargo) {
-              ship.cargoByOre = Object.assign({}, saleItems);
-              ship.cargo = saleTotal;
-              bot.playerSaleTask.status = 'in_transit';
-              bot.transportState = 'sell_to_trade_gate';
-              if (typeof window.showCorpNotification === 'function') {
-                window.showCorpNotification('Transport Manager loaded your sale and is departing for the Trade Hub.');
-              }
-              if (typeof window.saveGameSession === 'function') window.saveGameSession();
-              if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
-            } else {
-              if (typeof window.showCorpNotification === 'function') {
-                window.showCorpNotification('Transport Manager could not load the reserved sale. Contact support before making another sale.');
-              }
-            }
-            return;
-          }
           ship.vx = 0;
           ship.vy = 0;
 
