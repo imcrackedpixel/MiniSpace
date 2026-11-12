@@ -39,9 +39,6 @@ class NpcCarrier {
     this.particles = [];
     this.animTimer = 0;
 
-    this.sprite = new Image();
-    this.sprite.src = 'images/nidhoggur_topdown.png';
-
     // 6 drones deployed with balanced missile damage
     this.drones = [];
     for (let i = 0; i < 6; i++) {
