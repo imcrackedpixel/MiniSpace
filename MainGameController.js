@@ -1858,7 +1858,7 @@ function manualControl() {
   if (name === 'Mining Capital' || name === 'Command Ship') {
     ship.update(targetMovePos, tgt, false, false, asteroidBelt);
   } else if (name === 'Carrier') {
-    ship.update(targetMovePos, null, false, false, enemies, true);
+    ship.update(targetMovePos, null, false, false, enemies);
   } else if (name === 'Combat Frigate' || name === 'Siege Capital' || name === 'Siege Battleship' || name === 'Siege Cruiser') {
     ship.update(targetMovePos, null, false, enemies, true);
   } else if (name === 'Improved Explorer Frigate' || name === 'Explorer Cruiser') {
