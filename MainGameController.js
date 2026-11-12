@@ -1246,7 +1246,10 @@ function isUiTarget(e) {
 }
 
 window.addEventListener('pointerdown', function(e) {
-  if (isUiTarget(e)) return;
+  // Only taps directly on the game canvas should issue movement commands.
+  // Chat, friend controls, panels and any future UI outside #ui-layer must
+  // never be interpreted as a world-space movement destination.
+  if (!canvas || e.target !== canvas) return;
   handleCanvasTouch(e.clientX, e.clientY);
 });
 
