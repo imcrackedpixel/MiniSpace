@@ -255,7 +255,7 @@ function publicPlayer(p) {
     pvp:p.pvp,
     shield:p.shield, armor:p.armor, structure:p.structure,
     maxShield:p.maxShield, maxArmor:p.maxArmor, maxStructure:p.maxStructure,
-    docked:p.docked
+    damageResistance:p.damageResistance, docked:p.docked
   };
 }
 
@@ -293,7 +293,7 @@ wss.on('connection',ws=>{
     zone:'high-sec',
     shield:0, armor:0, structure:1000,
     maxShield:0, maxArmor:0, maxStructure:1000,
-    docked:false,
+    damageResistance:0, docked:false,
     last:Date.now(),
     resumeToken:null,
     graceTimer:null,
@@ -453,12 +453,13 @@ wss.on('connection',ws=>{
       const allowedMap=mapId==='public_space'||mapId.indexOf('frontier_')===0;
       if(!allowedMap||!p.roomId||p.roomType!=='public'||p.mapId!==mapId||!p.pvp||p.docked||
          !target||target.id===p.id||target.roomId!==p.roomId||target.mapId!==mapId||!target.pvp||target.docked||
-         Math.hypot(p.x-target.x,p.y-target.y)>1600)return;
+         target.structure<=0||p.structure<=0||Math.hypot(p.x-target.x,p.y-target.y)>1600)return;
       const now=Date.now();
       if(!p.pvpHitTimes)p.pvpHitTimes=new Map();
       if(now-(p.pvpHitTimes.get(target.id)||0)<120)return;
       p.pvpHitTimes.set(target.id,now);
       let remaining=Math.min(500,Math.max(0,Number(m.damage)||0));
+      remaining *= 1 - Math.max(0,Math.min(0.85,Number(target.damageResistance)||0));
       if(!remaining)return;
       if(target.shield>0){const hit=Math.min(target.shield,remaining);target.shield-=hit;remaining-=hit;}
       if(remaining>0&&target.armor>0){const hit=Math.min(target.armor,remaining);target.armor-=hit;remaining-=hit;}
@@ -513,7 +514,7 @@ wss.on('connection',ws=>{
       p.ship=safeText(m.ship,32);
       p.system=safeText(m.system,48);
       p.docked=!!m.docked;
-      for (const key of ['shield','armor','structure','maxShield','maxArmor','maxStructure']) {
+      for (const key of ['shield','armor','structure','maxShield','maxArmor','maxStructure','damageResistance']) {
         const value=Number(m[key]);
         if(Number.isFinite(value))p[key]=Math.max(0,Math.min(100000000,value));
       }
