@@ -2577,6 +2577,7 @@ let lastSimulationFrame = null;
 let simulationAccumulator = 0;
 function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
+  try { updateNearbySpacePanel(); } catch (nearbyError) { if (!updateNearbySpacePanel._warned) { console.error('Nearby space list error:', nearbyError && nearbyError.stack ? nearbyError.stack : nearbyError); updateNearbySpacePanel._warned = true; } }
   if (!ctx || !playerShip) return;
   try {
     const now = Number(timestamp) || (lastSimulationFrame === null ? 0 : lastSimulationFrame + SIMULATION_STEP_MS);
@@ -2592,7 +2593,6 @@ function gameLoop(timestamp) {
     render();
     frameCount++;
     if (frameCount % 5 === 0) updateHUD();
-    try { updateNearbySpacePanel(); } catch (nearbyError) { if (!updateNearbySpacePanel._warned) { console.error('Nearby space list error:', nearbyError); updateNearbySpacePanel._warned = true; } }
     if (frameCount % 900 === 0) saveGameSession();
   } catch (err) {
     if (!gameLoop._warned || frameCount % 300 === 0) { console.error('Game loop error:', err && err.stack ? err.stack : err); gameLoop._warned = true; }
