@@ -1348,7 +1348,7 @@ function renderTradeMarket() {
     const price = Number(item.unit_price) || 0;
     const stock = Number(item.stock) || 0;
     return '<tr><td>' + tradeEsc(label) + '<br><small>Trade Hub hangar: ' + qty.toLocaleString() + '</small></td>' +
-      '<td>' + fmtISK(price) + ' ISK</td><td>' + stock.toLocaleString() + '</td>' +
+      '<td>' + fmtISK(price) + ' Scrap Metals</td><td>' + stock.toLocaleString() + '</td>' +
       '<td><button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1)" ' + (stock < 1 ? 'disabled' : '') + '>Buy 1</button> ' +
       '<button onclick="window.tradeMarketSellAll(\'' + tradeEsc(key) + '\')" ' + (qty < 1 ? 'disabled' : '') + '>Sell all</button></td></tr>';
   });
