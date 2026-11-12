@@ -314,6 +314,28 @@
     }
   };
 
+  // Secure GM tools. The database verifies the signed-in pilot against the private GM table.
+  window.MINISPACE_GM = {
+    isAuthorized: async function () {
+      if (!session || !session.user || !session.user.id) return false;
+      return api('/rest/v1/rpc/gm_is_authorized', { method: 'POST', body: '{}' });
+    },
+    grantScrapMetals: async function (amount) {
+      if (!session || !session.user || !session.user.id) throw new Error('Pilot login required');
+      return api('/rest/v1/rpc/gm_grant_scrap_metals', {
+        method: 'POST',
+        body: JSON.stringify({ p_amount: Math.floor(Number(amount)) })
+      });
+    },
+    grantItem: async function (itemKey, quantity) {
+      if (!session || !session.user || !session.user.id) throw new Error('Pilot login required');
+      return api('/rest/v1/rpc/gm_grant_item', {
+        method: 'POST',
+        body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
+      });
+    }
+  };
+
   async function loadCloudSave() {
     if (!session || !session.user || !session.user.id) return;
     const rows = await api('/rest/v1/pilot_saves?select=save_data&pilot_id=eq.' + encodeURIComponent(session.user.id), {
