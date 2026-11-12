@@ -206,6 +206,7 @@ class PublicNpcManager {
       this.addPirate(cfg, cx + Math.cos(a) * radius, cy + Math.sin(a) * radius,
         'station_guard_' + id + '_' + i, {
           mapId: id, stationGuard: true, role: 'patrol', hpScale: hpScale,
+          dmg: system.ring >= 7 ? 0.22 : 0.14,
           elite: system.ring >= 9 && i === 0
         });
     });
