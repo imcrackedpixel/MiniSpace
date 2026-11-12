@@ -372,7 +372,7 @@
     else if(state.isGM)log('GAME MASTER permissions verified by server.');
    }
    if(message.type==='gm-command-result')window.dispatchEvent(new CustomEvent('minispace-gm-result',{detail:String(message.message||'Command complete.')}));
-   if(message.type==='account-banned'){state.accountBanned=true;log(message.message||'This account has been banned.');}
+   if(message.type==='account-banned'){state.accountBanned=true;log(message.message||'This account has been banned.');setTimeout(()=>window.location.reload(),900);}
 
    if(message.type==='gm-online-list'){
     state.gmPlayers=Array.isArray(message.players)?message.players:[];
