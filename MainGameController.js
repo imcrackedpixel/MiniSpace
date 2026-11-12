@@ -3294,9 +3294,9 @@ if (
             maxCargo.toLocaleString() + ' (' + percent + '%)' + queueLabel;
           if (row.cells[2]) {
             const upgradeCost = 25000 * level;
-            const busy = !!manager.transportTask || !!manager.playerSaleTask || queuedOrders.length > 0 || !['loading', null].includes(manager.transportState);
+            const cannotAfford = (Number(playerData.isk) || 0) < upgradeCost;
             row.cells[2].innerHTML = '<button onclick="window.upgradeTransportManager()" ' +
-              (busy ? 'disabled title="Wait until the Transport Manager returns to High-Sec"' : '') +
+              (cannotAfford ? 'disabled title="Not enough Scrap Metals"' : '') +
               '>UPGRADE CARGO · ' + fmtISK(upgradeCost) + ' Scrap Metals</button>';
           }
         }
