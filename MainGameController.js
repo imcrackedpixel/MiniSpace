@@ -1539,7 +1539,7 @@ window.sellHangarItemViaTransport = async function(itemKey, requestedQty) {
     : Math.floor(Number(requestedQty) || 0);
   const available = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[itemKey]) || 0));
   const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className); }) : null;
-  const saleStates = ['sell_to_trade_gate', 'sell_to_market', 'sell_to_return_gate', 'sell_returning'];
+  const saleStates = ['sell_to_trade_gate', 'sell_to_market', 'sell_to_return_gate', 'sell_returning', 'to_trade_gate', 'to_market', 'to_return_gate', 'returning'];
   const canReceiveWhileTravelling = !!(manager && saleStates.includes(manager.transportState));
   const canReceiveAtStation = !!(manager && manager.transportState === 'loading' && !manager.transportTask);
   if (!playerShip || !playerShip.docked || (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
@@ -1550,7 +1550,7 @@ window.sellHangarItemViaTransport = async function(itemKey, requestedQty) {
     window.showCorpNotification('Your Transport Manager is busy with a different job and cannot accept goods right now.');
     return;
   }
-  const capacity = Math.max(1, Math.floor(Number(manager.ship.maxCargo) || 5000));
+  const capacity = Math.min(1000000, Math.max(1, Math.floor(Number(manager.ship.maxCargo) || 5000)));
   if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available) {
     window.showCorpNotification('Choose a quantity up to the amount in your Private High-Sec hangar.');
     return;
@@ -1619,7 +1619,7 @@ window.sellAllHangarViaTransport = async function() {
       return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className);
     }) : null;
     if (!manager || manager.transportTask ||
-        !(['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState))) {
+        !(['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning','to_trade_gate','to_market','to_return_gate','returning'].includes(manager.transportState))) {
       window.showCorpNotification('Your Transport Manager cannot accept a Sell All order right now.');
       return;
     }
@@ -1793,8 +1793,7 @@ function updateStationUI() {
   }) : null;
   const canSellAllHangar = !!(transportManagerForHangar &&
     !transportManagerForHangar.transportTask &&
-    (transportManagerForHangar.transportState === 'loading' ||
-      ['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(transportManagerForHangar.transportState)));
+    (['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning','to_trade_gate','to_market','to_return_gate','returning'].includes(transportManagerForHangar.transportState)));
   const hasHangarGoods = Object.keys(GAME_ITEM_LABELS).some(function(key) {
     return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
   });
