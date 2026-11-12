@@ -2660,9 +2660,12 @@ if (
     saveGameSession();
   }
 })();
-/* TRANSPORT MANAGER - LOAD ONLY FROM HIGH-SEC STATION HANGAR */
+
+/* CORPORATION HANGAR + EXPLORER 50/25/25 + TRANSPORT MANAGER */
 (function () {
   if (!botManager) return;
+
+  playerData.corpStationOre = playerData.corpStationOre || {};
 
   function isTransportManager(bot) {
     const name = bot && bot.ship && bot.ship.className;
@@ -2671,8 +2674,107 @@ if (
       name === 'Freighter';
   }
 
-  // Save the manager's loaded cargo with the corporation roster.
+  function isExplorer(bot) {
+    const name = bot && bot.ship && bot.ship.className;
+    return name === 'Exploration Frigate' ||
+      name === 'Explorer Cruiser';
+  }
+
+  // Fully upgraded corporation miners deposit into the corp hangar.
+  const oldCreditMinerShare =
+    BotManager.prototype.creditMinerShare;
+
+  BotManager.prototype.creditMinerShare = function (bot, key, amount) {
+    if (!this.nextMinerUpgrade(bot)) {
+      const inventory = this.playerData.corpStationOre ||
+        (this.playerData.corpStationOre = {});
+
+      inventory[key] = (inventory[key] || 0) + amount;
+      return;
+    }
+
+    return oldCreditMinerShare.call(this, bot, key, amount);
+  };
+
+  // Explorer delivery split:
+  // 50% player, 12.5% Explorer materials,
+  // 12.5% Explorer wallet, 25% corporation market stock.
+  BotManager.prototype.processCorpExplorerDocking = function (bot) {
+    if (!bot) return;
+
+    const inventory = this.playerData.stationOre ||
+      (this.playerData.stationOre = {});
+    const corpInventory = this.playerData.corpStationOre ||
+      (this.playerData.corpStationOre = {});
+
+    bot.stock = bot.stock || {};
+    bot.wallet = Number(bot.wallet) || 0;
+
+    for (const key of Object.keys(bot.tempStock || {})) {
+      const amount = Math.max(
+        0,
+        Math.floor(Number(bot.tempStock[key]) || 0)
+      );
+
+      if (amount <= 0) continue;
+
+      const playerShare = Math.floor(amount * 0.50);
+      const explorerShare = Math.floor(amount * 0.25);
+      const corpShare = amount - playerShare - explorerShare;
+
+      // Player receives 50%.
+      inventory[key] = (inventory[key] || 0) + playerShare;
+
+      // Explorer uses 25% for his own progression.
+      // Half becomes Cruiser materials; half funds his wallet.
+      const explorerMaterials = Math.floor(explorerShare * 0.5);
+      const explorerWalletGoods = explorerShare - explorerMaterials;
+
+      bot.stock[key] =
+        (bot.stock[key] || 0) + explorerMaterials;
+
+      const itemPrice =
+        (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[key]) ||
+        10;
+
+      bot.wallet += explorerWalletGoods * itemPrice;
+
+      // Corporation receives 25% for the Transport Manager.
+      corpInventory[key] =
+        (corpInventory[key] || 0) + corpShare;
+    }
+
+    bot.tempStock = {};
+
+    if (typeof this.tryBuildCruiser === 'function') {
+      this.tryBuildCruiser(bot);
+    }
+
+    if (bot.ship) {
+      bot.ship.cargo = 0;
+      bot.ship.cargoByOre = {};
+    }
+
+    if (typeof window.saveGameSession === 'function') {
+      window.saveGameSession();
+    }
+
+    if (typeof window.updateStationUI === 'function') {
+      window.updateStationUI();
+    }
+  };
+
+  // Protect Explorer progression stock and wallet from surplus payouts.
+  const oldPaySurplus = BotManager.prototype.paySurplus;
+
+  BotManager.prototype.paySurplus = function (bot) {
+    if (isExplorer(bot)) return null;
+    return oldPaySurplus.call(this, bot);
+  };
+
+  // Preserve cargo and Explorer progression in corporation saves.
   const oldSnapshotCorp = snapshotCorp;
+
   snapshotCorp = function () {
     oldSnapshotCorp();
 
@@ -2680,13 +2782,201 @@ if (
 
     botManager.bots.forEach(function (bot, index) {
       const saved = playerData.corpBots[index];
-      if (!saved || !bot.ship || !isTransportManager(bot)) return;
+      const ship = bot && bot.ship;
 
-      saved.cargo = bot.ship.cargo || 0;
+      if (!saved || !ship) return;
+
+      saved.stock = Object.assign({}, bot.stock || {});
+      saved.tempStock = Object.assign({}, bot.tempStock || {});
+      saved.wallet = bot.wallet || 0;
+      saved.cargo = ship.cargo || 0;
+      saved.oreType = ship.oreType || null;
       saved.cargoByOre = Object.assign(
         {},
         window.ensureOreCargo
-          ? window.ensureOreCargo(bot.ship)
+          ? window.ensureOreCargo(ship)
+          : ship.cargoByOre || {}
+      );
+    });
+  };
+
+  // Transport Manager must never follow or siphon miners.
+  const oldBotUpdate = botManager.update.bind(botManager);
+
+  botManager.update = function (player, belt, debris) {
+    const allBots = this.bots;
+    const managers = allBots.filter(isTransportManager);
+
+    this.bots = allBots.filter(function (bot) {
+      return !isTransportManager(bot);
+    });
+
+    try {
+      oldBotUpdate(player, belt, debris);
+    } finally {
+      this.bots = allBots;
+    }
+
+    managers.forEach((bot) => {
+      const ship = bot.ship;
+      if (!ship) return;
+
+      const maxCargo = Math.max(1, ship.maxCargo || 50000);
+      const station = this.station;
+      const distance = Math.hypot(
+        station.x - ship.x,
+        station.y - ship.y
+      );
+
+      ship.siphonFeed = [];
+      bot.targetMiner = null;
+      ship.cargoContrib = {};
+
+      if (distance > 90) {
+        bot.transportState = 'returning';
+        ship.update({ x: station.x, y: station.y }, null, false);
+        return;
+      }
+
+      ship.x = station.x;
+      ship.y = station.y;
+      ship.vx = 0;
+      ship.vy = 0;
+      ship.thrust = 0;
+
+      // Load only corporation goods, never personal hangar goods.
+      const inventory = playerData.corpStationOre || {};
+      let room = Math.max(
+        0,
+        maxCargo - (Number(ship.cargo) || 0)
+      );
+
+      if (room > 0) {
+        Object.keys(inventory).forEach(function (key) {
+          if (room <= 0) return;
+
+          const stored = Math.max(
+            0,
+            Number(inventory[key]) || 0
+          );
+          const amount = Math.min(room, stored);
+
+          if (amount <= 0) return;
+
+          if (window.addOreToCargo) {
+            window.addOreToCargo(ship, key, amount);
+          } else {
+            ship.cargoByOre = ship.cargoByOre || {};
+            ship.cargoByOre[key] =
+              (ship.cargoByOre[key] || 0) + amount;
+            ship.cargo = (ship.cargo || 0) + amount;
+            ship.oreType = key;
+          }
+
+          inventory[key] = stored - amount;
+          room -= amount;
+        });
+      }
+
+      const loaded = Number(ship.cargo) || 0;
+      const percent = Math.min(
+        100,
+        Math.floor((loaded / maxCargo) * 100)
+      );
+
+      bot.transportState =
+        loaded >= maxCargo ? 'full' : 'loading';
+
+      const saveBand = Math.floor(percent / 5);
+
+      if (
+        saveBand > (bot._lastSavedLoadBand || 0) ||
+        percent >= 100
+      ) {
+        bot._lastSavedLoadBand = saveBand;
+
+        if (typeof window.saveGameSession === 'function') {
+          window.saveGameSession();
+        }
+      }
+    });
+
+    this._corpStatusTimer = (this._corpStatusTimer || 0) + 1;
+
+    const corpTab = document.getElementById('tab-corp');
+
+    if (
+      this._corpStatusTimer >= 30 &&
+      corpTab &&
+      corpTab.style.display === 'block'
+    ) {
+      this._corpStatusTimer = 0;
+      updateCorpUI();
+    }
+  };
+
+  // Display Transport Manager loading progress in Corporation tab.
+  const oldUpdateCorpUI = updateCorpUI;
+
+  updateCorpUI = function () {
+    oldUpdateCorpUI();
+
+    const table = document.getElementById('corp-list');
+    if (!table) return;
+
+    const row = Array.from(table.rows).find(function (r) {
+      return r.cells[0] &&
+        r.cells[0].innerText.includes('Transport Manager');
+    });
+
+    if (!row || !row.cells[1]) return;
+
+    const manager = botManager.bots.find(isTransportManager);
+
+    if (!manager || !manager.ship) {
+      row.cells[1].innerText =
+        playerData.transportManagerPurchased > 0
+          ? 'Transport ship preparing'
+          : 'Build it in the Shipyard';
+      return;
+    }
+
+    const ship = manager.ship;
+    const maxCargo = Math.max(1, ship.maxCargo || 50000);
+    const percent = Math.min(
+      100,
+      Math.floor(((ship.cargo || 0) / maxCargo) * 100)
+    );
+
+    if (percent >= 100) {
+      row.cells[1].innerText =
+        'FULL — Ready for Trade Hub (100%)';
+    } else if (manager.transportState === 'returning') {
+      row.cells[1].innerText =
+        'Returning to station (' + percent + '%)';
+    } else {
+      row.cells[1].innerText =
+        'Loading corporation goods (' + percent + '%)';
+    }
+  };
+
+  // Create the Transport Manager ship after purchase.
+  const oldBuildTransportManager = window.buildTransportManager;
+
+  window.buildTransportManager = function () {
+    oldBuildTransportManager();
+
+    if (
+      playerData.transportManagerPurchased > 0 &&
+      !botManager.bots.some(isTransportManager)
+    ) {
+      botManager.addTransportBot();
+      saveGameSession();
+      updateCorpUI();
+    }
+  };
+})();
+  ? window.ensureOreCargo(bot.ship)
           : bot.ship.cargoByOre || {}
       );
     });
