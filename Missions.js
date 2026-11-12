@@ -57,6 +57,13 @@ class MissionManager {
       const angle=(Math.PI*2*i/m.targetCount)+Math.random()*0.22, dist=spawnRadius+Math.random()*180;
       const x=playerShip.x+Math.cos(angle)*dist, y=playerShip.y+Math.sin(angle)*dist;
       let enemy=profile.make(x,y);
+      // Mission capital ships use fewer escort drones on mobile devices.
+      // The player's Carrier keeps its full six-drone wing; only NPC mission
+      // carriers are trimmed according to contract difficulty.
+      if (profile.tier===3 && Array.isArray(enemy.drones)) {
+        const escortCount=m.difficulty==='Easy'?2:(m.difficulty==='Medium'?3:4);
+        enemy.drones=enemy.drones.slice(0,escortCount);
+      }
       enemy.displayName=profile.name; enemy.isPirate=true; enemy.faction='pirate';
       enemy.isMissionTarget=true; enemy.missionTarget=true; enemy.docked=false; enemy.vx=0; enemy.vy=0;
       enemy.angle=Math.atan2(playerShip.y-enemy.y,playerShip.x-enemy.x);
