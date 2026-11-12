@@ -905,7 +905,7 @@ window.buildShip = function(unlockKey, className) {
 };
 
 // Dispatch the free Transport Manager to collect missing ship materials.
-window.requestTransportShipBuild = async function(unlockKey, className, recipe, short) {
+window.requestTransportShipBuild = async function(unlockKey, className, recipe, short, fromQueue) {
   if (window._transportShipBuildRequestPending) return;
   window._transportShipBuildRequestPending = true;
   try {
@@ -928,7 +928,14 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
     const transport = findManager();
     if (!transport || !transport.ship) throw new Error('The free Transport Manager could not be deployed.');
     if (transport.transportTask || !['loading', null].includes(transport.transportState)) {
-      throw new Error('Transport Manager is busy. Let it finish its current delivery first.');
+      if (fromQueue) return;
+      if (!Array.isArray(transport.transportBuildQueue)) transport.transportBuildQueue = [];
+      const duplicate = transport.transportBuildQueue.some(function(order) { return order && order.unlockKey === unlockKey; });
+      if (!duplicate) transport.transportBuildQueue.push({ unlockKey: unlockKey, className: className });
+      if (typeof window.saveGameSession === 'function') window.saveGameSession();
+      if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+      window.showCorpNotification(className + ' fetch & build order queued. The Transport Manager will collect the materials after his current trip.');
+      return;
     }
     // Return any partial corporation load to its hangar before taking a personal order.
     if ((transport.ship.cargo || 0) > 0) {
@@ -966,6 +973,10 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
     const wallet = state.wallet ? Math.max(0, Number(state.wallet.isk) || 0) : 0;
     if (wallet < cost) throw new Error('Not enough Scrap Metals. The required market purchases cost ' + cost.toLocaleString() + '.');
 
+    if (fromQueue && Array.isArray(transport.transportBuildQueue)) {
+      const queuedIndex = transport.transportBuildQueue.findIndex(function(order) { return order && order.unlockKey === unlockKey; });
+      if (queuedIndex >= 0) transport.transportBuildQueue.splice(queuedIndex, 1);
+    }
     transport.transportTask = { type: 'ship_build', unlockKey: unlockKey, className: className,
       items: items, status: 'outbound' };
     transport.transportState = 'buy_to_trade_gate';
@@ -980,6 +991,26 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
   } finally {
     window._transportShipBuildRequestPending = false;
   }
+};
+
+window.startNextTransportShipBuild = function(transport) {
+  if (!transport || transport.transportTask || !Array.isArray(transport.transportBuildQueue) || !transport.transportBuildQueue.length) return false;
+  if (!['loading', null].includes(transport.transportState)) return false;
+  const order = transport.transportBuildQueue[0];
+  if (!order || !order.unlockKey || !order.className) {
+    transport.transportBuildQueue.shift();
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    return false;
+  }
+  const recipe = recipeFor(order.unlockKey);
+  if (!recipe) {
+    window.showCorpNotification('Queued build order could not find a recipe for ' + order.className + '.');
+    transport.transportBuildQueue.shift();
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    return false;
+  }
+  window.requestTransportShipBuild(order.unlockKey, order.className, recipe, recipeShortfall(recipe), true);
+  return true;
 };
 
 // Called when the Transport Manager reaches the Trade Hub market.
