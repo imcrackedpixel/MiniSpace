@@ -1503,6 +1503,74 @@ window.transferTradeGoodsToPrivate = async function(key,qty) {
   } catch(error) { window.showCorpNotification('Transfer failed: ' + (error.message || error)); }
 };
 
+window.loadHangarItemToShip = function(itemKey) {
+  const input = document.getElementById('hangar-qty-' + itemKey);
+  const qty = Math.floor(Number(input && input.value) || 0);
+  if (!playerShip || !playerShip.docked) {
+    window.showCorpNotification('Dock your active ship before loading its cargo.');
+    return;
+  }
+  const available = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[itemKey]) || 0));
+  const room = Math.max(0, Math.floor((Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)));
+  if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available) {
+    window.showCorpNotification('Choose a valid quantity from your hangar.');
+    return;
+  }
+  if (room < 1) {
+    window.showCorpNotification('Your active ship cargo hold is full.');
+    return;
+  }
+  const moved = addOreToCargo(playerShip, itemKey, Math.min(qty, room));
+  if (moved < 1) {
+    window.showCorpNotification('No cargo space available.');
+    return;
+  }
+  playerData.stationOre[itemKey] = Math.max(0, available - moved);
+  updateStationUI();
+  updateHUD();
+  saveGameSession();
+  window.showCorpNotification('Loaded ' + moved.toLocaleString() + ' ' + itemLabel(itemKey) + ' into your active ' + playerShip.className + '.');
+};
+
+window.sellHangarItemViaTransport = async function(itemKey) {
+  const input = document.getElementById('hangar-qty-' + itemKey);
+  const qty = Math.floor(Number(input && input.value) || 0);
+  const available = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[itemKey]) || 0));
+  const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && b.ship.className === 'Transport Capital'; }) : null;
+  if (!playerShip || !playerShip.docked || (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
+    window.showCorpNotification('Dock at your Private High-Sec station to dispatch a sale.');
+    return;
+  }
+  if (!manager || manager.transportState !== 'loading' || manager.transportTask || manager.playerSaleTask || (manager.ship.cargo || 0) > 0) {
+    window.showCorpNotification('Your Transport Manager is busy. Wait until he returns to High-Sec with an empty cargo hold.');
+    return;
+  }
+  const capacity = Math.max(0, Math.floor((Number(manager.ship.maxCargo) || 5000) - (Number(manager.ship.cargo) || 0)));
+  if (!Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, itemKey) || qty < 1 || qty > available || qty > capacity) {
+    window.showCorpNotification('Choose a quantity up to your hangar stock and the Transport Manager capacity (' + capacity.toLocaleString() + ').');
+    return;
+  }
+  const shipmentId = 'pilot-sale-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+  const items = {};
+  items[itemKey] = qty;
+  try {
+    const raw = await window.MINISPACE_MARKET.reserveTransportSale(shipmentId, items);
+    const receipt = Array.isArray(raw) ? raw[0] : raw;
+    if (!receipt || receipt.success === false) throw new Error('The market could not reserve these goods.');
+    if (!window.MINISPACE_MARKET.applyToGame(playerData)) throw new Error('The hangar reservation was accepted, but the local hangar could not refresh. Reopen the game before dispatching another sale.');
+    manager.playerSaleTask = { shipmentId: shipmentId, items: items, status: 'reserved' };
+    manager.transportState = 'loading';
+    manager.transportMapId = 'private_highsec';
+    manager.ship.docked = true;
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    updateStationUI();
+    updateCorpUI();
+    window.showCorpNotification('Transport Manager reserved ' + qty.toLocaleString() + ' ' + itemLabel(itemKey) + ' and is preparing the Trade Hub delivery. Commission: 10%.');
+  } catch (error) {
+    window.showCorpNotification('Transport sale could not be dispatched: ' + (error.message || error));
+  }
+};
+
 function updateStationUI() {
   updateMarketUI();
   const inTradeHub = typeof window.getMiniSpaceMapId === 'function' &&
@@ -1536,7 +1604,15 @@ function updateStationUI() {
     let sellPrice = itemPrices[itemKey] || 10;
     let displayName = itemLabel(itemKey).toUpperCase();
     const g = itemKey.indexOf('debris_') === 0 ? 'debris' : 'ore';
-    groupRows[g] += '<tr><td>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td><span style="color:#8b949e;">Trade via Trade Hub</span></td></tr>';
+    const manager = botManager && botManager.bots ? botManager.bots.find(function (b) { return b && b.ship && b.ship.className === 'Transport Capital'; }) : null;
+    const managerReady = !!(manager && manager.transportState === 'loading' && !manager.transportTask && !manager.playerSaleTask && !(manager.ship.cargo || 0));
+    const inTradeHubNow = typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub';
+    const loadRoom = playerShip ? Math.max(0, (Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)) : 0;
+    const rowDefault = Math.min(Math.max(0, Math.floor(Number(qty) || 0)), 5000);
+    const rowInput = '<input id="hangar-qty-' + itemKey + '" type="number" min="1" max="' + Math.max(0, Math.floor(Number(qty) || 0)) + '" value="' + rowDefault + '" inputmode="numeric" style="width:72px;max-width:22%;background:#080d12;color:#fff;border:1px solid #40535c;padding:4px;">';
+    const loadButton = '<button onclick="window.loadHangarItemToShip(\'' + itemKey + '\')" ' + (!playerShip || !playerShip.docked || inTradeHubNow || qty < 1 || loadRoom < 1 ? 'disabled' : '') + '>Load ship</button>';
+    const sellButton = '<button onclick="window.sellHangarItemViaTransport(\'' + itemKey + '\')" ' + (!managerReady || inTradeHubNow || qty < 1 ? 'disabled' : '') + '>Sell via Transport</button>';
+    groupRows[g] += '<tr><td>' + displayName + '</td><td>' + qty.toLocaleString() + '</td><td style="white-space:normal;">' + rowInput + ' ' + loadButton + ' ' + sellButton + '</td></tr>';
     groupCount[g]++;
   }
 
@@ -3074,6 +3150,7 @@ if (
       saved.transportMapId = bot.transportMapId || null;
       saved.transportShipmentId = bot.transportShipmentId || null;
       saved.transportTask = bot.transportTask ? JSON.parse(JSON.stringify(bot.transportTask)) : null;
+      saved.playerSaleTask = bot.playerSaleTask ? JSON.parse(JSON.stringify(bot.playerSaleTask)) : null;
       saved.transportLevel = bot.transportLevel || null;
     });
   };
@@ -3109,6 +3186,11 @@ if (
 
           const stateLabels = {
             loading: 'Loading corporation goods',
+            sell_to_trade_gate: 'Your sale — outbound to Trade Hub',
+            sell_to_market: 'Trade Hub — selling your goods',
+            sell_to_return_gate: 'Sale complete — returning to gate',
+            sell_returning: 'Returning with your sale proceeds',
+
             to_trade_gate: 'FULL — Departing High-Sec',
             to_market: 'Trade Hub — Delivering shipment',
             to_return_gate: 'Trade Hub — Returning to gate',
