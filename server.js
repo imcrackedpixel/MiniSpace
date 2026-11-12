@@ -61,6 +61,10 @@ const PUBLIC_MAPS = new Set([
 
 const MATCH_MAPS = new Set(['public_space']);
 
+function isPublicMap(mapId) {
+  return PUBLIC_MAPS.has(mapId) || /^frontier_ring(?:[1-9]|10)_sector[1-6]$/.test(String(mapId || ''));
+}
+
 const server = http.createServer((req, res) => {
   if (req.url === '/health') {
     res.writeHead(200, {'content-type': 'application/json'});
@@ -168,7 +172,7 @@ function joinRoom(p,mapId) {
   leaveRoom(p);
   p.mapId=mapId;
 
-  if(PUBLIC_MAPS.has(mapId)) {
+  if(isPublicMap(mapId)) {
     const room=publicRoomFor(mapId);
     room.players.add(p.id);
     p.roomId=room.id;
@@ -443,7 +447,8 @@ wss.on('connection',ws=>{
       const room=publicRooms.get(p.roomId);if(!room)return;
       const npcId=safeText(m.npcId,100);if(!npcId)return;
       const existing=room.deadNpcs.get(npcId);if(existing&&existing>Date.now())return;
-      const respawnAt=Math.max(Date.now()+60000,Math.min(Date.now()+120000,Number(m.respawnAt)||Date.now()+90000));
+      const now=Date.now();
+      const respawnAt=Math.max(now+180000,Math.min(now+300000,Number(m.respawnAt)||now+240000));
       room.deadNpcs.set(npcId,respawnAt);
       broadcastRoom(p.roomId,{type:'frontier-npc-killed',mapId:mapId,npcId:npcId,respawnAt:respawnAt});
       return;
