@@ -380,8 +380,9 @@ wss.on('connection',ws=>{
       const accountId=String(m.accountId||'');
       const target=[...players.values()].find(q=>q.accountId===accountId&&q.id!==p.id&&q.ws);
       if(!target){send(ws,{type:'gm-command-result',message:'That pilot is not currently online.'});return;}
-      send(target.ws,{type:'account-banned',message:'Your pilot account has been banned by a Game Master.'});
-      try{target.ws.close(4003,'Pilot account banned');}catch(error){}
+      const isBan=m.banned===true;
+      send(target.ws,{type:isBan?'account-banned':'account-kicked',message:isBan?'Your pilot account has been banned by a Game Master.':'A Game Master updated your pilot data. Reconnecting to load the changes.'});
+      try{target.ws.close(isBan?4003:4000,isBan?'Pilot account banned':'Pilot data updated');}catch(error){}
       leaveRoom(target);
       players.delete(target.id);
       friends.delete(target.id);
