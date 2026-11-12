@@ -195,6 +195,7 @@ class BotManager {
         transportMapId: b.transportMapId || null,
         transportShipmentId: b.transportShipmentId || null,
         transportTask: b.transportTask ? JSON.parse(JSON.stringify(b.transportTask)) : null,
+        playerSaleTask: b.playerSaleTask ? JSON.parse(JSON.stringify(b.playerSaleTask)) : null,
         transportLevel: b.transportLevel || null
       };
     });
@@ -227,6 +228,7 @@ class BotManager {
       bot.transportMapId = s.transportMapId || (bot.transportState ? 'private_highsec' : null);
       bot.transportShipmentId = s.transportShipmentId || null;
       bot.transportTask = s.transportTask ? JSON.parse(JSON.stringify(s.transportTask)) : null;
+      bot.playerSaleTask = s.playerSaleTask ? JSON.parse(JSON.stringify(s.playerSaleTask)) : null;
       bot.transportLevel = String(s.className).toLowerCase().includes('transport') ? Math.max(1, Math.floor(Number(s.transportLevel) || 1)) : null;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
@@ -981,8 +983,148 @@ class BotManager {
           return;
         }
 
+        if (bot.transportState === 'sell_to_trade_gate') {
+          const gateX = 4200, gateY = 2500;
+          if (Math.hypot(gateX - ship.x, gateY - ship.y) > 110) moveTo(gateX, gateY);
+          else {
+            bot.transportMapId = 'public_trade_hub';
+            ship.x = 880; ship.y = 3500; ship.vx = 0; ship.vy = 0;
+            bot.transportState = 'sell_to_market';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+
+        if (bot.transportState === 'sell_to_market') {
+          const marketX = 3500, marketY = 3500;
+          if (Math.hypot(marketX - ship.x, marketY - ship.y) > 850) {
+            moveTo(marketX, marketY);
+            return;
+          }
+          const task = bot.playerSaleTask;
+          if (!task || !task.shipmentId) {
+            bot.transportState = 'sell_to_return_gate';
+            return;
+          }
+          if (bot._playerMarketSalePending) return;
+          if (bot._playerMarketRetryAt && Date.now() < bot._playerMarketRetryAt) return;
+          if (!window.MINISPACE_MARKET || typeof window.MINISPACE_MARKET.completeTransportSale !== 'function') return;
+          bot._playerMarketSalePending = true;
+          window.MINISPACE_MARKET.completeTransportSale(task.shipmentId)
+            .then((raw) => {
+              const receipt = Array.isArray(raw) ? raw[0] : raw;
+              if (!receipt || receipt.success === false) throw new Error('The shared market did not confirm the sale.');
+              if (window.MINISPACE_MARKET.applyToGame(this.playerData)) {
+                if (typeof window.updateStationUI === 'function') window.updateStationUI();
+              }
+              const gross = Math.max(0, Math.floor(Number(receipt.gross) || 0));
+              const fee = Math.max(0, Math.floor(Number(receipt.fee) || 0));
+              const net = Math.max(0, Math.floor(Number(receipt.net) || 0));
+              this.playerData.marketSales = Array.isArray(this.playerData.marketSales) ? this.playerData.marketSales : [];
+              this.playerData.marketSales.push({
+                source: 'player_transport_sale',
+                items: Object.keys(task.items || {}).map(function (key) {
+                  return Math.max(0, Math.floor(Number(task.items[key]) || 0)).toLocaleString() + ' ' + key;
+                }),
+                gross: gross, fee: fee, proceeds: net, time: Date.now()
+              });
+              if (this.playerData.marketSales.length > 100) this.playerData.marketSales.splice(0, this.playerData.marketSales.length - 100);
+              ship.cargo = 0;
+              ship.cargoByOre = {};
+              bot.playerSaleTask = null;
+              bot.transportState = 'sell_to_return_gate';
+              bot._playerMarketSalePending = false;
+              bot._playerMarketRetryAt = 0;
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Sale complete: ' + gross.toLocaleString() + ' gross, ' + fee.toLocaleString() + ' Transport Manager fee, ' + net.toLocaleString() + ' Scrap Metals paid to you.');
+              }
+              if (typeof window.saveGameSession === 'function') window.saveGameSession();
+              if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+            })
+            .catch((error) => {
+              bot._playerMarketSalePending = false;
+              bot._playerMarketRetryAt = Date.now() + 15000;
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager reached the market but could not complete the sale. Cargo is safe and he will retry. ' + (error.message || error));
+              }
+            });
+          return;
+        }
+
+        if (bot.transportState === 'sell_to_return_gate') {
+          const gateX = 700, gateY = 3500;
+          if (Math.hypot(gateX - ship.x, gateY - ship.y) > 110) moveTo(gateX, gateY);
+          else {
+            bot.transportMapId = 'private_highsec';
+            ship.x = 4200; ship.y = 2500; ship.vx = 0; ship.vy = 0;
+            bot.transportState = 'sell_returning';
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+          }
+          return;
+        }
+
+        if (bot.transportState === 'sell_returning') {
+          if (Math.hypot(this.station.x - ship.x, this.station.y - ship.y) > 110) moveTo(this.station.x, this.station.y);
+          else {
+            bot.transportState = 'loading';
+            ship.docked = true; ship.vx = 0; ship.vy = 0;
+            if (typeof window.showCorpNotification === 'function') window.showCorpNotification('Transport Manager returned from your sale and is ready for the next job.');
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+          }
+          return;
+        }
+
         if (bot.transportState === 'loading') {
           ship.docked = true;
+
+          // Player-ordered sales take priority over the corporation's automatic market stock.
+          if (bot.playerSaleTask && (ship.cargo || 0) <= 0) {
+            const saleItems = bot.playerSaleTask.items || {};
+            const saleTotal = Object.keys(saleItems).reduce(function (sum, key) {
+              return sum + Math.max(0, Math.floor(Number(saleItems[key]) || 0));
+            }, 0);
+            if (saleTotal > 0 && saleTotal <= maxCargo) {
+              ship.cargoByOre = Object.assign({}, saleItems);
+              ship.cargo = saleTotal;
+              bot.playerSaleTask.status = 'in_transit';
+              bot.transportState = 'sell_to_trade_gate';
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager loaded your sale and is departing for the Trade Hub.');
+              }
+              if (typeof window.saveGameSession === 'function') window.saveGameSession();
+              if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+            } else {
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager could not load the reserved sale. Contact support before making another sale.');
+              }
+            }
+            return;
+          }
+
+          // Player-ordered sales take priority over the corporation's automatic market stock.
+          if (bot.playerSaleTask && (ship.cargo || 0) <= 0) {
+            const saleItems = bot.playerSaleTask.items || {};
+            const saleTotal = Object.keys(saleItems).reduce(function (sum, key) {
+              return sum + Math.max(0, Math.floor(Number(saleItems[key]) || 0));
+            }, 0);
+            if (saleTotal > 0 && saleTotal <= maxCargo) {
+              ship.cargoByOre = Object.assign({}, saleItems);
+              ship.cargo = saleTotal;
+              bot.playerSaleTask.status = 'in_transit';
+              bot.transportState = 'sell_to_trade_gate';
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager loaded your sale and is departing for the Trade Hub.');
+              }
+              if (typeof window.saveGameSession === 'function') window.saveGameSession();
+              if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+            } else {
+              if (typeof window.showCorpNotification === 'function') {
+                window.showCorpNotification('Transport Manager could not load the reserved sale. Contact support before making another sale.');
+              }
+            }
+            return;
+          }
           ship.vx = 0;
           ship.vy = 0;
 
