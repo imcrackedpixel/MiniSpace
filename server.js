@@ -349,14 +349,21 @@ wss.on('connection',ws=>{
         try{ws.close(4003,'Pilot account banned');}catch(error){}
         return;
       }
-      p.accountId=identity ? identity.accountId : null;
-      p.isGM=!!(identity && identity.isGM);
-      p.authenticated=!!identity;
-      send(ws,{type:'welcome',id:p.id,players:[],zones,resumed:!!p.roomId,authenticated:p.authenticated,isGM:p.isGM});
-      send(ws,{type:'auth-status',authenticated:p.authenticated,isGM:p.isGM});
+      if(!identity){
+        send(ws,{type:'auth-status',authenticated:false,isGM:false});
+        try{ws.close(4001,'Pilot authentication required');}catch(error){}
+        return;
+      }
+      p.accountId=identity.accountId;
+      p.isGM=!!identity.isGM;
+      p.authenticated=true;
+      send(ws,{type:'welcome',id:p.id,players:[],zones,resumed:!!p.roomId,authenticated:true,isGM:p.isGM});
+      send(ws,{type:'auth-status',authenticated:true,isGM:p.isGM});
       if(p.roomId)sendRoomSnapshot(p);
       return;
     }
+
+    if(m.type!=='hello'&&!p.authenticated)return;
 
     if(m.type==='gm-list-online') {
       if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
@@ -579,7 +586,7 @@ setInterval(()=>{
 setInterval(()=>{
   for(const viewer of players.values()) {
     const onlineCount=[...players.values()].filter(target=>
-      target.ws && target.ws.readyState===WebSocket.OPEN && (!target.invisible || viewer.isGM || target.id===viewer.id)
+      target.ws && target.ws.readyState===WebSocket.OPEN && target.authenticated && (!target.invisible || viewer.isGM || target.id===viewer.id)
     ).length;
     send(viewer.ws,{type:'online-count',count:onlineCount});
   }
@@ -595,7 +602,7 @@ server.listen(PORT,()=>{
 setInterval(()=>{
   for(const viewer of players.values()) {
     const directory=[...players.values()]
-      .filter(target=>target.ws && target.ws.readyState===WebSocket.OPEN && (!target.invisible || viewer.isGM || target.id===viewer.id))
+      .filter(target=>target.ws && target.ws.readyState===WebSocket.OPEN && target.authenticated && (!target.invisible || viewer.isGM || target.id===viewer.id))
       .map(target=>({id:target.id,name:target.name,ship:target.ship}));
     send(viewer.ws,{type:'online-directory',players:directory});
   }
