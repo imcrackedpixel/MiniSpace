@@ -409,11 +409,7 @@
    }
    if(message.type==='player'&&message.player&&message.player.id)state.remotePlayers[message.player.id]=message.player;
    if(message.type==='player-left'&&message.id)delete state.remotePlayers[message.id];
-   if(message.type==='frontier-npc-state')window.dispatchEvent(new CustomEvent('minispace-frontier-npc-state',{detail:message}));
-   if(message.type==='frontier-npc-killed')window.dispatchEvent(new CustomEvent('minispace-frontier-npc-death',{detail:message}));
-   if(message.type==='frontier-npc-respawn')window.dispatchEvent(new CustomEvent('minispace-frontier-npc-respawn',{detail:message}));
-
-   if(message.type==='chat'){
+if(message.type==='chat'){
     log('['+message.channel+'] '+message.from+': '+message.text);
    }
 
