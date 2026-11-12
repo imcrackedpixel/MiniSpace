@@ -38,7 +38,7 @@ class Carrier {
     this.accel = 0.085;
     this.friction = 0.93;
     this.cargo = 0;
-    this.maxCargo = 40000;
+    this.maxCargo = 5000;
     this.weaponRange = 800;
 
     // Powerful player stats
