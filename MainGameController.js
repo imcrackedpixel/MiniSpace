@@ -1602,6 +1602,32 @@ window.sellHangarItemViaTransport = async function(itemKey) {
   }
 };
 
+window.sellAllHangarViaTransport = async function() {
+  const keys = Object.keys(GAME_ITEM_LABELS);
+  const available = keys.filter(function(key) {
+    return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
+  });
+  if (!available.length) {
+    window.showCorpNotification('Your Private High-Sec hangar is empty.');
+    return;
+  }
+  if (!playerShip || !playerShip.docked ||
+      (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
+    window.showCorpNotification('Dock at your Private High-Sec station to sell your hangar through the Transport Manager.');
+    return;
+  }
+  let total = 0;
+  for (const key of available) {
+    const qty = Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0));
+    if (qty < 1) continue;
+    const input = document.getElementById('hangar-qty-' + key);
+    if (input) input.value = String(qty);
+    await window.sellHangarItemViaTransport(key);
+    total += qty;
+  }
+  window.showCorpNotification('Sell All submitted ' + total.toLocaleString() + ' goods to the Transport Manager. He will deliver them in cargo-sized trips.');
+};
+
 function updateStationUI() {
   updateMarketUI();
   const inTradeHub = typeof window.getMiniSpaceMapId === 'function' &&
@@ -1705,6 +1731,19 @@ function updateStationUI() {
     hangarHtml += '<tr><td>ITEM LEVEL CHIP</td><td>' + playerData.chips + '</td><td style="color:#8b949e;">Applied on drop</td></tr>';
   }
 
+  const transportManagerForHangar = botManager && botManager.bots ? botManager.bots.find(function (b) {
+    return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className);
+  }) : null;
+  const canSellAllHangar = !!(transportManagerForHangar &&
+    !transportManagerForHangar.transportTask &&
+    (transportManagerForHangar.transportState === 'loading' ||
+      ['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(transportManagerForHangar.transportState)));
+  const hasHangarGoods = Object.keys(GAME_ITEM_LABELS).some(function(key) {
+    return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
+  });
+  hangarHtml = '<div style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" ' +
+    (!canSellAllHangar || !hasHangarGoods || !playerShip || !playerShip.docked || inTradeHub ? 'disabled' : '') +
+    ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></div>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
   if (hangarEl) hangarEl.innerHTML = hangarHtml;
 
