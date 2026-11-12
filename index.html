@@ -87,11 +87,9 @@ try {
 </div>
 
 <div style="display: flex; gap: 4px;">
-<div class="panel" id="minimap-panel" style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-<div id="minimap-heading" style="width:100%;font-size: 8px; font-weight: bold; color: #8aa8b3;">
-MINIMAP
-</div>
-<div id="minimap-container"><canvas id="minimap"></canvas></div>
+<div class="panel" id="minimap-panel" style="display:flex;flex-direction:column;gap:5px;align-items:stretch;">
+<div id="minimap-heading" style="width:100%;font-size:10px;font-weight:bold;color:#9be7d4;">NEARBY IN SPACE <span style="float:right;color:#718b98;font-weight:normal;">TAP TO FLY</span></div>
+<div id="nearby-space-list" aria-live="polite"><div class="nearby-empty">Scanning space…</div></div>
 </div>
 </div>
 </div>
@@ -273,34 +271,7 @@ window.toggleMiniSpaceHud = function(button) {
 })();
 </script>
 
-<!-- MINIMAP COLLAPSE -->
-<script>
-(function() {
-  const panel = document.getElementById('minimap-panel');
-  const heading = document.getElementById('minimap-heading');
-  const map = document.getElementById('minimap-container');
 
-  if (!panel || !heading || !map) return;
-
-  const button = document.createElement('button');
-  button.textContent = '−';
-  button.title = 'Collapse minimap';
-  button.style.cssText =
-    'float:right;background:#203943;color:#dce8ed;border:1px solid #45616c;padding:2px 8px;font-size:12px;cursor:pointer;';
-
-  heading.appendChild(button);
-
-  let collapsed = false;
-
-  button.addEventListener('click', function(event) {
-    event.stopPropagation();
-    collapsed = !collapsed;
-    map.style.display = collapsed ? 'none' : '';
-    button.textContent = collapsed ? '+' : '−';
-    button.title = collapsed ? 'Expand minimap' : 'Collapse minimap';
-  });
-})();
-</script>
 
 </body>
 </html>
