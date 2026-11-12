@@ -531,7 +531,7 @@ window.openUniverse=function(){
  const xy=id=>{const p=pos[id]||[50,50];return [p[0]*7.6,p[1]*4.8];};
  const routes=[];systems.forEach(s=>s.links.forEach(id=>{if(s.id<id){const a=xy(s.id),b=xy(id);routes.push('<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" class="universe-route-line"/>');}}));
  const stars=systems.map(s=>{const p=xy(s.id),col=['#8aa8b3','#75c9a8','#5ca8d8','#b18be8','#ed6a70'][s.level-1]||'#8aa8b3';return '<g><circle cx="'+p[0]+'" cy="'+p[1]+'" r="23" fill="'+col+'" opacity=".10"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="10" fill="'+col+'" opacity=".16"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+col+'"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="15" fill="none" stroke="'+col+'" stroke-opacity=".5" stroke-dasharray="2 5"/></g>';}).join('');
- const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];const reachable=s.id!==current;return '<button type="button" class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+(reachable?' reachable':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" data-system-id="'+s.id+'" '+(reachable?'aria-label="Fly to gate for '+s.name+'"':'disabled aria-disabled="true"')+'><strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+(reachable?' · FLY TO GATE':'')+'</small></button>';}).join('');
+ const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];const reachable=s.id!==current;const icon=s.shipIcon||'🚀',ship=s.recommendedShip||'Frigate';return '<button type="button" class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+(reachable?' reachable':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" data-system-id="'+s.id+'" '+(reachable?'aria-label="Fly to gate for '+s.name+'. Recommended ship: '+ship+'"':'disabled aria-disabled="true"')+'><strong><span class="universe-ship-icon" title="Recommended ship: '+ship+'">'+icon+'</span>'+s.name+'</strong><small>LVL '+s.level+' · '+ship.toUpperCase()+(s.links.length===1?' · DEAD END':'')+(reachable?' · FLY TO GATE':'')+'</small></button>';}).join('');
  host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Tap any system to plot the shortest gate route. Your ship flies through each physical gate in sequence; it never teleports.</p>';
  if(!host.dataset.navigationBound){host.addEventListener('click',function(event){const node=event.target.closest('button[data-system-id]');if(node&&!node.disabled)window.flyToFrontierGate(node.getAttribute('data-system-id'));});host.dataset.navigationBound='1';}
  modal.style.display='flex';
@@ -2596,11 +2596,24 @@ function render() {
 }
 
 let frameCount = 0;
-function gameLoop() {
+// Fixed-step simulation: camera zoom changes only rendering, never the rate at which the world advances.
+const SIMULATION_STEP_MS = 1000 / 60;
+let lastSimulationFrame = null;
+let simulationAccumulator = 0;
+function gameLoop(timestamp) {
   requestAnimationFrame(gameLoop);
   if (!ctx || !playerShip) return;
   try {
-    updateGame();
+    const now = Number(timestamp) || (lastSimulationFrame === null ? 0 : lastSimulationFrame + SIMULATION_STEP_MS);
+    const elapsed = lastSimulationFrame === null ? SIMULATION_STEP_MS : Math.min(250, Math.max(0, now - lastSimulationFrame));
+    lastSimulationFrame = now;
+    simulationAccumulator += elapsed;
+    let steps = 0;
+    while (simulationAccumulator >= SIMULATION_STEP_MS && steps < 15) {
+      updateGame();
+      simulationAccumulator -= SIMULATION_STEP_MS;
+      steps++;
+    }
     render();
     frameCount++;
     if (frameCount % 5 === 0) { updateHUD(); drawMinimap(); }
