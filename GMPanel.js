@@ -37,13 +37,20 @@
         <label>Online administration</label>
         <div class="gm-row"><button id="gm-refresh-online">REFRESH PILOTS</button><button id="gm-toggle-invisible">GO INVISIBLE</button></div>
         <div id="gm-online-pilots">Press REFRESH PILOTS to inspect online pilots.</div>
-        <label for="gm-scrap-amount">Give yourself Scrap Metals</label>
+        <label for="gm-target-name">Target pilot callsign</label>
+        <input id="gm-target-name" maxlength="24" placeholder="Exact pilot callsign">
+        <input id="gm-ban-reason" maxlength="180" placeholder="Ban reason (optional)" style="margin-top:7px">
+        <div class="gm-row"><button id="gm-inspect-target">INSPECT</button><button id="gm-ban-target">BAN PILOT</button><button id="gm-unban-target">UNBAN</button></div>
+        <div id="gm-target-details" style="margin-top:8px;padding:8px;background:#081116;border:1px solid #314b52;border-radius:6px;max-height:130px;overflow:auto;font-size:11px;white-space:pre-wrap">No pilot selected.</div>
+        <label for="gm-scrap-amount">Scrap Metals amount</label>
         <input id="gm-scrap-amount" type="number" min="1" max="1000000000000" value="1000000" inputmode="numeric">
         <div class="gm-row"><button id="gm-give-scrap">GIVE SCRAP METALS</button></div>
+        <div class="gm-row"><button id="gm-give-target-isk">GIVE ISK TO PILOT</button><button id="gm-remove-target-isk">REMOVE ISK</button></div>
         <label for="gm-item">Give items to Private High-Sec hangar</label>
         <select id="gm-item"></select>
         <input id="gm-item-amount" type="number" min="1" max="1000000000" value="100" inputmode="numeric" style="margin-top:7px">
         <div class="gm-row"><button id="gm-give-item">GIVE ITEM</button></div>
+        <div class="gm-row"><button id="gm-give-target-item">GIVE TO PILOT</button><button id="gm-remove-target-item">REMOVE FROM PILOT</button></div>
         <div id="minispace-gm-status" role="status"></div>
         <div class="gm-row"><button id="gm-close" style="background:#26343a">CLOSE</button></div>
       </div>`;
@@ -71,6 +78,43 @@
       status(event.detail?'You are now invisible to other pilots.':'You are visible to other pilots.');
     });
     window.addEventListener('minispace-gm-error',event=>status(event.detail||'GM command failed.'));
+    window.addEventListener('minispace-gm-result',event=>status(event.detail||'Command complete.'));
+    const targetName=()=>document.getElementById('gm-target-name').value.trim();
+    const targetDetails=document.getElementById('gm-target-details');
+    document.getElementById('gm-inspect-target').onclick=async()=>{
+      if(!targetName())return status('Enter the exact pilot callsign first.');
+      try{const info=await window.MINISPACE_GM.inspectPilot(targetName());targetDetails.textContent='PILOT: '+info.pilotName+'\\nWALLET: '+Number(info.wallet||0).toLocaleString()+' ISK\\nBAN: '+(info.banned?'YES — '+info.banReason:'No')+'\\nHANGARS: '+JSON.stringify(info.hangars||[]);status('Pilot inspection complete.');}
+      catch(error){status(error.message||'Could not inspect pilot.');}
+    };
+    document.getElementById('gm-ban-target').onclick=async()=>{
+      if(!targetName())return status('Enter the exact pilot callsign first.');
+      if(!confirm('Ban '+targetName()+'? They will be disconnected and blocked from logging in.'))return;
+      try{const result=await window.MINISPACE_GM.banPilot(targetName(),document.getElementById('gm-ban-reason').value);window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId});status(targetName()+' banned and disconnected if online.');}
+      catch(error){status(error.message||'Could not ban pilot.');}
+    };
+    document.getElementById('gm-unban-target').onclick=async()=>{
+      if(!targetName())return status('Enter the exact pilot callsign first.');
+      try{await window.MINISPACE_GM.unbanPilot(targetName());status(targetName()+' unbanned.');}
+      catch(error){status(error.message||'Could not unban pilot.');}
+    };
+    document.getElementById('gm-give-target-isk').onclick=async()=>adjustWallet(1);
+    document.getElementById('gm-remove-target-isk').onclick=async()=>adjustWallet(-1);
+    async function adjustWallet(direction){
+      if(!targetName())return status('Enter the exact pilot callsign first.');
+      const amount=Number(document.getElementById('gm-scrap-amount').value);
+      if(!Number.isSafeInteger(amount)||amount<1)return status('Enter a valid whole-number amount.');
+      try{const result=await window.MINISPACE_GM.adjustPilotWallet(targetName(),amount*direction);status('Wallet updated. New balance: '+Number(result.wallet).toLocaleString()+' ISK.');}
+      catch(error){status(error.message||'Could not adjust pilot wallet.');}
+    }
+    document.getElementById('gm-give-target-item').onclick=async()=>adjustItem(1);
+    document.getElementById('gm-remove-target-item').onclick=async()=>adjustItem(-1);
+    async function adjustItem(direction){
+      if(!targetName())return status('Enter the exact pilot callsign first.');
+      const amount=Number(document.getElementById('gm-item-amount').value);
+      if(!Number.isSafeInteger(amount)||amount<1)return status('Enter a valid whole-number quantity.');
+      try{const result=await window.MINISPACE_GM.adjustPilotItem(targetName(),select.value,amount*direction,'private_highsec');status('Hangar updated: '+labels[select.value]+' quantity is now '+result.quantity+'.');}
+      catch(error){status(error.message||'Could not adjust pilot hangar.');}
+    }
     document.getElementById('gm-refresh-online').onclick=()=>{
       if(!window.MinispaceOnline?.state?.isGM)return status('Server has not verified GM permissions yet.');
       window.MinispaceOnline.send({type:'gm-list-online'});
