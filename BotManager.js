@@ -63,6 +63,19 @@ class BotManager {
     ship.docked = false;
     ship.cargo = 0;
     ship.maxCargo = ship.maxCargo || 50000;
+
+    // Corp carrier drones keep combat behaviour but emit no exhaust smoke.
+    if (Array.isArray(ship.drones)) {
+      ship.drones.forEach(entry => {
+        const drone = entry && (entry.ship || entry);
+        if (!drone) return;
+        drone.isCorpMemberDrone = true;
+        drone.disableThrusterEffects = true;
+        if (Array.isArray(drone.particles)) drone.particles.length = 0;
+        if (Array.isArray(drone.missileTrails)) drone.missileTrails.length = 0;
+      });
+    }
+
     return ship;
   }
 
