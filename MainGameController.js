@@ -845,7 +845,7 @@ window.buildDesign = function(key) {
   if (!playerShip.docked) { window.showCorpNotification('Dock at the station to build.'); return; }
   if (!(playerData.designs[key] > 0)) return;
   if (d.cost && hangarItemValue() < d.cost.items) {
-    showMissingOrePrompt(key);
+    window.showCorpNotification('Not enough materials in your Private High-Sec hangar. Supply them through the Trade Hub market, then transfer them into your private hangar before building.');
     return;
   }
   if (!payDesignCost(d.cost)) return;
@@ -948,7 +948,8 @@ window.buildShip = function(unlockKey, className) {
   if (!recipe) { window.showCorpNotification('No recipe for ' + className); return; }
   const short = recipeShortfall(recipe);
   if (short.length > 0) {
-    showBuyMissingPrompt(className, short, function () { window.buildShip(unlockKey, className); });
+    window.showCorpNotification(className + ' cannot be built. ' + missingMaterialsMessage(short) +
+      '. Materials must physically be in your Private High-Sec hangar; the shipyard cannot create or buy missing stock.');
     return;
   }
   consumeRecipe(recipe);
