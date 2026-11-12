@@ -1,5 +1,5 @@
 
-/* MiniSpace Online: multiplayer with automatic reconnect */
+/* MiniSpace Online: multiplayer with reconnect identity */
 (function(){
  const state={
   socket:null,
@@ -15,6 +15,26 @@
  };
 
  const $=id=>document.getElementById(id);
+
+ function getResumeToken(){
+  let token=localStorage.getItem('minispace_resume_token');
+
+  if(!token){
+   if(window.crypto&&crypto.randomUUID){
+    token=crypto.randomUUID();
+   }else{
+    const bytes=new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    token=Array.from(bytes)
+     .map(b=>b.toString(16).padStart(2,'0'))
+     .join('');
+   }
+
+   localStorage.setItem('minispace_resume_token',token);
+  }
+
+  return token;
+ }
 
  function panel(){
   if($('online-panel'))return;
@@ -283,7 +303,8 @@
 
    send({
     type:'hello',
-    name:localStorage.getItem('minispace_pilot_name')||'Pilot'
+    name:localStorage.getItem('minispace_pilot_name')||'Pilot',
+    resumeToken:getResumeToken()
    });
 
    tick();
@@ -321,6 +342,10 @@
    if(message.type==='welcome'){
     state.id=message.id;
     render();
+
+    if(message.resumed){
+     log('Welcome back! Your pilot session was restored.');
+    }
    }
 
    if(message.type==='room-joined'){
