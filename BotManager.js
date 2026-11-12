@@ -946,7 +946,7 @@ class BotManager {
             if (typeof window.showCorpNotification === 'function') {
               window.showCorpNotification(
                 'Transport Manager sold the corporation shipment for ' +
-                proceeds.toLocaleString() + ' ISK.'
+                proceeds.toLocaleString() + ' Scrap Metals.'
               );
             }
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
