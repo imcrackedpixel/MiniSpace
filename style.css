@@ -731,3 +731,9 @@ html:fullscreen body, html:-webkit-full-screen body {
 #minispace-top-controls #minispace-fullscreen-btn{color:#9be7d4!important;background:rgba(9,20,27,.98)!important;border:1px solid #34785d!important;border-radius:6px!important}
 #minispace-top-controls #minispace-ui-toggle{color:#bcefe0!important;background:rgba(8,20,29,.98)!important;border:1px solid #3b6570!important;border-radius:6px!important}
 @media(max-width:700px){#minispace-top-controls #minispace-ui-toggle,#minispace-top-controls #minispace-fullscreen-btn{min-height:30px!important;height:30px!important;padding:3px 7px!important;font-size:8px!important}}
+
+
+/* Cargo counter reacts immediately when the hold gains or loses items. */
+#cargo-text{display:inline-block;min-width:130px;font-weight:800;color:#9be7d4;transition:color .15s, text-shadow .15s}
+#cargo-text.cargo-changed{animation:cargo-counter-pulse .42s ease-out}
+@keyframes cargo-counter-pulse{0%{color:#fff;text-shadow:0 0 12px #58e6c0;transform:scale(1.05)}100%{color:#9be7d4;text-shadow:none;transform:scale(1)}}
