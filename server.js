@@ -2,46 +2,427 @@
 const http = require('http');
 const WebSocket = require('ws');
 const crypto = require('crypto');
+
 const PORT = Number(process.env.PORT || 8080);
-const server = http.createServer((req,res)=>{
-  if(req.url==='/health'){res.writeHead(200,{'content-type':'application/json'});return res.end(JSON.stringify({ok:true,service:'minispace-online'}));}
-  res.writeHead(200,{'content-type':'text/plain'});res.end('Minispace Online server');
+const MAX_PUBLIC_PLAYERS = 20;
+
+// These are the new shared public worlds.
+// The game maps themselves will be added separately.
+const PUBLIC_MAPS = new Set([
+  'public_trade_hub',
+  'public_lowsec',
+  'public_nullsec'
+]);
+
+const server = http.createServer((req, res) => {
+  if (req.url === '/health') {
+    res.writeHead(200, {'content-type': 'application/json'});
+    return res.end(JSON.stringify({
+      ok: true,
+      service: 'minispace-online'
+    }));
+  }
+
+  res.writeHead(200, {'content-type': 'text/plain'});
+  res.end('Minispace Online server');
 });
+
 const wss = new WebSocket.Server({server});
-const players = new Map(), friends = new Map();
-const zones = [{id:'high-sec',name:'High Security',x:0,y:0,radius:1800,pvp:false},{id:'low-sec',name:'Low Security',x:2600,y:0,radius:1800,pvp:true},{id:'null-sec',name:'Frontier',x:0,y:2600,radius:2200,pvp:true}];
-function zoneAt(x,y){return zones.find(z=>Math.hypot(x-z.x,y-z.y)<=z.radius)||{id:'deep-space',name:'Deep Space',pvp:true};}
-function send(ws,obj){if(ws.readyState===WebSocket.OPEN)ws.send(JSON.stringify(obj));}
-function broadcast(obj,except){const raw=JSON.stringify(obj);for(const p of players.values())if(p.ws!==except&&p.ws.readyState===WebSocket.OPEN)p.ws.send(raw);}
-function safeText(s,n=240){return String(s||'').replace(/[<>]/g,'').slice(0,n);}
+
+const players = new Map();
+const friends = new Map();
+const publicRooms = new Map();
+
+const zones = [
+  {
+    id:'high-sec',
+    name:'High Security',
+    x:0,
+    y:0,
+    radius:1800,
+    pvp:false
+  },
+  {
+    id:'low-sec',
+    name:'Low Security',
+    x:2600,
+    y:0,
+    radius:1800,
+    pvp:true
+  },
+  {
+    id:'null-sec',
+    name:'Frontier',
+    x:0,
+    y:2600,
+    radius:2200,
+    pvp:true
+  }
+];
+
+function zoneAt(x,y) {
+  return zones.find(z =>
+    Math.hypot(x-z.x,y-z.y)<=z.radius
+  ) || {
+    id:'deep-space',
+    name:'Deep Space',
+    pvp:true
+  };
+}
+
+function send(ws,obj) {
+  if(ws.readyState===WebSocket.OPEN) {
+    ws.send(JSON.stringify(obj));
+  }
+}
+
+function safeText(s,n=240) {
+  return String(s||'')
+    .replace(/[<>]/g,'')
+    .slice(0,n);
+}
+
+function publicRoomFor(mapId) {
+  let room=null;
+
+  for(const candidate of publicRooms.values()) {
+    if(
+      candidate.mapId===mapId &&
+      candidate.players.size<MAX_PUBLIC_PLAYERS
+    ) {
+      room=candidate;
+      break;
+    }
+  }
+
+  if(!room) {
+    const number=1+
+      [...publicRooms.values()]
+        .filter(r=>r.mapId===mapId).length;
+
+    room={
+      id:'public:'+mapId+':'+number,
+      mapId,
+      players:new Set()
+    };
+
+    publicRooms.set(room.id,room);
+  }
+
+  return room;
+}
+
+function leaveRoom(p) {
+  if(!p.roomId)return;
+
+  const oldRoomId=p.roomId;
+  const oldRoom=publicRooms.get(oldRoomId);
+
+  if(oldRoom) {
+    oldRoom.players.delete(p.id);
+
+    if(oldRoom.players.size===0) {
+      publicRooms.delete(oldRoomId);
+    }
+  }
+
+  for(const other of players.values()) {
+    if(
+      other.id!==p.id &&
+      other.roomId===oldRoomId
+    ) {
+      send(other.ws,{
+        type:'player-left',
+        id:p.id
+      });
+    }
+  }
+
+  p.roomId=null;
+}
+
+function joinRoom(p,mapId) {
+  if(p.mapId===mapId && p.roomId)return;
+
+  leaveRoom(p);
+
+  p.mapId=mapId;
+
+  if(PUBLIC_MAPS.has(mapId)) {
+    const room=publicRoomFor(mapId);
+
+    room.players.add(p.id);
+    p.roomId=room.id;
+    p.roomType='public';
+  } else {
+    // Private maps get a room belonging only to this connection.
+    // The 3v3 station-loot map is deliberately not shared here.
+    p.roomId='private:'+p.id;
+    p.roomType='private';
+  }
+
+  send(p.ws,{
+    type:'room-joined',
+    mapId:p.mapId,
+    roomId:p.roomId,
+    roomType:p.roomType,
+    capacity:p.roomType==='public'
+      ? MAX_PUBLIC_PLAYERS
+      : 1
+  });
+
+  // Send existing occupants to the player who just joined.
+  for(const other of players.values()) {
+    if(
+      other.id!==p.id &&
+      other.roomId===p.roomId
+    ) {
+      send(p.ws,{
+        type:'player',
+        player:publicPlayer(other)
+      });
+    }
+  }
+}
+
+function publicPlayer(p) {
+  return {
+    id:p.id,
+    name:p.name,
+    x:p.x,
+    y:p.y,
+    angle:p.angle,
+    ship:p.ship,
+    system:p.system,
+    mapId:p.mapId,
+    roomId:p.roomId,
+    zone:p.zone,
+    pvp:p.pvp
+  };
+}
+
+function broadcastRoom(roomId,obj,except) {
+  for(const p of players.values()) {
+    if(
+      p.roomId===roomId &&
+      p.ws!==except
+    ) {
+      send(p.ws,obj);
+    }
+  }
+}
+
+function broadcastAll(obj,except) {
+  for(const p of players.values()) {
+    if(p.ws!==except)send(p.ws,obj);
+  }
+}
+
 wss.on('connection',ws=>{
- const id=crypto.randomUUID();
- const p={id,ws,name:'Pilot',x:0,y:0,angle:0,ship:'Unknown',system:'High-sec 1.0',zone:'high-sec',last:Date.now()};
- players.set(id,p); friends.set(id,new Set());
- send(ws,{type:'welcome',id,players:[...players.values()].filter(q=>q.id!==id).map(({ws,...q})=>q),zones});
- ws.on('message',buf=>{
-  let m;try{m=JSON.parse(buf.toString())}catch{return;}
-  if(m.type==='hello'){p.name=safeText(m.name,16)||'Pilot';}
-  if(m.type==='state'){
-   p.x=Number.isFinite(+m.x)?Math.max(-10000,Math.min(10000,+m.x)):p.x;
-   p.y=Number.isFinite(+m.y)?Math.max(-10000,Math.min(10000,+m.y)):p.y;
-   p.angle=Number(m.angle)||0;p.ship=safeText(m.ship,32);p.system=safeText(m.system,48);
-   const z=zoneAt(p.x,p.y);p.zone=z.id;p.pvp=z.pvp;p.last=Date.now();
-   broadcast({type:'player',player:{id:p.id,name:p.name,x:p.x,y:p.y,angle:p.angle,ship:p.ship,system:p.system,zone:p.zone,pvp:p.pvp}},ws);
-  }
-  if(m.type==='chat'){
-   const text=safeText(m.text,240).trim();if(!text)return;
-   const channel=['global','local','fleet','whisper'].includes(m.channel)?m.channel:'global';
-   if(channel==='whisper'){const target=[...players.values()].find(q=>q.name.toLowerCase()===safeText(m.to,16).toLowerCase());if(target)send(target.ws,{type:'chat',from:p.name,channel,text});send(ws,{type:'chat',from:p.name,channel,text,to:m.to});}
-   else broadcast({type:'chat',from:p.name,channel,text,zone:p.zone});
-  }
-  if(m.type==='friend-request'){
-   const target=[...players.values()].find(q=>q.name.toLowerCase()===safeText(m.name,16).toLowerCase());
-   if(target&&target.id!==id)send(target.ws,{type:'friend-request',from:p.name});
-  }
-  if(m.type==='friend-accept'){const other=[...players.values()].find(q=>q.name.toLowerCase()===safeText(m.name,16).toLowerCase());if(other){friends.get(id).add(other.id);friends.get(other.id)?.add(id);send(ws,{type:'friend-added',name:other.name});send(other.ws,{type:'friend-added',name:p.name});}}
- });
- ws.on('close',()=>{players.delete(id);friends.delete(id);broadcast({type:'player-left',id});});
+  const id=crypto.randomUUID();
+
+  const p={
+    id,
+    ws,
+    name:'Pilot',
+    x:0,
+    y:0,
+    angle:0,
+    ship:'Unknown',
+    system:'High-sec 1.0',
+    mapId:null,
+    roomId:null,
+    roomType:'private',
+    zone:'high-sec',
+    last:Date.now()
+  };
+
+  players.set(id,p);
+  friends.set(id,new Set());
+
+  send(ws,{
+    type:'welcome',
+    id,
+    players:[],
+    zones
+  });
+
+  ws.on('message',buf=>{
+    let m;
+
+    try {
+      m=JSON.parse(buf.toString());
+    } catch {
+      return;
+    }
+
+    if(m.type==='hello') {
+      p.name=safeText(m.name,16)||'Pilot';
+      return;
+    }
+
+    if(m.type==='state') {
+      const requestedMap=safeText(m.mapId,48);
+
+      const mapId=PUBLIC_MAPS.has(requestedMap)
+        ? requestedMap
+        : (
+          requestedMap &&
+          requestedMap!=='public_space'
+            ? requestedMap
+            : 'private_highsec'
+        );
+
+      joinRoom(p,mapId);
+
+      p.x=Number.isFinite(+m.x)
+        ? Math.max(-10000,Math.min(10000,+m.x))
+        : p.x;
+
+      p.y=Number.isFinite(+m.y)
+        ? Math.max(-10000,Math.min(10000,+m.y))
+        : p.y;
+
+      p.angle=Number(m.angle)||0;
+      p.ship=safeText(m.ship,32);
+      p.system=safeText(m.system,48);
+
+      const z=zoneAt(p.x,p.y);
+      p.zone=z.id;
+      p.pvp=z.pvp;
+      p.last=Date.now();
+
+      broadcastRoom(
+        p.roomId,
+        {
+          type:'player',
+          player:publicPlayer(p)
+        },
+        ws
+      );
+
+      return;
+    }
+
+    if(m.type==='chat') {
+      const text=safeText(m.text,240).trim();
+      if(!text)return;
+
+      const channel=[
+        'global',
+        'local',
+        'fleet',
+        'whisper'
+      ].includes(m.channel)
+        ? m.channel
+        : 'global';
+
+      if(channel==='whisper') {
+        const target=[...players.values()].find(q =>
+          q.name.toLowerCase()===
+          safeText(m.to,16).toLowerCase()
+        );
+
+        if(target) {
+          send(target.ws,{
+            type:'chat',
+            from:p.name,
+            channel,
+            text
+          });
+        }
+
+        send(ws,{
+          type:'chat',
+          from:p.name,
+          channel,
+          text,
+          to:m.to
+        });
+
+      } else if(channel==='local') {
+        for(const other of players.values()) {
+          if(other.roomId===p.roomId) {
+            send(other.ws,{
+              type:'chat',
+              from:p.name,
+              channel,
+              text
+            });
+          }
+        }
+
+      } else {
+        // Global chat remains available across all rooms.
+        broadcastAll({
+          type:'chat',
+          from:p.name,
+          channel,
+          text
+        });
+      }
+
+      return;
+    }
+
+    if(m.type==='friend-request') {
+      const target=[...players.values()].find(q =>
+        q.name.toLowerCase()===
+        safeText(m.name,16).toLowerCase()
+      );
+
+      if(target&&target.id!==id) {
+        send(target.ws,{
+          type:'friend-request',
+          from:p.name
+        });
+      }
+
+      return;
+    }
+
+    if(m.type==='friend-accept') {
+      const other=[...players.values()].find(q =>
+        q.name.toLowerCase()===
+        safeText(m.name,16).toLowerCase()
+      );
+
+      if(other) {
+        friends.get(id).add(other.id);
+        friends.get(other.id)?.add(id);
+
+        send(ws,{
+          type:'friend-added',
+          name:other.name
+        });
+
+        send(other.ws,{
+          type:'friend-added',
+          name:p.name
+        });
+      }
+    }
+  });
+
+  ws.on('close',()=>{
+    leaveRoom(p);
+    players.delete(id);
+    friends.delete(id);
+  });
 });
-setInterval(()=>{const now=Date.now();for(const [id,p] of players)if(now-p.last>45000){send(p.ws,{type:'ping'});}},15000);
-server.listen(PORT,()=>console.log(`Minispace Online listening on ${PORT}`));
+
+setInterval(()=>{
+  const now=Date.now();
+
+  for(const p of players.values()) {
+    if(now-p.last>45000) {
+      send(p.ws,{type:'ping'});
+    }
+  }
+},15000);
+
+server.listen(PORT,()=>{
+  console.log(
+    `Minispace Online listening on ${PORT}`
+  );
+});
