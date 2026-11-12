@@ -2293,3 +2293,46 @@ if (
     );
   };
 })();
+
+/* HIDE AND DISABLE 3V3 ENTRANCE INSIDE TRADE HUB ONLY */
+(function () {
+  const previousUpdate = updateGame;
+
+  updateGame = function () {
+    const gate = mapManager && mapManager.publicGate;
+
+    if (mapManager.currentMapId === 'public_trade_hub' && gate) {
+      const oldRadius = gate.radius;
+      gate.radius = 0;
+
+      try {
+        previousUpdate();
+      } finally {
+        gate.radius = oldRadius;
+      }
+      return;
+    }
+
+    previousUpdate();
+  };
+
+  const previousRender = render;
+
+  render = function () {
+    const gate = mapManager && mapManager.publicGate;
+
+    if (mapManager.currentMapId === 'public_trade_hub' && gate) {
+      const oldDraw = gate.draw;
+      gate.draw = function () {};
+
+      try {
+        previousRender();
+      } finally {
+        gate.draw = oldDraw;
+      }
+      return;
+    }
+
+    previousRender();
+  };
+})();
