@@ -151,7 +151,8 @@ let playerData = {
   builtHulls: {},                       // hull className -> true once a blueprint built it (stays in hangar)
   chips: 0,                             // item level chips in hangar
   moduleBonusCap: {},                    // className -> module -> extra max levels
-  progression: { xp: 0, level: 1, skillPoints: 0, spent: { combat: {}, mining: {} } }
+  progression: { xp: 0, level: 1, skillPoints: 0, spent: { combat: {}, mining: {} } },
+  offensiveMode: false
 };
 
 mainStation = new SpaceStation(WORLD_SIZE / 2, 700, 'Private High-Sec 1.0'); // top middle of the High-Sec map
@@ -333,6 +334,7 @@ function saveGameSession() {
 function loadGameSession() {
   playerShip = sessionManager.load(playerData, botManager, playerShip);
   if (!playerData.upgrades) playerData.upgrades = {};
+  if (typeof playerData.offensiveMode !== 'boolean') playerData.offensiveMode = false;
   if (!playerData.designs) playerData.designs = {};
   if (typeof playerData.designs.explorer !== 'number') playerData.designs.explorer = 0;
   if (typeof playerData.designs.cruiser !== 'number') playerData.designs.cruiser = 0;
@@ -508,6 +510,11 @@ window.resetGameSave = function() {
 
 window.jumpToFrontierSystem=function(id){
  if(!playerShip||(missionManager&&missionManager.activeMission)){window.showCorpNotification('Finish your active mission before entering the frontier.');return;}
+ const current=mapManager.currentMapId;
+ const allowed=current==='private_highsec'
+   ? id==='frontier_ashen'
+   : (String(current).indexOf('frontier_')===0 && (window.MINISPACE_UNIVERSE_SYSTEMS||[]).some(s=>s.id===current&&s.links.includes(id)));
+ if(!allowed){window.showCorpNotification('Fly through a connected space gate to reach that system.');return;}
  if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
  const r=mapManager.jumpToFrontierSystem(playerShip,id);if(!r)return;
  asteroidBelt=r.asteroidBelt;debrisField=r.debrisField;if(publicNpcManager&&typeof publicNpcManager.initFrontier==='function')publicNpcManager.initFrontier(r.system);targetMovePos=null;lockedTarget=null;isDockingRequested=false;gateCooldown=180;
@@ -521,8 +528,8 @@ window.openUniverse=function(){
  const xy=id=>{const p=pos[id]||[50,50];return [p[0]*7.6,p[1]*4.8];};
  const routes=[];systems.forEach(s=>s.links.forEach(id=>{if(s.id<id){const a=xy(s.id),b=xy(id);routes.push('<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" class="universe-route-line"/>');}}));
  const stars=systems.map(s=>{const p=xy(s.id),col=['#8aa8b3','#75c9a8','#5ca8d8','#b18be8','#ed6a70'][s.level-1]||'#8aa8b3';return '<g><circle cx="'+p[0]+'" cy="'+p[1]+'" r="23" fill="'+col+'" opacity=".10"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="10" fill="'+col+'" opacity=".16"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+col+'"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="15" fill="none" stroke="'+col+'" stroke-opacity=".5" stroke-dasharray="2 5"/></g>';}).join('');
- const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];return '<button class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" onclick="window.jumpToFrontierSystem(&quot;'+s.id+'&quot;)" '+(current===s.id?'disabled':'')+'><strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+'</small></button>';}).join('');
- host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Select a system to warp there. Lines show gate routes. Dead ends are marked. Autoplay is disabled in frontier space.</p>';
+ const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];return '<div class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%"><strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+'</small></div>';}).join('');
+ host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Fly to the Ashen Reach gate in High-Sec, then travel between connected systems through their gates. The chart is navigation only; it cannot teleport you. Autoplay is disabled in frontier space.</p>';
  modal.style.display='flex';
 };
 window.closeUniverse=function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
@@ -635,6 +642,20 @@ window.requestDock = function() {
 
 // Autoplay can be started from the station or in flight. The rules for which hulls
 // and which zones are allowed live in AutoplayManager.toggle().
+window.toggleOffensiveMode = function() {
+  playerData.offensiveMode = !playerData.offensiveMode;
+  if (playerShip) playerShip.ignoreStationBoss = !playerData.offensiveMode;
+  const button = document.getElementById('offensive-btn');
+  if (button) {
+    button.textContent = 'OFFENSIVE: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
+    button.style.color = playerData.offensiveMode ? '#ff8b82' : '#9aa7b0';
+    button.style.borderColor = playerData.offensiveMode ? '#b94a48' : '#39434b';
+  }
+  saveGameSession();
+  window.showCorpNotification(playerData.offensiveMode
+    ? 'Offensive systems armed. Your ship will engage pirates.'
+    : 'Weapons safety ON. Your ship will not fire.');
+};
 window.toggleAutoplay = function() {
   if (!autoplayManager) return;
   if(mapManager&&String(mapManager.currentMapId).indexOf('frontier_')===0&&!autoplayManager.isAutoplay){window.showCorpNotification('Autoplay is disabled in frontier systems. Manual flight only.');return;}
@@ -2139,6 +2160,13 @@ function updateHUD() {
     }
   }
   if ((b = document.getElementById('dock-btn'))) b.style.display = (s.docked || inPublicSpace()) ? 'none' : 'block';
+  if ((b = document.getElementById('offensive-btn'))) {
+    b.style.display = ['Combat Frigate','Carrier','Siege Cruiser','Siege Battleship','Siege Capital','Explorer Cruiser'].includes(s.className) ? 'block' : 'none';
+    b.textContent = 'OFFENSIVE: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
+    b.style.color = playerData.offensiveMode ? '#ff8b82' : '#9aa7b0';
+    b.style.borderColor = playerData.offensiveMode ? '#b94a48' : '#39434b';
+    s.ignoreStationBoss = !playerData.offensiveMode;
+  }
 }
 
 function drawMinimap() {
@@ -2197,6 +2225,10 @@ function drawMinimap() {
     if (mapManager && mapManager.publicGate) {
       m.fillStyle = '#f85149';
       m.fillRect(mapManager.publicGate.x * sc - 2, mapManager.publicGate.y * sc - 2, 4, 4);
+    }
+    if (mapManager && mapManager.frontierEntryGate) {
+      m.fillStyle = '#fb923c';
+      m.fillRect(mapManager.frontierEntryGate.x * sc - 3, mapManager.frontierEntryGate.y * sc - 3, 6, 6);
     }
     if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned &&
         mapManager && mapManager.missionEntryGate) {
@@ -2268,8 +2300,13 @@ function manualControl() {
     const list = isExplorerClass(cls) ? (debrisField ? debrisField.getEntities() : []) : (asteroidBelt ? asteroidBelt.entities : []);
     tgt = isExplorerClass(cls) ? lockedTarget : (lockedTarget || nearestIn(list, ship.x, ship.y, 3000));
   }
-  const enemies = pub && publicNpcManager && publicNpcManager.publicNpcMiners ? publicNpcManager.publicNpcMiners.filter(function(n) { return n && n.isAlive && n.ship; }).map(function(n) { return n.ship; }) : [];
-  if (inMissionSpace() && missionManager) enemies.push.apply(enemies, missionManager.getLivingEnemies());
+  const enemies = playerData.offensiveMode
+    ? (pub && publicNpcManager && publicNpcManager.publicNpcMiners
+      ? publicNpcManager.publicNpcMiners.filter(function(n) { return n && n.isAlive && n.ship; }).map(function(n) { return n.ship; })
+      : [])
+    : [];
+  if (playerData.offensiveMode && inMissionSpace() && missionManager) enemies.push.apply(enemies, missionManager.getLivingEnemies());
+  ship.ignoreStationBoss = !playerData.offensiveMode;
   const name = ship.className;
 
   if (name === 'Mining Capital' || name === 'Command Ship') {
@@ -2304,7 +2341,7 @@ function updateGame() {
   }
   if (asteroidBelt) asteroidBelt.update();
   if (debrisField) debrisField.update();
-  if (!inMissionSpace() && publicNpcManager) publicNpcManager.update(mapManager.currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession);
+  if (!inMissionSpace() && publicNpcManager) publicNpcManager.update(mapManager.currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession, debrisField);
   if (inMissionSpace() && missionManager) missionManager.updateMissionFleet(playerShip);
   if (!inMissionSpace() && window.SiegeCapital) window.SiegeCapital.update();
 
@@ -2400,8 +2437,13 @@ function updateGame() {
     const mg = mapManager && mapManager.missionEntryGate;
     if (missionManager.activeMission && mg && Math.hypot(playerShip.x - mg.x, playerShip.y - mg.y) < mg.radius) window.jumpToMissionSystem();
     else {
-      const g = mapManager ? mapManager.publicGate : null;
-      if (g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius) window.jumpToPublicSpace(0);
+      const frontierGate = mapManager ? mapManager.frontierEntryGate : null;
+      if (frontierGate && Math.hypot(playerShip.x - frontierGate.x, playerShip.y - frontierGate.y) < frontierGate.radius) {
+        window.jumpToFrontierSystem('frontier_ashen');
+      } else {
+        const g = mapManager ? mapManager.publicGate : null;
+        if (g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius) window.jumpToPublicSpace(0);
+      }
     }
   } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
     const back=mapManager.frontierReturnGate;
@@ -2457,6 +2499,7 @@ function render() {
     (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
   } else if (!pub) {
     if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
+    if (mapManager && mapManager.frontierEntryGate && typeof mapManager.frontierEntryGate.draw === 'function') mapManager.frontierEntryGate.draw(ctx);
     if (mapManager && mapManager.publicGate && typeof mapManager.publicGate.draw === 'function') mapManager.publicGate.draw(ctx);
     if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned && mapManager.missionEntryGate) mapManager.missionEntryGate.draw(ctx);
   } else {
