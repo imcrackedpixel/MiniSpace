@@ -629,7 +629,20 @@ class PublicNpcManager {
           if (Math.random() < dropChance) {
             const rr=Math.random(),rarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
             const hull=npc.className==='Capital'?'Siege Capital':npc.className;
-            const mods=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
+            const mods=({
+              'Carrier':['droneTether','shieldExtender','resistance','propulsion'],
+              'Siege Battleship':['missiles','shield','propulsion'],
+              'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],
+              'Siege Capital':['guns','shieldPlating','propulsion','resistance'],
+              'Combat Frigate':['missiles','shield','scrambler','propulsion'],
+              'Mining Frigate':['laser','shield','cargo','propulsion'],
+              'Mining Barge':['laser','shield','cargo','propulsion'],
+              'Command Ship':['dronesTether','shield','cargo','propulsion'],
+              'Mining Capital':['laser','shield','cargo','propulsion'],
+              'Exploration Frigate':['cloaking','hacking','propulsion','cargo'],
+              'Improved Explorer Frigate':['cloaking','hacking','propulsion','cargo'],
+              'Explorer Cruiser':['cloaking','hacking','propulsion','cargo']
+            })[hull]||['propulsion'];
             const module=mods[Math.floor(Math.random()*mods.length)];
             playerData.moduleDrops.push({id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1});
             if(typeof window.showCorpNotification==='function')window.showCorpNotification('LOOT DROP: '+rarity.toUpperCase()+' '+module+' Module');
