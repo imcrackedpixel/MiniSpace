@@ -148,33 +148,43 @@ class DebrisField {
     draw(ctx) {
         for (const deb of this.entities) {
             if (deb.oreYield <= 0) continue;
-
+            // Salvage floats as a small, clearly readable loot crate.
+            const bob = Math.sin((deb.t || 0) * 0.055) * 3;
+            const size = 15 + Math.min(5, Number(deb.tier) || 1);
             ctx.save();
-            ctx.translate(deb.x, deb.y);
-
-            // Soft shadow, fixed light direction (not rotated with the wreck)
-            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.translate(deb.x, deb.y + bob);
+            ctx.fillStyle = 'rgba(0,0,0,.4)';
             ctx.beginPath();
-            ctx.ellipse(4, 5, deb.radius * 1.05, deb.radius * 0.85, 0, 0, Math.PI * 2);
+            ctx.ellipse(2, size * .75, size * 1.05, size * .42, 0, 0, Math.PI * 2);
             ctx.fill();
-
-            ctx.rotate(deb.rotation);
-            this.drawFragments(ctx, deb);
-            if (deb.kind === 'satellite') this.drawSatellite(ctx, deb);
-            else if (deb.kind === 'capital') this.drawCapital(ctx, deb);
-            else this.drawShip(ctx, deb);
-            this.drawCracks(ctx, deb);
-            if (deb.kind !== 'capital') this.drawEmber(ctx, deb);
+            ctx.fillStyle = '#102b36';
+            ctx.strokeStyle = deb.color || '#55d9c4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-size, -size * .35);
+            ctx.lineTo(0, -size);
+            ctx.lineTo(size, -size * .35);
+            ctx.lineTo(size, size * .55);
+            ctx.lineTo(0, size * 1.05);
+            ctx.lineTo(-size, size * .55);
+            ctx.closePath();
+            ctx.fill();ctx.stroke();
+            ctx.strokeStyle = '#8cebd8';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(0, -size);ctx.lineTo(0, size * 1.05);
+            ctx.moveTo(-size, -size * .35);ctx.lineTo(0, size * .15);ctx.lineTo(size, -size * .35);
+            ctx.stroke();
+            ctx.fillStyle = '#d8fff4';
+            ctx.fillRect(-3, -3, 6, 6);
             ctx.restore();
 
-            // Label, drawn unrotated above the wreck
             ctx.save();
-            ctx.translate(deb.x, deb.y - deb.radius - 8);
-            ctx.fillStyle = deb.color;
-            ctx.font = '7px Courier New';
+            ctx.translate(deb.x, deb.y + bob - size - 8);
+            ctx.fillStyle = '#9be7d4';
+            ctx.font = 'bold 8px Courier New';
             ctx.textAlign = 'center';
-            const kindLabel = deb.kind === 'satellite' ? 'SAT' : (deb.kind === 'capital' ? 'CAPITAL' : 'HULL');
-            ctx.fillText(`T${deb.tier} ${kindLabel} WRECK`, 0, 0);
+            ctx.fillText('T' + deb.tier + ' LOOT · ' + Math.floor(deb.oreYield), 0, 0);
             ctx.restore();
         }
     }
