@@ -664,20 +664,22 @@ window.openUniverse = function() {
     const a = xy(s.id), b = xy(id);
     routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="universe-route-line"/>');
   }));
-  const home = '<button type="button" class="universe-node current" data-system-id="private_highsec" title="Private High-Sec 1.0" aria-label="Fly back to Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:34px;height:34px;padding:0;border-radius:50%;z-index:3">⌂</button>';
+  const homeHere = current === 'private_highsec';
+  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : '#38bdf8') + ';background:' + (homeHere ? '#854d0e' : '#12354a') + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 12px #38bdf8') + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
     const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
-    return '<button type="button" class="universe-node ' + (current === s.id ? 'current ' : '') + (s.id !== current ? 'reachable' : '') +
-      '" data-system-id="' + s.id + '" title="' + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
-      '" aria-label="Fly to ' + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
-      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:18px;height:18px;min-width:18px;padding:0;border-radius:50%;border:2px solid ' + color + ';background:' + color + ';box-shadow:0 0 9px ' + color + ';z-index:2">' + s.ring + '</button>';
+    const here = current === s.id;
+    return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (here ? '' : 'reachable') +
+      '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
+      '" aria-label="' + (here ? 'Your current system: ' : 'Fly to ') + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
+      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : '2px solid ' + color) + ';background:' + (here ? '#854d0e' : color) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 9px ' + color) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : s.ring) + '</button>';
   }).join('');
   const list = systems.map(s => '<button type="button" data-system-id="' + s.id + '" style="display:inline-block;margin:3px;padding:5px 7px;background:' +
     (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025') + ';color:#e6edf3;border:1px solid ' +
     (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171') + ';border-radius:5px;font-size:11px">' + s.name + ' · ' + s.ring + '</button>').join('');
   host.innerHTML = '<div class="universe-starchart" style="position:relative;min-height:430px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
     routes.join('') + '</svg>' + home + nodes + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
-    '<div class="universe-chart-key">BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
+    '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
     '<p class="universe-map-note">Tap a system or its name to plot a physical gate route. High-Sec is home. Rings 1–6 protect your ship; rings 7–10 are full-loot PvP.</p>';
   if (!host.dataset.navigationBound) {
