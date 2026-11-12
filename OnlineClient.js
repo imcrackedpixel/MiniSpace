@@ -447,6 +447,7 @@ if(message.type==='chat'){
     mapId:window.mapManager?.currentMapId||window.getMiniSpaceMapId?.()||'private_highsec',
     shield:Number(ship.shield)||0, armor:Number(ship.armor)||0, structure:Number(ship.structure)||0,
     maxShield:Number(ship.maxShield)||0, maxArmor:Number(ship.maxArmor)||0, maxStructure:Number(ship.maxStructure)||0,
+    damageResistance:Number(ship.damageResistance)||Number(ship.resist)||0,
     docked:!!ship.docked
    });
   }
