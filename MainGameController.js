@@ -2660,5 +2660,213 @@ if (
     saveGameSession();
   }
 })();
+/* TRANSPORT MANAGER - LOAD ONLY FROM HIGH-SEC STATION HANGAR */
+(function () {
+  if (!botManager) return;
+
+  function isTransportManager(bot) {
+    const name = bot && bot.ship && bot.ship.className;
+    return name === 'Transport Capital' ||
+      name === 'Industrial Hauler' ||
+      name === 'Freighter';
+  }
+
+  // Save the manager's loaded cargo with the corporation roster.
+  const oldSnapshotCorp = snapshotCorp;
+  snapshotCorp = function () {
+    oldSnapshotCorp();
+
+    if (!botManager || !playerData.corpBots) return;
+
+    botManager.bots.forEach(function (bot, index) {
+      const saved = playerData.corpBots[index];
+      if (!saved || !bot.ship || !isTransportManager(bot)) return;
+
+      saved.cargo = bot.ship.cargo || 0;
+      saved.cargoByOre = Object.assign(
+        {},
+        window.ensureOreCargo
+          ? window.ensureOreCargo(bot.ship)
+          : bot.ship.cargoByOre || {}
+      );
+    });
+  };
+
+  // Remove the old miner-following and cargo-siphoning behaviour.
+  const oldBotUpdate = botManager.update.bind(botManager);
+
+  botManager.update = function (player, belt, debris) {
+    const allBots = this.bots;
+    const managers = allBots.filter(isTransportManager);
+
+    this.bots = allBots.filter(function (bot) {
+      return !isTransportManager(bot);
+    });
+
+    try {
+      oldBotUpdate(player, belt, debris);
+    } finally {
+      this.bots = allBots;
+    }
+
+    managers.forEach((bot) => {
+      const ship = bot.ship;
+      if (!ship) return;
+
+      const maxCargo = Math.max(1, ship.maxCargo || 50000);
+      const station = this.station;
+      const distance = Math.hypot(
+        station.x - ship.x,
+        station.y - ship.y
+      );
+
+      ship.siphonFeed = [];
+      bot.targetMiner = null;
+      ship.cargoContrib = {};
+
+      // Return to the station before loading.
+      if (distance > 90) {
+        bot.transportState = 'returning';
+        ship.update(
+          { x: station.x, y: station.y },
+          null,
+          false
+        );
+        return;
+      }
+
+      // Hold position at the station.
+      ship.x = station.x;
+      ship.y = station.y;
+      ship.vx = 0;
+      ship.vy = 0;
+      ship.thrust = 0;
+
+      const inventory = playerData.stationOre || {};
+      const cargo = Number(ship.cargo) || 0;
+      let room = Math.max(0, maxCargo - cargo);
+
+      // Load only ore already deposited in station storage.
+      if (room > 0) {
+        Object.keys(inventory).forEach(function (key) {
+          if (room <= 0) return;
+
+          const stored = Math.max(0, Number(inventory[key]) || 0);
+          const amount = Math.min(room, stored);
+
+          if (amount <= 0) return;
+
+          if (window.addOreToCargo) {
+            window.addOreToCargo(ship, key, amount);
+          } else {
+            ship.cargoByOre = ship.cargoByOre || {};
+            ship.cargoByOre[key] =
+              (ship.cargoByOre[key] || 0) + amount;
+            ship.cargo = (ship.cargo || 0) + amount;
+            ship.oreType = key;
+          }
+
+          inventory[key] = stored - amount;
+          room -= amount;
+        });
+      }
+
+      const loaded = Number(ship.cargo) || 0;
+      const percent = Math.min(
+        100,
+        Math.floor((loaded / maxCargo) * 100)
+      );
+
+      bot.transportState =
+        loaded >= maxCargo ? 'full' : 'loading';
+
+      // Save cargo progress in sensible increments.
+      const saveBand = Math.floor(percent / 5);
+
+      if (
+        saveBand > (bot._lastSavedLoadBand || 0) ||
+        percent >= 100
+      ) {
+        bot._lastSavedLoadBand = saveBand;
+        if (typeof window.saveGameSession === 'function') {
+          window.saveGameSession();
+        }
+      }
+    });
+
+    // Keep the Corporation tab's status current.
+    this._corpStatusTimer = (this._corpStatusTimer || 0) + 1;
+
+    if (
+      this._corpStatusTimer >= 30 &&
+      document.getElementById('tab-corp') &&
+      document.getElementById('tab-corp').style.display === 'block'
+    ) {
+      this._corpStatusTimer = 0;
+      updateCorpUI();
+    }
+  };
+
+  // Display the loading percentage beside the manager's name.
+  const oldUpdateCorpUI = updateCorpUI;
+
+  updateCorpUI = function () {
+    oldUpdateCorpUI();
+
+    const table = document.getElementById('corp-list');
+    if (!table) return;
+
+    const row = Array.from(table.rows).find(function (r) {
+      return r.cells[0] &&
+        r.cells[0].innerText.includes('Transport Manager');
+    });
+
+    if (!row || !row.cells[1]) return;
+
+    const manager = botManager.bots.find(isTransportManager);
+
+    if (!manager || !manager.ship) {
+      row.cells[1].innerText =
+        playerData.transportManagerPurchased > 0
+          ? 'Transport ship preparing'
+          : 'Build it in the Shipyard';
+      return;
+    }
+
+    const ship = manager.ship;
+    const maxCargo = Math.max(1, ship.maxCargo || 50000);
+    const percent = Math.min(
+      100,
+      Math.floor(((ship.cargo || 0) / maxCargo) * 100)
+    );
+
+    if (percent >= 100) {
+      row.cells[1].innerText =
+        'FULL — Ready for Trade Hub (100%)';
+    } else if (manager.transportState === 'returning') {
+      row.cells[1].innerText =
+        'Returning to station (' + percent + '%)';
+    } else {
+      row.cells[1].innerText =
+        'Loading at station (' + percent + '%)';
+    }
+  };
+
+  // Ensure the ship appears immediately when the manager is built.
+  const oldBuildTransportManager = window.buildTransportManager;
+
+  window.buildTransportManager = function () {
+    oldBuildTransportManager();
+
+    if (
+      playerData.transportManagerPurchased > 0 &&
+      !botManager.bots.some(isTransportManager)
+    ) {
+      botManager.addTransportBot();
+      saveGameSession();
+      updateCorpUI();
+    }
+  };
+})();
 
 
