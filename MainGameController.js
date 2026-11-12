@@ -1366,10 +1366,74 @@ const canvas = document.getElementById('gameCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
 // The old canvas minimap has been replaced by the live Nearby in Space list.
 
-var cameraZoom = 0.35;
+// Start at the old maximum zoom-out level, so the phone view is the new normal.
+// Pinch and wheel gestures can zoom further out without needing on-screen buttons.
+var cameraZoom = 0.15;
+const MIN_CAMERA_ZOOM = 0.05;
+const MAX_CAMERA_ZOOM = 1.2;
+function setCameraZoom(value) {
+  cameraZoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, Number(value) || MIN_CAMERA_ZOOM));
+}
 window.adjustZoom = function(amount) {
-  cameraZoom = Math.min(1.2, Math.max(0.15, cameraZoom + amount));
+  setCameraZoom(cameraZoom + Number(amount || 0));
 };
+
+const activeZoomPointers = new Map();
+let pinchDistance = 0;
+let pinchGestureActive = false;
+let pinchGestureFinished = false;
+function pointerDistance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+window.addEventListener('pointerdown', function(e) {
+  if (!canvas || e.target !== canvas || e.pointerType !== 'touch') return;
+  activeZoomPointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY });
+  if (activeZoomPointers.size >= 2) {
+    pinchGestureActive = true;
+    pinchGestureFinished = true;
+    const pts = Array.from(activeZoomPointers.values());
+    pinchDistance = pointerDistance(pts[0], pts[1]) || 1;
+  }
+}, { passive: true });
+
+window.addEventListener('pointermove', function(e) {
+  if (!activeZoomPointers.has(e.pointerId)) return;
+  const point = activeZoomPointers.get(e.pointerId);
+  point.x = e.clientX;
+  point.y = e.clientY;
+  if (activeZoomPointers.size < 2) return;
+  const pts = Array.from(activeZoomPointers.values());
+  const nextDistance = pointerDistance(pts[0], pts[1]);
+  if (pinchDistance > 0 && nextDistance > 0) setCameraZoom(cameraZoom * (nextDistance / pinchDistance));
+  pinchDistance = nextDistance || pinchDistance;
+}, { passive: true });
+
+function finishZoomPointer(e) {
+  const point = activeZoomPointers.get(e.pointerId);
+  if (!point) return;
+  activeZoomPointers.delete(e.pointerId);
+  if (activeZoomPointers.size === 0) {
+    if (!pinchGestureFinished && !pinchGestureActive &&
+        Math.hypot(e.clientX - point.startX, e.clientY - point.startY) < 12) {
+      handleCanvasTouch(e.clientX, e.clientY);
+    }
+    pinchGestureActive = false;
+    pinchGestureFinished = false;
+    pinchDistance = 0;
+  } else if (activeZoomPointers.size < 2) {
+    pinchGestureActive = false;
+    pinchDistance = 0;
+  }
+}
+window.addEventListener('pointerup', finishZoomPointer, { passive: true });
+window.addEventListener('pointercancel', finishZoomPointer, { passive: true });
+
+if (canvas) {
+  canvas.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    setCameraZoom(cameraZoom * Math.exp(-e.deltaY * 0.0015));
+  }, { passive: false });
+}
 
 var targetMovePos = null;
 var isDockingRequested = false;
@@ -1431,10 +1495,9 @@ function isUiTarget(e) {
 }
 
 window.addEventListener('pointerdown', function(e) {
-  // Only taps directly on the game canvas should issue movement commands.
-  // Chat, friend controls, panels and any future UI outside #ui-layer must
-  // never be interpreted as a world-space movement destination.
-  if (!canvas || e.target !== canvas) return;
+  // Touch movement is handled on pointerup so a two-finger pinch never orders
+  // the ship to fly to the point where the first finger touched.
+  if (!canvas || e.target !== canvas || e.pointerType === 'touch') return;
   handleCanvasTouch(e.clientX, e.clientY);
 });
 
