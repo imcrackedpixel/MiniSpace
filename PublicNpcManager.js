@@ -157,7 +157,11 @@ class PublicNpcManager {
         const elite=rarity==='elite'&&level===5&&combat;
         const hpScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;
         const dmgScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;
-        const isMiner = system.kind === 'Mining Fleet' || (system.kind === 'Mixed Fleets' && !combat);
+        const forceMiner = i === 0 && system.kind !== 'Mining Fleet';
+        const forcePirate = i === 0 && system.kind === 'Mining Fleet';
+        if (forceMiner) { cfg = pickPirate(MINER_POOL); combat = false; }
+        else if (forcePirate) { cfg = PIRATE_TYPES.combatFrigate; combat = true; }
+        const isMiner = forceMiner || (system.kind === 'Mining Fleet' && !forcePirate) || (system.kind === 'Mixed Fleets' && !combat);
         this.addPirate(cfg,gx+Math.cos(a)*d,gy+Math.sin(a)*d,'frontier_'+system.id+'_squad_n'+i,{dmg:combat?dmgScale:.04,aggro:false,slot:-1,role:isMiner?'mine':'patrol',faction:isMiner?'miners':'pirates',elite:elite,frontierLevel:level,frontierKind:system.kind,frontierRarity:rarity,hpScale:hpScale});
       }
     } finally {Math.random=oldRandom;}
@@ -177,7 +181,7 @@ class PublicNpcManager {
       const roll=Math.random(),level=n.frontierLevel||1;
       let rarity=deadEnd?(roll<.48?'common':roll<.76?'uncommon':roll<.94?'rare':'elite'):(roll<.58?'common':roll<.84?'uncommon':roll<.97?'rare':'elite');
       if(level<5&&rarity==='elite')rarity='rare';
-      if(n.frontierKind!=='Mining Fleet'){
+      if(n.role!=='mine'){
         if(level>=5)cfg=rarity==='elite'?(Math.random()<.5?PIRATE_TYPES.carrier:(Math.random()<.5?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser)):(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
         else if(level>=4)cfg=PIRATE_TYPES.siegeBattleship;
         else if(level===3)cfg=rarity==='rare'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
@@ -187,7 +191,7 @@ class PublicNpcManager {
       const elite=rarity==='elite'&&level===5&&n.frontierKind!=='Mining Fleet';
       const hull=cfg.name==='Capital'?'Siege Capital':cfg.name;
       const old=this.publicNpcMiners;this.publicNpcMiners=[];
-      const levelScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;const damageScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:COMBAT_HULLS[cfg.name]?damageScale:.04,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,role:n.frontierKind==='Mining Fleet'?'mine':(n.role||'patrol'),faction:n.frontierKind==='Mining Fleet'?'miners':(n.faction||'pirates'),elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity,hpScale:levelScale});
+      const levelScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;const damageScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:COMBAT_HULLS[cfg.name]?damageScale:.04,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,role:n.role||'patrol',faction:n.faction||'pirates',elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity,hpScale:levelScale});
       const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;
       if(fresh)Object.assign(n,fresh);
     }finally{Math.random=oldRandom;}
@@ -243,6 +247,16 @@ class PublicNpcManager {
     const shipObj = cfg.makeShip(x, y);
     shipObj.npcDamageScale = scale;
     shipObj.isPirate = true;   // NPC-owned
+    // Track who actually damaged this NPC. NPC damage must not erase player reward eligibility.
+    const originalTakeDamage = shipObj.takeDamage;
+    if (typeof originalTakeDamage === 'function' && !shipObj._minispaceDamageTracked) {
+      shipObj.takeDamage = function () {
+        if (window.__MINISPACE_NPC_ATTACK_SOURCE) this._minispaceNpcDamageAt = Date.now();
+        else this._minispacePlayerTagged = true;
+        return originalTakeDamage.apply(this, arguments);
+      };
+      shipObj._minispaceDamageTracked = true;
+    }
     if (DEBUG_NPC && (SIEGE_HULLS[cfg.name] || cfg.name === 'Carrier')) this.describeShip(cfg.name, shipObj);
     // Combat hulls get the same base HP as the player's ship of that class; others use their listed HP
     let hp = MATCH_PLAYER_HP[cfg.name]
@@ -530,6 +544,8 @@ class PublicNpcManager {
     // The ship's own update() may turn the hull toward its target. The manager decides heading
     // (direction of travel), so remember it and put it back afterwards, or the two fight each frame.
     const keepAngle = ship.angle;
+    const previousDamageSource = window.__MINISPACE_NPC_ATTACK_SOURCE;
+    window.__MINISPACE_NPC_ATTACK_SOURCE = npc.id;
     try {
       if (npc.className === 'Carrier') {
         ship.update(null, target, null, false, enemies, true);
@@ -545,6 +561,7 @@ class PublicNpcManager {
         console.warn('[NPC] ' + npc.className + ' update() threw:', err);
       }
     }
+    window.__MINISPACE_NPC_ATTACK_SOURCE = previousDamageSource;
     if (typeof keepAngle === 'number' && isFinite(keepAngle)) ship.angle = keepAngle;
   }
 
@@ -583,7 +600,7 @@ class PublicNpcManager {
         npc.rewarded = true;
         npc.isAlive = false;
         // NPC-versus-NPC battles should not pay the player for kills they did not make.
-        if (npc.npcKilledByNpc) {
+        if (npc.ship._minispaceNpcDamageAt && !npc.ship._minispacePlayerTagged) {
           if (npc.frontierLevel) {
             npc.respawnAt = Date.now() + 60000 + Math.floor(Math.random() * 60001);
             if (window.MinispaceOnline && window.MinispaceOnline.send) window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});
@@ -715,9 +732,15 @@ class PublicNpcManager {
         const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
         if (npcTargetDistance <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
           const damage = 0.85 * (npc.dpsScale || 1);
-          npcTarget.npcKilledByNpc = true;
-          if (typeof npcTarget.ship.takeDamage === 'function') npcTarget.ship.takeDamage(damage);
-          else if (typeof npcTarget.ship.structure === 'number') npcTarget.ship.structure -= damage;
+          const previousDamageSource = window.__MINISPACE_NPC_ATTACK_SOURCE;
+          window.__MINISPACE_NPC_ATTACK_SOURCE = npc.id;
+          npcTarget.ship._minispaceNpcDamageAt = Date.now();
+          try {
+            if (typeof npcTarget.ship.takeDamage === 'function') npcTarget.ship.takeDamage(damage);
+            else if (typeof npcTarget.ship.structure === 'number') npcTarget.ship.structure -= damage;
+          } finally {
+            window.__MINISPACE_NPC_ATTACK_SOURCE = previousDamageSource;
+          }
         }
         ship.currentTarget = npcTarget.ship;
       } else if (npcTarget && !npc.combat && npc.role === 'mine') {
