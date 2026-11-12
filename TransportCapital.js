@@ -25,41 +25,39 @@
   const EXHAUST_SCALE = 1.8;
   const MAX_PARTICLES = 400;
 
-  // ===== SIPHON VISUAL SETTINGS =====
-  // Most beams drawn at once. Extra beams still drain ore; they just aren't drawn.
-  const MAX_DRAWN_BEAMS = 1;
 
   // ===== SIPHON SUPPORT =====
-  // Transport Capital does not siphon drones. Only mothership ore is drained.
-  const SHIP_SIPHON_RANGE = 1000;   // how far a miner/mothership can be and still be drained (doubled)
+  // Which drones of a mothership (Command Ship / Mining Capital) are out in the field holding ore.
+  const DRONE_SIPHON_RANGE = 3200;  // how far from the transport a drone can be and still be drained (doubled)
+  const SHIP_SIPHON_RANGE = 2800;   // how far a miner/mothership can be and still be drained (doubled)
   const SIPHON_STANDOFF = 720;      // distance the transport parks from the miners so it never sits on top of them
-  const SIPHON_MIN_GAP = 430;       // closest any ship may get to the transport before it gets nudged away
+  const SIPHON_MIN_GAP = 430;       // closest any ship/drone may get to the transport before it gets nudged away
 
-  // Transport Capital never siphons drones, so this always returns an empty list.
   function loadedDrones(m, minCargo) {
-    return [];
+    if (!m || !Array.isArray(m.drones)) return [];
+    const th = minCargo == null ? 5 : minCargo;
+    return m.drones.filter(function (e) {
+      return e && e.ship && !e.isDocked && (e.ship.cargo || 0) > th;
+    });
   }
   function hasLoad(m, th) {
     if (!m) return false;
     const t = th == null ? 10 : th;
-    return (m.cargo || 0) > t;
+    return (m.cargo || 0) > t || loadedDrones(m, Math.min(5, t)).length > 0;
   }
-  // Point the transport flies to: the mothership, if it holds ore.
+  // Point the transport flies to: the centre of everything it can drain from this miner
+  // (the mothership if it holds ore, plus every loaded drone), so the whole group stays in reach.
   function aimPoint(m, from) {
-    if (m && (m.cargo || 0) > 5) return { x: m.x, y: m.y };
-    return { x: m.x, y: m.y };
-  }
-  // Only player-owned miners may be siphoned. Adjust this check to match how the
-  // codebase marks player ships (e.g. ref.isPlayer, ref.owner === 'player').
-  function isPlayerMiner(ref) {
-    if (!ref) return false;
-    return ref.isPlayer === true || ref.owner === 'player' || ref === window.player;
+    let sx = 0, sy = 0, n = 0;
+    if ((m.cargo || 0) > 5) { sx += m.x; sy += m.y; n++; }
+    loadedDrones(m).forEach(function (e) { sx += e.ship.x; sy += e.ship.y; n++; });
+    return n ? { x: sx / n, y: sy / n } : { x: m.x, y: m.y };
   }
   window.TransportSiphon = {
-    isPlayerMiner: isPlayerMiner,
     loadedDrones: loadedDrones,
     hasLoad: hasLoad,
     aimPoint: aimPoint,
+    DRONE_RANGE: DRONE_SIPHON_RANGE,
     SHIP_RANGE: SHIP_SIPHON_RANGE,
     STANDOFF: SIPHON_STANDOFF,
     MIN_GAP: SIPHON_MIN_GAP
@@ -70,10 +68,11 @@
     { x: 175, y: 0 }, { x: 70, y: -72 }, { x: 70, y: 72 }, { x: -30, y: -78 }, { x: -30, y: 78 }
   ];
   const TAU = Math.PI * 2;
+  const frac = function (v) { return v - Math.floor(v); };
 
   const BEAM_STYLE = {
-    ship:  { glow: '56,189,248', flare: '186,230,253' },
-    drone: { glow: '45,212,191', flare: '204,251,241' }
+    ship:  { glow: '56,189,248',  mid: '168,85,247', core: '#e0f7ff', a: '#38bdf8', b: '#e879f9', flare: '186,230,253' },
+    drone: { glow: '45,212,191',  mid: '250,204,21', core: '#f0fff8', a: '#2dd4bf', b: '#fde047', flare: '204,251,241' }
   };
 
   function thrusterLayout() {
@@ -109,6 +108,7 @@
       this.maxParticles = MAX_PARTICLES;
       this.siphonFeed = [];   // set each frame by BotManager: [{ ref, kind }]
       this._beams = [];       // visual beam state
+      this._siphonT = 0;
       this._siphonLast = 0;
       this.applyStats();
     }
@@ -262,17 +262,22 @@
       c.globalCompositeOperation = 'source-over';
     }
 
-    // ---------- SIPHON EFFECT (lightweight) ----------
+
+    // ---------- SIPHON EFFECT ----------
+    _portWorld(port) {
+      const c = Math.cos(this.angle), s = Math.sin(this.angle);
+      return { x: this.x + c * port.x - s * port.y, y: this.y + s * port.x + c * port.y };
+    }
+
     _syncBeams(dt) {
-      // Only player miners are drained; bot and corp miners are ignored.
-      const feed = (this.siphonFeed || []).filter(function (f) { return isPlayerMiner(f.ref); });
+      const feed = this.siphonFeed || [];
       const beams = this._beams;
       for (const b of beams) b.want = 0;
       for (const f of feed) {
         let b = null;
         for (const q of beams) { if (q.ref === f.ref) { b = q; break; } }
         if (!b) {
-          b = { ref: f.ref, kind: f.kind, strength: 0, want: 1, lx: f.ref.x, ly: f.ref.y };
+          b = { ref: f.ref, kind: f.kind, strength: 0, want: 1, seed: Math.random() * 100, lx: f.ref.x, ly: f.ref.y };
           beams.push(b);
         }
         b.want = 1;
@@ -287,6 +292,11 @@
       }
     }
 
+    _bezier(sx, sy, cx, cy, ex, ey, t) {
+      const u = 1 - t;
+      return { x: u * u * sx + 2 * u * t * cx + t * t * ex, y: u * u * sy + 2 * u * t * cy + t * t * ey };
+    }
+
     drawSiphon(c) {
       const now = performance.now() / 1000;
       const dt = this._siphonLast ? Math.min(0.1, now - this._siphonLast) : 0.016;
@@ -294,61 +304,187 @@
       this._syncBeams(dt);
       const beams = this._beams;
       if (!beams.length) return;
-
-      // Hull rotation, computed once for all ports
-      const cs = Math.cos(this.angle), sn = Math.sin(this.angle);
+      const time = now;
 
       c.save();
       c.globalCompositeOperation = 'lighter';
       c.lineCap = 'round';
+      c.lineJoin = 'round';
 
-      const drawn = Math.min(beams.length, MAX_DRAWN_BEAMS);
-      for (let i = 0; i < drawn; i++) {
-        const b = beams[i];
-        const s = b.strength;
-        if (s <= 0.02) continue;
+      // ---- ambient intake field around the hull ----
+      let maxS = 0;
+      for (const b of beams) maxS = Math.max(maxS, b.strength);
+      const pulse = 0.5 + 0.5 * Math.sin(time * 4);
+      c.save();
+      c.translate(this.x, this.y);
+      c.rotate(time * 0.35);
+      c.setLineDash([26, 18]);
+      c.lineWidth = 2.2;
+      c.strokeStyle = 'rgba(125,211,252,' + (0.18 * maxS + 0.08 * pulse * maxS).toFixed(3) + ')';
+      c.beginPath(); c.arc(0, 0, 150 + pulse * 6, 0, TAU); c.stroke();
+      c.rotate(-time * 0.9);
+      c.setLineDash([8, 22]);
+      c.lineWidth = 1.4;
+      c.strokeStyle = 'rgba(232,121,249,' + (0.2 * maxS).toFixed(3) + ')';
+      c.beginPath(); c.arc(0, 0, 166 - pulse * 5, 0, TAU); c.stroke();
+      c.restore();
+
+      const crowd = beams.length > 4;   // many beams at once: trim the costly bits so phones keep up
+      for (const b of beams) {
         const st = BEAM_STYLE[b.kind] || BEAM_STYLE.ship;
+        const s = b.strength;
+        if (s <= 0.01) continue;
         const sx = b.lx, sy = b.ly;
 
-        // Nearest intake port on the hull
-        let ex = this.x, ey = this.y, pd = Infinity;
-        for (let p = 0; p < INTAKE_PORTS.length; p++) {
-          const port = INTAKE_PORTS[p];
-          const wx = this.x + cs * port.x - sn * port.y;
-          const wy = this.y + sn * port.x + cs * port.y;
-          const d = Math.hypot(wx - sx, wy - sy);
-          if (d < pd) { pd = d; ex = wx; ey = wy; }
+        // pick the nearest intake port
+        let port = null, pd = Infinity, pw = null;
+        for (const p of INTAKE_PORTS) {
+          const w = this._portWorld(p);
+          const d = Math.hypot(w.x - sx, w.y - sy);
+          if (d < pd) { pd = d; port = p; pw = w; }
+        }
+        const ex = pw.x, ey = pw.y;
+        const len = Math.max(20, pd);
+        const dx = (ex - sx) / len, dy = (ey - sy) / len;
+        const nx = -dy, ny = dx;
+        const sway = Math.sin(time * 1.4 + b.seed) * 0.11 * len;
+        const cx = (sx + ex) / 2 + nx * sway;
+        const cy = (sy + ey) / 2 + ny * sway;
+        const srcR = b.kind === 'drone' ? 15 : 52;
+
+        // layered glow body
+        const bodyPath = function () { c.beginPath(); c.moveTo(sx, sy); c.quadraticCurveTo(cx, cy, ex, ey); };
+        c.setLineDash([]);
+        bodyPath(); c.lineWidth = 26 * s; c.strokeStyle = 'rgba(' + st.glow + ',' + (0.05 * s).toFixed(3) + ')'; c.stroke();
+        bodyPath(); c.lineWidth = 13 * s; c.strokeStyle = 'rgba(' + st.mid + ',' + (0.10 * s).toFixed(3) + ')'; c.stroke();
+        bodyPath(); c.lineWidth = 6 * s;  c.strokeStyle = 'rgba(' + st.glow + ',' + (0.22 * s).toFixed(3) + ')'; c.stroke();
+
+        // flowing energy dashes along the core (reads as a current heading INTO the ship)
+        bodyPath();
+        c.setLineDash([14, 10, 3, 10]);
+        c.lineDashOffset = time * 90;
+        c.lineWidth = 2.6 * s;
+        c.strokeStyle = 'rgba(255,255,255,' + (0.85 * s).toFixed(3) + ')';
+        if (!crowd) { c.shadowColor = st.a; c.shadowBlur = 14 * s; }
+        c.stroke();
+        c.shadowBlur = 0;
+        c.setLineDash([]);
+
+        // double helix strands + rungs
+        const SEG = Math.max(14, Math.min(crowd ? 24 : 40, Math.floor(len / (crowd ? 14 : 9))));
+        const wl = 26;                                   // helix wavelength in px
+        const amp0 = (b.kind === 'drone' ? 7 : 11) * s;
+        const ptsA = [], ptsB = [];
+        for (let i = 0; i <= SEG; i++) {
+          const t = i / SEG;
+          const p = this._bezier(sx, sy, cx, cy, ex, ey, t);
+          // tangent for the curve normal
+          const p2 = this._bezier(sx, sy, cx, cy, ex, ey, Math.min(1, t + 0.02));
+          const p1 = this._bezier(sx, sy, cx, cy, ex, ey, Math.max(0, t - 0.02));
+          let tx = p2.x - p1.x, ty = p2.y - p1.y;
+          const tl = Math.hypot(tx, ty) || 1; tx /= tl; ty /= tl;
+          const px = -ty, py = tx;
+          const env = Math.pow(Math.sin(Math.PI * t), 0.7);          // pinch at both ends
+          const ph = t * len / wl * TAU - time * 9 + b.seed;
+          const off = Math.sin(ph) * amp0 * env;
+          const depth = Math.cos(ph);                                 // fake 3D: strands swap front/back
+          ptsA.push({ x: p.x + px * off, y: p.y + py * off, d: depth });
+          ptsB.push({ x: p.x - px * off, y: p.y - py * off, d: -depth });
+        }
+        c.lineWidth = 0.9;
+        for (let i = 1; i < SEG; i += (crowd ? 4 : 2)) {
+          c.strokeStyle = 'rgba(255,255,255,' + (0.16 * s).toFixed(3) + ')';
+          c.beginPath(); c.moveTo(ptsA[i].x, ptsA[i].y); c.lineTo(ptsB[i].x, ptsB[i].y); c.stroke();
+        }
+        const strand = function (pts, col) {
+          for (let i = 1; i < pts.length; i++) {
+            const front = (pts[i].d + pts[i - 1].d) * 0.5;
+            c.lineWidth = (1.3 + 1.2 * Math.max(0, front)) * Math.max(0.4, s);
+            c.globalAlpha = (0.45 + 0.4 * front) * s;
+            c.strokeStyle = col;
+            c.beginPath(); c.moveTo(pts[i - 1].x, pts[i - 1].y); c.lineTo(pts[i].x, pts[i].y); c.stroke();
+          }
+          c.globalAlpha = 1;
+        };
+        strand(ptsA, st.a);
+        strand(ptsB, st.b);
+
+        // ore packets: glowing comets streaming source -> intake, shrinking & brightening as they arrive
+        const NP = Math.max(5, Math.min(crowd ? 8 : 12, Math.floor(len / 28)));
+        for (let i = 0; i < NP; i++) {
+          const t = frac(time * (0.55 + 0.25 * Math.sin(b.seed + i)) + i / NP + b.seed);
+          for (let tr = 0; tr < (crowd ? 3 : 5); tr++) {              // trail samples
+            const tt = Math.max(0, t - tr * 0.018);
+            const p = this._bezier(sx, sy, cx, cy, ex, ey, tt);
+            const a = (1 - tr / 5) * s;
+            const r = (4.2 - 2.2 * t) * (1 - tr * 0.14) + 0.8;
+            c.fillStyle = 'rgba(' + st.glow + ',' + (0.22 * a).toFixed(3) + ')';
+            c.beginPath(); c.arc(p.x, p.y, r * 2.6, 0, TAU); c.fill();
+            c.fillStyle = (tr === 0 ? 'rgba(255,255,255,' : 'rgba(' + st.flare + ',') + (0.9 * a).toFixed(3) + ')';
+            c.beginPath(); c.arc(p.x, p.y, r, 0, TAU); c.fill();
+          }
         }
 
-        // Glow under-stroke
+        // drifting sparks shed along the stream
+        for (let i = 0; i < 7; i++) {
+          const t = frac(time * 0.8 + i * 0.137 + b.seed * 0.3);
+          const p = this._bezier(sx, sy, cx, cy, ex, ey, t);
+          const side = (i % 2 ? 1 : -1) * (6 + 16 * frac(i * 0.618 + b.seed)) * Math.sin(Math.PI * t);
+          c.fillStyle = 'rgba(' + st.flare + ',' + (0.6 * s * (1 - t)).toFixed(3) + ')';
+          c.fillRect(p.x + nx * side - 1, p.y + ny * side - 1, 2, 2);
+        }
+
+        // ---- source end: draining reticle (rings collapse onto the victim) ----
+        c.save();
+        c.translate(sx, sy);
+        c.rotate(-time * 1.8 + b.seed);
+        c.setLineDash([srcR * 0.55, srcR * 0.4]);
+        c.lineWidth = 1.8 * s;
+        c.strokeStyle = 'rgba(' + st.flare + ',' + (0.75 * s).toFixed(3) + ')';
+        c.beginPath(); c.arc(0, 0, srcR * 1.15, 0, TAU); c.stroke();
         c.setLineDash([]);
-        c.beginPath();
-        c.moveTo(sx, sy);
-        c.lineTo(ex, ey);
-        c.lineWidth = 6 * s;
-        c.strokeStyle = 'rgba(' + st.glow + ',' + (0.18 * s).toFixed(3) + ')';
-        c.stroke();
+        for (let k = 0; k < 3; k++) {
+          const ph = frac(time * 1.1 + k / 3 + b.seed);
+          const r = srcR * (2.6 - 1.9 * ph);                          // contracting ring
+          c.lineWidth = 1.4;
+          c.strokeStyle = 'rgba(' + st.glow + ',' + (0.5 * s * ph).toFixed(3) + ')';
+          c.beginPath(); c.arc(0, 0, r, 0, TAU); c.stroke();
+        }
+        const g = c.createRadialGradient(0, 0, 0, 0, 0, srcR * 1.6);
+        g.addColorStop(0, 'rgba(255,255,255,' + (0.35 * s).toFixed(3) + ')');
+        g.addColorStop(0.4, 'rgba(' + st.glow + ',' + (0.22 * s).toFixed(3) + ')');
+        g.addColorStop(1, 'rgba(' + st.glow + ',0)');
+        c.fillStyle = g;
+        c.beginPath(); c.arc(0, 0, srcR * 1.6, 0, TAU); c.fill();
+        c.restore();
 
-        // Flowing core: a bright dashed line that moves toward the hull
-        c.setLineDash([12, 10]);
-        c.lineDashOffset = -now * 60;
-        c.lineWidth = 2 * s;
-        c.strokeStyle = 'rgba(' + st.flare + ',' + (0.8 * s).toFixed(3) + ')';
-        c.stroke();
-        c.setLineDash([]);
-
-        // Source end: a small pulsing dot where ore is being drawn from
-        const srcR = (b.kind === 'drone' ? 6 : 12) * (0.9 + 0.1 * Math.sin(now * 6 + i));
-        c.fillStyle = 'rgba(' + st.glow + ',' + (0.45 * s).toFixed(3) + ')';
-        c.beginPath();
-        c.arc(sx, sy, srcR, 0, TAU);
-        c.fill();
-
-        // Intake end: a small bright dot on the hull
-        c.fillStyle = 'rgba(255,255,255,' + (0.6 * s).toFixed(3) + ')';
-        c.beginPath();
-        c.arc(ex, ey, 3, 0, TAU);
-        c.fill();
+        // ---- intake end: spinning vortex + flare ----
+        c.save();
+        c.translate(ex, ey);
+        const vr = 22 + 4 * Math.sin(time * 6 + b.seed);
+        const vg = c.createRadialGradient(0, 0, 0, 0, 0, vr * 1.8);
+        vg.addColorStop(0, 'rgba(255,255,255,' + (0.8 * s).toFixed(3) + ')');
+        vg.addColorStop(0.3, 'rgba(' + st.glow + ',' + (0.45 * s).toFixed(3) + ')');
+        vg.addColorStop(1, 'rgba(' + st.mid + ',0)');
+        c.fillStyle = vg;
+        c.beginPath(); c.arc(0, 0, vr * 1.8, 0, TAU); c.fill();
+        for (let k = 0; k < 3; k++) {
+          c.save();
+          c.rotate((k % 2 ? -1 : 1) * time * (2.2 + k * 1.3) + k);
+          c.lineWidth = 2.2 - k * 0.4;
+          c.strokeStyle = (k === 1 ? 'rgba(' + st.mid + ',' : 'rgba(' + st.flare + ',') + (0.8 * s).toFixed(3) + ')';
+          const rr = vr * (0.55 + k * 0.32);
+          c.beginPath(); c.arc(0, 0, rr, 0, Math.PI * 1.3); c.stroke();
+          c.beginPath(); c.arc(0, 0, rr, Math.PI * 1.5, Math.PI * 1.85); c.stroke();
+          c.restore();
+        }
+        // 4-point lens flare
+        c.rotate(time * 0.8);
+        const fl = vr * (1.6 + 0.4 * Math.sin(time * 9));
+        c.strokeStyle = 'rgba(255,255,255,' + (0.7 * s).toFixed(3) + ')';
+        c.lineWidth = 1.3;
+        c.beginPath(); c.moveTo(-fl, 0); c.lineTo(fl, 0); c.moveTo(0, -fl); c.lineTo(0, fl); c.stroke();
+        c.restore();
       }
 
       c.restore();
@@ -359,12 +495,6 @@
 
     update(targetPos, targetEnemy, autoTargetStation) {
       this.updateParticles();
-
-      // Logistics ships fly to explicit route destinations; they no longer
-      // depend on miner siphoning to undock or move.
-      const hasDestination = !!autoTargetStation || !!targetPos;
-      this.docked = !hasDestination;
-
       if (this.docked) {
         this.thrust = 0;
         this.vx = 0;
