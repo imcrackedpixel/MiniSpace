@@ -150,7 +150,7 @@ class PublicNpcManager {
           else if(level===3){cfg=Math.random()<.5?PIRATE_TYPES.siegeCruiser:PIRATE_TYPES.siegeBattleship;combat=true;}
           else if(system.kind==='Mixed Fleets'&&Math.random()<.45)cfg=pickPirate(MINER_POOL);
           else {cfg=level===1?PIRATE_TYPES.combatFrigate:(Math.random()<.65?PIRATE_TYPES.combatFrigate:PIRATE_TYPES.siegeCruiser);combat=true;}
-          const q=Math.random()*Math.PI*2,d=70+i*100;this.addPirate(cfg,gx+Math.cos(q)*d,gy+Math.sin(q)*d,'frontier_'+system.id+'_g'+g+'_n'+i,{dmg:combat?(level>=4?.32:.22):.08,aggro:combat,slot:0,elite:elite,frontierLevel:level});
+          const q=Math.random()*Math.PI*2,d=70+i*100;this.addPirate(cfg,gx+Math.cos(q)*d,gy+Math.sin(q)*d,'frontier_'+system.id+'_g'+g+'_n'+i,{dmg:combat?(level>=4?.32:.22):.08,aggro:combat,slot:0,elite:elite,frontierLevel:level,frontierKind:system.kind});
         }
       }
     } finally {Math.random=oldRandom;}
@@ -158,7 +158,7 @@ class PublicNpcManager {
   applyFrontierState(d){if(!d||d.mapId!==this.frontierMapId)return;(d.deadNpcs||[]).forEach(x=>this.applyFrontierDeath(x));}
   applyFrontierDeath(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n){n.isAlive=false;n.respawnAt=Number(d.respawnAt)||Date.now()+90000;}}
   applyFrontierRespawn(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n)this.reviveFrontierNpc(n);}
-  reviveFrontierNpc(n){if(!n||!n.cfg)return;const old=this.publicNpcMiners;this.publicNpcMiners=[];this.addPirate(n.cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:n.autoAggro,slot:n.beltSlot,elite:n.elite,frontierLevel:n.frontierLevel});const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;if(fresh)Object.assign(n,fresh);}
+  reviveFrontierNpc(n){if(!n||!n.cfg)return;let cfg=n.cfg;let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;const oldRandom=Math.random;let st=seed||1;Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};try{if(n.frontierKind!=='Mining Fleet'&&n.frontierLevel<=3&&Math.random()<.3)cfg=pickPirate(MINER_POOL);}finally{Math.random=oldRandom;}const old=this.publicNpcMiners;this.publicNpcMiners=[];this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:n.dpsScale,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,elite:n.elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind});const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;if(fresh)Object.assign(n,fresh);}
 
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
@@ -234,6 +234,7 @@ class PublicNpcManager {
       cfg: cfg,
       elite: !!opts.elite,
       frontierLevel: Number(opts.frontierLevel)||0,
+      frontierKind: opts.frontierKind || '',
       ship: shipObj,
       className: cfg.name,
       combat: !!COMBAT_HULLS[cfg.name],
