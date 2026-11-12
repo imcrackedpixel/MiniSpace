@@ -1975,3 +1975,7 @@ updateCorpUI();
 updateMissionsUI();
 ensureAutoplayButton();
 gameLoop();
+// ONLINE MULTIPLAYER: expose the current map
+window.getMiniSpaceMapId = function() {
+  return mapManager?.currentMapId || 'private_highsec';
+};
