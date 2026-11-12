@@ -881,11 +881,18 @@ window.buildShip = function(unlockKey, className) {
 
 // Dispatch the free Transport Manager to collect missing ship materials.
 window.requestTransportShipBuild = async function(unlockKey, className, recipe, short) {
+  if (window._transportShipBuildRequestPending) return;
+  window._transportShipBuildRequestPending = true;
   try {
     if (!window.MINISPACE_MARKET || !botManager) throw new Error('Market or corporation logistics are not ready.');
     await window.MINISPACE_MARKET.ready();
     await window.MINISPACE_MARKET.refresh();
     window.MINISPACE_MARKET.applyToGame(playerData);
+    short = recipeShortfall(recipe);
+    if (!short.length) {
+      window.buildShip(unlockKey, className);
+      return;
+    }
     const findManager = function() {
       return botManager.bots.find(function(bot) {
         const name = bot && bot.ship && bot.ship.className;
@@ -934,6 +941,8 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
       '. It will fly to the Trade Hub and return to finish the build.');
   } catch (error) {
     window.showCorpNotification('Could not dispatch materials: ' + (error.message || error));
+  } finally {
+    window._transportShipBuildRequestPending = false;
   }
 };
 
