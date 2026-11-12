@@ -2235,6 +2235,15 @@ function updateNearbySpacePanel() {
   if (currentId === 'public_trade_hub' && window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station) {
     const st=window.MINISPACE_TRADE_HUB.station;
     add('stations','Trade Hub Station',st.x,st.y,'station',st,'trade');
+  } else if (currentId.indexOf('frontier_')===0 && mapManager.frontierReturnGate) {
+    const gate=mapManager.frontierReturnGate;
+    add('stations','High-Sec Station · via return tear',gate.x,gate.y,'station',gate,'return');
+  } else if (currentId.indexOf('mission_')===0 && mapManager.missionReturnGate) {
+    const gate=mapManager.missionReturnGate;
+    add('stations','High-Sec Station · via return tear',gate.x,gate.y,'station',gate,'return');
+  } else if (inPublicSpace() && mapManager.playerGates && mapManager.playerGates.length) {
+    const gate=mapManager.playerGates.reduce((best,g)=>!best||distanceTo(g)<distanceTo(best)?g:best,null);
+    add('stations','High-Sec Station · via return gate',gate.x,gate.y,'station',gate,'return');
   } else if (mainStation) {
     add('stations','High-Sec Station',mainStation.x,mainStation.y,'station',mainStation,'home');
   }
@@ -2306,7 +2315,12 @@ function updateNearbySpacePanel() {
     if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
     lockedTarget=null;isDockingRequested=false;
     if(item.kind==='station'){
-      window.requestDock();
+      if(item.extra==='return'){
+        targetMovePos={x:item.x,y:item.y};
+        window.showCorpNotification('Auto-flight engaged: '+item.name);
+      } else {
+        window.requestDock();
+      }
       return;
     }
     if(item.kind==='rock'||item.kind==='salvage'){
