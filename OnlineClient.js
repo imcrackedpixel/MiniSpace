@@ -1,10 +1,11 @@
 
-/* MiniSpace Online: multiplayer with reconnect identity */
+/* MiniSpace Online: multiplayer, reconnect and global pilot directory */
 (function(){
  const state={
   socket:null,
   id:null,
   players:new Map(),
+  directory:[],
   connected:false,
   channel:'global',
   roomId:null,
@@ -47,14 +48,26 @@
     <span>MINISPACE ONLINE <span id="online-status">OFFLINE</span></span>
     <button id="online-collapse">−</button>
    </header>
+
    <div id="online-content">
     <div id="online-count">0 pilots online</div>
+
+    <div style="margin-top:8px;font-weight:bold;">
+     ALL PILOTS
+    </div>
+    <div id="online-directory">
+     Waiting for pilot directory...
+    </div>
+
     <div id="online-roster"></div>
+
     <div class="online-actions">
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
      <button id="online-add-friend">ADD FRIEND</button>
     </div>
+
     <div id="online-chat-log" aria-live="polite"></div>
+
     <div class="online-actions">
      <select id="online-channel">
       <option value="global">Global</option>
@@ -88,6 +101,8 @@
   $('online-chat-input').addEventListener('keydown',e=>{
    if(e.key==='Enter')chat();
   });
+
+  renderDirectory();
  }
 
  function send(message){
@@ -139,6 +154,44 @@
    renderX:old.renderX??p.x,
    renderY:old.renderY??p.y,
    renderAngle:old.renderAngle??p.angle
+  });
+ }
+
+ function renderDirectory(){
+  const box=$('online-directory');
+  if(!box)return;
+
+  box.replaceChildren();
+
+  if(!state.directory.length){
+   box.textContent='No pilots online';
+   return;
+  }
+
+  state.directory.forEach(p=>{
+   const row=document.createElement('div');
+   row.className='online-pilot';
+
+   const name=document.createElement('span');
+   name.textContent=(p.name||'Pilot')+' · '+(p.ship||'Unknown ship');
+
+   row.append(name);
+
+   if(p.id!==state.id){
+    const button=document.createElement('button');
+    button.textContent='FRIEND';
+
+    button.onclick=()=>{
+     send({
+      type:'friend-request',
+      name:p.name
+     });
+    };
+
+    row.append(button);
+   }
+
+   box.append(row);
   });
  }
 
@@ -314,7 +367,9 @@
    state.socket=null;
    state.roomId=null;
    state.players.clear();
+   state.directory=[];
    render();
+   renderDirectory();
 
    scheduleReconnect();
   };
@@ -344,9 +399,18 @@
     }
    }
 
+   if(message.type==='online-directory'){
+    state.directory=Array.isArray(message.players)
+     ? message.players
+     : [];
+
+    renderDirectory();
+   }
+
    if(message.type==='welcome'){
     state.id=message.id;
     render();
+    renderDirectory();
 
     if(message.resumed){
      log('Welcome back! Your pilot session was restored.');
