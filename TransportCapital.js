@@ -360,10 +360,10 @@
     update(targetPos, targetEnemy, autoTargetStation) {
       this.updateParticles();
 
-      // Stay docked unless a player miner is in the siphon feed.
-      const playerMining = (this.siphonFeed || []).some(function (f) { return isPlayerMiner(f.ref); });
-      if (!playerMining) this.docked = true;
-      else this.docked = false;
+      // Logistics ships fly to explicit route destinations; they no longer
+      // depend on miner siphoning to undock or move.
+      const hasDestination = !!autoTargetStation || !!targetPos;
+      this.docked = !hasDestination;
 
       if (this.docked) {
         this.thrust = 0;
