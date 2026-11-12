@@ -2172,7 +2172,7 @@ function updateHUD() {
   }
 }
 
-function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
+function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
 function drawMinimap() {
   if (!minimapCtx || !playerShip) return;
   updateCargoReadout();
@@ -2551,7 +2551,7 @@ function render() {
     ctx.restore();
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  m.save();m.translate(playerShip.x*sc,playerShip.y*sc);m.rotate(Number(playerShip.angle)||0);m.fillStyle='#e8fbff';m.strokeStyle='#36b99a';m.lineWidth=1.2;m.beginPath();m.moveTo(0,-5);m.lineTo(3.7,4);m.lineTo(0,2);m.lineTo(-3.7,4);m.closePath();m.fill();m.stroke();m.restore();m.strokeStyle='rgba(112,166,190,.55)';m.lineWidth=1;m.strokeRect(.5,.5,size-1,size-1);
+  const otherPilots=window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers;if(otherPilots){m.fillStyle='#36b99a';Object.values(otherPilots).forEach(p=>{if(p&&p.mapId===mapManager.currentMapId&&isFinite(Number(p.x))&&isFinite(Number(p.y))){m.beginPath();m.arc(Number(p.x)*sc,Number(p.y)*sc,2.4,0,Math.PI*2);m.fill();}});}m.save();m.translate(playerShip.x*sc,playerShip.y*sc);m.rotate(Number(playerShip.angle)||0);m.fillStyle='#e8fbff';m.strokeStyle='#36b99a';m.lineWidth=1.2;m.beginPath();m.moveTo(0,-5);m.lineTo(3.7,4);m.lineTo(0,2);m.lineTo(-3.7,4);m.closePath();m.fill();m.stroke();m.restore();m.strokeStyle='rgba(112,166,190,.55)';m.lineWidth=1;m.strokeRect(.5,.5,size-1,size-1);
 }
 
 let frameCount = 0;
