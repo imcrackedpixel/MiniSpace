@@ -672,27 +672,30 @@ button[onclick*="adjustZoom"],
   display: none !important;
 }
 
-/* Fullscreen control lives in the Ore HQ station header, not over the game corner. */
+/* Floating fullscreen toggle stays available both docked and while flying. */
 #minispace-fullscreen-btn {
+  position:fixed;
+  top:48px;
+  right:8px;
+  z-index:12001;
   display:none;
-  position:static;
-  flex:0 0 auto;
-  min-height:25px;
-  height:25px;
-  margin-left:auto;
-  padding:3px 7px;
+  min-height:28px;
+  height:28px;
+  padding:4px 8px;
   color:#9be7d4;
-  background:rgba(9,20,27,.94);
+  background:rgba(9,20,27,.96);
   border:1px solid #34785d;
-  border-radius:3px;
+  border-radius:5px;
   font-size:8px;
   font-weight:bold;
   letter-spacing:.2px;
   white-space:nowrap;
+  pointer-events:auto;
+  touch-action:manipulation;
 }
 @media screen and (orientation:landscape) and (max-width:950px) {
-  #station-ui .station-header { gap:5px; }
-  #station-ui #minispace-fullscreen-btn { display:inline-flex; align-items:center; justify-content:center; }
+  #minispace-fullscreen-btn { display:inline-flex; align-items:center; justify-content:center; }
+  body.ui-hidden #minispace-fullscreen-btn { display:none; }
 }
 html:fullscreen, html:-webkit-full-screen {
   width:100%;
