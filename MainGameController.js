@@ -1371,6 +1371,10 @@ const ctx = canvas ? canvas.getContext('2d') : null;
 var cameraZoom = 0.15;
 const MIN_CAMERA_ZOOM = 0.05;
 const MAX_CAMERA_ZOOM = 1.2;
+// Camera can be dragged away from the pilot to inspect nearby space.
+let cameraOffsetX = 0;
+let cameraOffsetY = 0;
+let cameraMapId = null;
 function setCameraZoom(value) {
   cameraZoom = Math.max(MIN_CAMERA_ZOOM, Math.min(MAX_CAMERA_ZOOM, Number(value) || MIN_CAMERA_ZOOM));
 }
@@ -1386,8 +1390,11 @@ function pointerDistance(a, b) {
   return Math.hypot(a.x - b.x, a.y - b.y);
 }
 window.addEventListener('pointerdown', function(e) {
-  if (!canvas || e.target !== canvas || e.pointerType !== 'touch') return;
-  activeZoomPointers.set(e.pointerId, { x: e.clientX, y: e.clientY, startX: e.clientX, startY: e.clientY });
+  if (!canvas || e.target !== canvas) return;
+  activeZoomPointers.set(e.pointerId, {
+    x:e.clientX, y:e.clientY, startX:e.clientX, startY:e.clientY,
+    lastX:e.clientX, lastY:e.clientY, dragged:false
+  });
   if (activeZoomPointers.size >= 2) {
     pinchGestureActive = true;
     pinchGestureFinished = true;
@@ -1397,15 +1404,26 @@ window.addEventListener('pointerdown', function(e) {
 }, { passive: true });
 
 window.addEventListener('pointermove', function(e) {
-  if (!activeZoomPointers.has(e.pointerId)) return;
   const point = activeZoomPointers.get(e.pointerId);
+  if (!point) return;
   point.x = e.clientX;
   point.y = e.clientY;
-  if (activeZoomPointers.size < 2) return;
-  const pts = Array.from(activeZoomPointers.values());
-  const nextDistance = pointerDistance(pts[0], pts[1]);
-  if (pinchDistance > 0 && nextDistance > 0) setCameraZoom(cameraZoom * (nextDistance / pinchDistance));
-  pinchDistance = nextDistance || pinchDistance;
+  if (activeZoomPointers.size >= 2) {
+    const pts = Array.from(activeZoomPointers.values());
+    const nextDistance = pointerDistance(pts[0], pts[1]);
+    if (pinchDistance > 0 && nextDistance > 0) setCameraZoom(cameraZoom * (nextDistance / pinchDistance));
+    pinchDistance = nextDistance || pinchDistance;
+    return;
+  }
+  const moved = Math.hypot(e.clientX - point.startX, e.clientY - point.startY);
+  if (moved > 9) point.dragged = true;
+  // A single held pointer pans the camera. It never moves the ship.
+  if (point.dragged) {
+    cameraOffsetX -= (e.clientX - point.lastX) / cameraZoom;
+    cameraOffsetY -= (e.clientY - point.lastY) / cameraZoom;
+  }
+  point.lastX = e.clientX;
+  point.lastY = e.clientY;
 }, { passive: true });
 
 function finishZoomPointer(e) {
@@ -1413,8 +1431,7 @@ function finishZoomPointer(e) {
   if (!point) return;
   activeZoomPointers.delete(e.pointerId);
   if (activeZoomPointers.size === 0) {
-    if (!pinchGestureFinished && !pinchGestureActive &&
-        Math.hypot(e.clientX - point.startX, e.clientY - point.startY) < 12) {
+    if (e.type === 'pointerup' && !point.dragged && !pinchGestureFinished && !pinchGestureActive) {
       handleCanvasTouch(e.clientX, e.clientY);
     }
     pinchGestureActive = false;
@@ -1462,8 +1479,8 @@ function handleCanvasTouch(clientX, clientY) {
   const dpr = window.devicePixelRatio || 1;
 
   targetMovePos = {
-    x: playerShip.x + (xCoord - canvas.width / (2 * dpr)) / cameraZoom,
-    y: playerShip.y + (yCoord - canvas.height / (2 * dpr)) / cameraZoom
+    x: playerShip.x + cameraOffsetX + (xCoord - canvas.width / (2 * dpr)) / cameraZoom,
+    y: playerShip.y + cameraOffsetY + (yCoord - canvas.height / (2 * dpr)) / cameraZoom
   };
   isDockingRequested = !inPublicSpace() && mainStation &&
     Math.hypot(targetMovePos.x - mainStation.x, targetMovePos.y - mainStation.y) < 450;
@@ -1494,12 +1511,7 @@ function isUiTarget(e) {
      e.target.closest('#setup-modal') || e.target.closest('#autoplay-btn'));
 }
 
-window.addEventListener('pointerdown', function(e) {
-  // Touch movement is handled on pointerup so a two-finger pinch never orders
-  // the ship to fly to the point where the first finger touched.
-  if (!canvas || e.target !== canvas || e.pointerType === 'touch') return;
-  handleCanvasTouch(e.clientX, e.clientY);
-});
+
 
 const keys = {};
 const MOVE_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
@@ -1901,8 +1913,11 @@ function updateStationUI() {
       if (pane) pane.style.display = 'none';
     });
   }
+  const walletText = fmtISK(playerData.isk || 0) + ' Scrap Metals';
   let iskDisplay = document.getElementById('station-isk-display');
-  if (iskDisplay) iskDisplay.innerText = fmtISK(playerData.isk || 0) + ' Scrap Metals';
+  if (iskDisplay) iskDisplay.innerText = walletText;
+  const flightWalletDisplay = document.getElementById('isk-text');
+  if (flightWalletDisplay) flightWalletDisplay.innerText = 'Scrap Metals: ' + fmtISK(playerData.isk || 0);
 
   const HANGAR_GROUP_TITLES = { ore: 'ORE', debris: 'COMPONENTS', explorer: 'EXPLORER SHIPS', mining: 'MINING SHIPS', combat: 'COMBAT SHIPS', capital: 'CAPITALS' };
   const HANGAR_SHIP_ART = {
@@ -2243,7 +2258,11 @@ function updateHUD() {
   // Keep the pilot profile compact: show total cargo only, not the ore breakdown.
   ensureOreCargo(s);
   setText('cargo-text', 'CARGO: ' + Math.floor(s.cargo || 0).toLocaleString() + ' / ' + Math.floor(s.maxCargo || 0).toLocaleString());
+  const walletText = fmtISK(playerData.isk || 0) + ' Scrap Metals';
   setText('isk-text', 'Scrap Metals: ' + fmtISK(playerData.isk || 0));
+  // Keep the docked header and flight HUD tied to the same live wallet value.
+  const dockedWalletDisplay = document.getElementById('station-isk-display');
+  if (dockedWalletDisplay) dockedWalletDisplay.textContent = walletText;
   let sys = document.getElementById('system-text');
   if (sys) {
     sys.innerText = inPublicSpace() ? 'SYSTEM: PUBLIC PVP SPACE' : (inMissionSpace() && missionManager.activeMission ? 'SYSTEM: ' + missionManager.activeMission.systemName.toUpperCase() : 'SYSTEM: High-Sec 1.0');
@@ -2570,7 +2589,13 @@ function render() {
   const W = canvas.width, H = canvas.height;
   const ship = playerShip;
   if (!ship) return;
-  const camX = ship.x, camY = ship.y;
+  const currentCameraMapId = String(mapManager && mapManager.currentMapId || '');
+  if (cameraMapId !== currentCameraMapId) {
+    cameraMapId = currentCameraMapId;
+    cameraOffsetX = 0;
+    cameraOffsetY = 0;
+  }
+  const camX = ship.x + cameraOffsetX, camY = ship.y + cameraOffsetY;
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
