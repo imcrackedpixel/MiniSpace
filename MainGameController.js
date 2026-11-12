@@ -1243,7 +1243,7 @@ window.initializeNewGameSession = function() {
       if (!playerData.unlockedShips) playerData.unlockedShips = {};
       playerData.unlockedShips.combatFrigate = true;
       if (playerData.shipsOwned.indexOf('Combat Frigate') === -1) playerData.shipsOwned.push('Combat Frigate');
-      playerShip = sessionManager.setShipClass(playerShip, 'Combat Frigate', 800, 5.0);
+      playerShip = sessionManager.setShipClass(playerShip, 'Combat Frigate', 200, 5.0);
       cleanModules(playerShip);
     }
   }
@@ -1397,10 +1397,10 @@ const SHIP_CATALOG = {
   'Mining Barge':        { cargo: 1200,   speed: 4.2,  unlock: 'barge' },
   'Command Ship':        { cargo: 2500,   speed: 3.5,  unlock: 'command' },
   'Mining Capital':      { cargo: 100000, speed: 1.6,  unlock: 'capital' },
-  'Carrier':             { cargo: 40000,  speed: 1.65, unlock: 'carrier' },
-  'Combat Frigate':      { cargo: 800,    speed: 5.0,  unlock: 'combatFrigate' },
-  'Siege Cruiser':       { cargo: 400,    speed: 2.6,  unlock: 'siegeCruiser' },
-  'Siege Battleship':    { cargo: 2000,   speed: 3.2,  unlock: 'siegeBattleship' },
+  'Carrier':             { cargo: 5000,   speed: 1.65, unlock: 'carrier' },
+  'Combat Frigate':      { cargo: 200,    speed: 5.0,  unlock: 'combatFrigate' },
+  'Siege Cruiser':       { cargo: 500,    speed: 2.6,  unlock: 'siegeCruiser' },
+  'Siege Battleship':    { cargo: 1000,   speed: 3.2,  unlock: 'siegeBattleship' },
   'Exploration Frigate': { cargo: 150,    speed: 6.0,  unlock: 'explorationFrigate' }
 };
 
@@ -1905,10 +1905,10 @@ function marketShipRows(group) {
     ['barge', 'Mining Barge', 1200, 4.2, 'mining'],
     ['command', 'Command Ship', 2500, 3.5, 'mining'],
     ['capital', 'Mining Capital', 100000, 1.6, 'mining'],
-    ['combatFrigate', 'Combat Frigate', 800, 5.0, 'combat'],
-    ['carrier', 'Carrier', 40000, 1.65, 'combat'],
-    ['siegeCruiser', 'Siege Cruiser', 400, 2.6, 'combat'],
-    ['siegeBattleship', 'Siege Battleship', 2000, 3.2, 'combat'],
+    ['combatFrigate', 'Combat Frigate', 200, 5.0, 'combat'],
+    ['carrier', 'Carrier', 5000, 1.65, 'combat'],
+    ['siegeCruiser', 'Siege Cruiser', 500, 2.6, 'combat'],
+    ['siegeBattleship', 'Siege Battleship', 1000, 3.2, 'combat'],
     ['explorationFrigate', 'Exploration Frigate', 150, 6.0, 'explorer']
   ].filter(function (sh) {
     return sh[4] === group;
