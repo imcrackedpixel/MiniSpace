@@ -327,9 +327,12 @@ class MapManager {
   this.currentMapId=system.id;const size=9000,cx=size/2,cy=size/2;
   this.frontierReturnGate={x:650,y:cy,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','SAFE RETURN','#34d399');}};
   this.frontierGates=system.links.map((id,i)=>{const a=2*Math.PI*i/Math.max(1,system.links.length)-Math.PI/2;const g={x:cx+Math.cos(a)*3300,y:cy+Math.sin(a)*3000,radius:90,destinationId:id};g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};return g;});
-  const belt=new AsteroidBelt(cx,cy,0,size);belt.generate(75+system.level*12,system.level>=4?['pyroxeres','omber','scordite']:['veldspar','scordite','pyroxeres']);
-  if(belt.entities)belt.entities.forEach((r,i)=>{const a=Math.random()*Math.PI*2,d=900+Math.random()*3300;r.x=cx+Math.cos(a)*d+(i%5-2)*180;r.y=cy+Math.sin(a)*d;});
-  const debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size):null;if(debris&&debris.generate)debris.generate(system.level);
+  let seed=0;for(let k=0;k<system.id.length;k++)seed=(seed*33+system.id.charCodeAt(k))>>>0;const oldRandom=Math.random;let rng=seed||1;Math.random=function(){rng=(rng*1664525+1013904223)>>>0;return rng/4294967296;};
+  let belt,debris;
+  try{belt=new AsteroidBelt(cx,cy,0,size);belt.generate(75+system.level*12,system.level>=4?['pyroxeres','omber','scordite']:['veldspar','scordite','pyroxeres']);
+   if(belt.entities)belt.entities.forEach((r,i)=>{const a=Math.random()*Math.PI*2,d=900+Math.random()*3300;r.x=cx+Math.cos(a)*d+(i%5-2)*180;r.y=cy+Math.sin(a)*d;});
+   debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size):null;if(debris&&debris.generate)debris.generate(system.level);
+  }finally{Math.random=oldRandom;}
   playerShip.x=this.frontierReturnGate.x+260;playerShip.y=this.frontierReturnGate.y;playerShip.vx=0;playerShip.vy=0;playerShip.angle=0;playerShip.docked=false;
   return {asteroidBelt:belt,debrisField:debris,size:size,system:system};
  }
