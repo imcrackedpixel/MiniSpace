@@ -1,5 +1,5 @@
 
-/* MiniSpace Online: multiplayer presence, rooms, chat, friends and ship rendering */
+/* MiniSpace Online: multiplayer with automatic reconnect */
 (function(){
  const state={
   socket:null,
@@ -9,7 +9,9 @@
   channel:'global',
   roomId:null,
   roomType:null,
-  mapId:null
+  mapId:null,
+  reconnectTimer:null,
+  reconnectAttempts:0
  };
 
  const $=id=>document.getElementById(id);
@@ -105,7 +107,6 @@
  function updatePlayer(p){
   if(!p||!p.id)return;
 
-  // Ignore updates from a different room.
   if(state.roomId&&p.roomId&&p.roomId!==state.roomId){
    return;
   }
@@ -153,7 +154,6 @@
   });
  }
 
- // Draw only other players assigned to the same room.
  function drawRemotePlayers(ctx){
   const local=window.playerShip;
   if(!local||local.docked||!window.ShipArt)return;
@@ -227,9 +227,34 @@
   return true;
  }
 
+ function scheduleReconnect(){
+  if(state.reconnectTimer)return;
+
+  state.reconnectAttempts++;
+
+  const delay=Math.min(
+   15000,
+   1000*Math.pow(2,Math.min(state.reconnectAttempts-1,4))
+  );
+
+  $('online-status').textContent='RECONNECTING';
+
+  state.reconnectTimer=setTimeout(()=>{
+   state.reconnectTimer=null;
+   connect();
+  },delay);
+ }
+
  function connect(){
   panel();
   installShipRenderer();
+
+  if(state.socket&&(
+   state.socket.readyState===WebSocket.OPEN||
+   state.socket.readyState===WebSocket.CONNECTING
+  )){
+   return;
+  }
 
   const url=window.MINISPACE_SERVER_URL;
 
@@ -238,36 +263,53 @@
    return;
   }
 
+  let socket;
+
   try{
-   state.socket=new WebSocket(url);
+   socket=new WebSocket(url);
+   state.socket=socket;
   }catch(error){
    $('online-status').textContent='CONNECTION ERROR';
+   scheduleReconnect();
    return;
   }
 
-  state.socket.onopen=()=>{
+  socket.onopen=()=>{
+   if(state.socket!==socket)return;
+
    state.connected=true;
+   state.reconnectAttempts=0;
    $('online-status').textContent='CONNECTED';
 
    send({
     type:'hello',
     name:localStorage.getItem('minispace_pilot_name')||'Pilot'
    });
+
+   tick();
   };
 
-  state.socket.onclose=()=>{
-   $('online-status').textContent='DISCONNECTED';
+  socket.onclose=()=>{
+   if(state.socket!==socket)return;
+
    state.connected=false;
+   state.socket=null;
    state.roomId=null;
    state.players.clear();
    render();
+
+   scheduleReconnect();
   };
 
-  state.socket.onerror=()=>{
-   $('online-status').textContent='CONNECTION ERROR';
+  socket.onerror=()=>{
+   if(state.socket===socket){
+    $('online-status').textContent='CONNECTION ERROR';
+   }
   };
 
-  state.socket.onmessage=e=>{
+  socket.onmessage=e=>{
+   if(state.socket!==socket)return;
+
    let message;
 
    try{
@@ -282,12 +324,10 @@
    }
 
    if(message.type==='room-joined'){
-    // The server has assigned this connection to a room.
     state.roomId=message.roomId;
     state.roomType=message.roomType;
     state.mapId=message.mapId;
 
-    // Remove ships from the previous room.
     state.players.clear();
     render();
 
@@ -339,9 +379,27 @@
   }
  }
 
+ function resumeConnection(){
+  if(state.socket&&state.socket.readyState===WebSocket.OPEN){
+   tick();
+  }else{
+   connect();
+  }
+ }
+
+ window.addEventListener('online',resumeConnection);
+ window.addEventListener('pageshow',resumeConnection);
+
+ document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden){
+   resumeConnection();
+  }
+ });
+
  window.MinispaceOnline={
   connect,
   send,
+  tick,
   state
  };
 
