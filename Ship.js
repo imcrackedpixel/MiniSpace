@@ -6,7 +6,7 @@
   // className -> artwork. scale multiplies the PNG's pixel size into game units.
   // size is the placeholder box shown until the PNG has loaded (also used as a fallback).
   const ART = {
-    'Siege Capital':      { file: 'siege_capital.png',      scale: 1.0, size: [300, 560] },
+    'Siege Capital':      { file: 'siege_battleship.png',      scale: 1.0, size: [300, 560] },
     'Carrier':            { file: 'carrier.png',            scale: 1.0, size: [170, 460] },
     'Mining Capital':     { file: 'mining_capital.png',     scale: 1.0, size: [420, 180] },
     'Command Ship':       { file: 'command_ship.png',       scale: 1.0, size: [260, 140] },
