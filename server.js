@@ -510,3 +510,21 @@ server.listen(PORT,()=>{
     `Minispace Online listening on ${PORT}`
   );
 });
+
+// GLOBAL PILOT DIRECTORY
+setInterval(()=>{
+  const directory=[...players.values()]
+    .filter(p=>p.ws && p.ws.readyState===WebSocket.OPEN)
+    .map(p=>({
+      id:p.id,
+      name:p.name,
+      ship:p.ship
+    }));
+
+  for(const p of players.values()) {
+    send(p.ws,{
+      type:'online-directory',
+      players:directory
+    });
+  }
+},3000);
