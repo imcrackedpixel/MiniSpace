@@ -1,4 +1,3 @@
-
 /* MiniSpace Online: multiplayer presence, chat, friends and ship rendering */
 (function(){
  const state={
@@ -337,3 +336,18 @@
   setInterval(tick,250);
  }
 })();
+// TEMPORARY MULTIPLAYER MOVEMENT TEST
+setInterval(function () {
+  const online = window.MinispaceOnline;
+  if (!online) return;
+
+  const players = [...online.state.players.values()];
+  const other = players.find(p => p.id !== online.state.id);
+  const count = document.getElementById('online-count');
+
+  if (count && other) {
+    count.textContent =
+      'Other pilot: X ' + Math.round(other.x) +
+      ' · Y ' + Math.round(other.y);
+  }
+}, 500);
