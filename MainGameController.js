@@ -541,8 +541,9 @@ window.openUniverse=function(){
  const xy=id=>{const p=pos[id]||[50,50];return [p[0]*7.6,p[1]*4.8];};
  const routes=[];systems.forEach(s=>s.links.forEach(id=>{if(s.id<id){const a=xy(s.id),b=xy(id);routes.push('<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" class="universe-route-line"/>');}}));
  const stars=systems.map(s=>{const p=xy(s.id),col=['#8aa8b3','#75c9a8','#5ca8d8','#b18be8','#ed6a70'][s.level-1]||'#8aa8b3';return '<g><circle cx="'+p[0]+'" cy="'+p[1]+'" r="23" fill="'+col+'" opacity=".10"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="10" fill="'+col+'" opacity=".16"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+col+'"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="15" fill="none" stroke="'+col+'" stroke-opacity=".5" stroke-dasharray="2 5"/></g>';}).join('');
- const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];const reachable=current==='private_highsec'?s.id==='frontier_ashen':(String(current).indexOf('frontier_')===0&&(systems.find(v=>v.id===current)?.links||[]).includes(s.id));return '<div class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+(reachable?' reachable':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" '+(reachable?'onclick="window.flyToFrontierGate(&quot;'+s.id+'&quot;)">':'aria-disabled="true">')+'<strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+(reachable?' · FLY TO GATE':'')+'</small></div>';}).join('');
- host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Fly to the Ashen Reach gate in High-Sec, then travel between connected systems through their gates. The chart is navigation only; it cannot teleport you. Autoplay is disabled in frontier space.</p>';
+ const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];const reachable=current==='private_highsec'?s.id==='frontier_ashen':(String(current).indexOf('frontier_')===0&&(systems.find(v=>v.id===current)?.links||[]).includes(s.id));return '<button type="button" class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+(reachable?' reachable':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" data-system-id="'+s.id+'" '+(reachable?'aria-label="Fly to gate for '+s.name+'"':'disabled aria-disabled="true"')+'><strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+(reachable?' · FLY TO GATE':'')+'</small></button>';}).join('');
+ host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Tap a highlighted connected system to fly to its physical gate. You must reach the gate to jump; the chart never teleports you. Autoplay is disabled in frontier space.</p>';
+ if(!host.dataset.navigationBound){host.addEventListener('click',function(event){const node=event.target.closest('button[data-system-id]');if(node&&!node.disabled)window.flyToFrontierGate(node.getAttribute('data-system-id'));});host.dataset.navigationBound='1';}
  modal.style.display='flex';
 };
 window.closeUniverse=function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
@@ -1853,7 +1854,7 @@ function updateStationUI() {
       const d = DESIGNS[key];
       const g = HANGAR_SHIP_GROUP[d.hull] || 'capital';
       const costTxt = d.cost ? ' (' + fmtISK(d.cost.isk) + ' Scrap Metals + ' + fmtISK(d.cost.items) + ' ore/components)' : '';
-      groupRows[g] += '<tr><td>' + d.label.toUpperCase() + ' (BLUEPRINT)</td><td>' + n + '</td><td><button onclick="window.buildDesign(\'' + key + '\')">Build on ' + d.hull + costTxt + '</button></td></tr>';
+      groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">📘</span><strong>' + d.label.toUpperCase() + ' (BLUEPRINT)</strong><span class="slot-qty">' + n + ' stored</span><div class="slot-actions"><button onclick="window.buildDesign(\'' + key + '\')">Build on ' + d.hull + costTxt + '</button></div></div>';
       groupCount[g]++;
     }
   }
@@ -1867,7 +1868,7 @@ function updateStationUI() {
     const action = aboard
       ? '<span style="color:#8b949e;">Aboard</span>'
       : '<button onclick="window.boardShip(\'' + hull + '\', ' + d.cargo + ', ' + d.speed + ')">Board</button>';
-    groupRows[g] += '<tr><td>' + hull.toUpperCase() + ' (HULL)</td><td>1</td><td>' + action + '</td></tr>';
+    groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">🚀</span><strong>' + hull.toUpperCase() + ' (HULL)</strong><span class="slot-qty">1 stored</span><div class="slot-actions">' + action + '</div></div>';
     groupCount[g]++;
   }
 
@@ -1887,18 +1888,18 @@ function updateStationUI() {
     const action = aboard
       ? '<span style="color:#8b949e;">Aboard</span>'
       : '<button onclick="window.boardShip(\'' + hull + '\', ' + info.cargo + ', ' + info.speed + ')">Board</button>';
-    groupRows[g] += '<tr><td>' + hull.toUpperCase() + '</td><td>1</td><td>' + action + '</td></tr>';
+    groupRows[g] += '<div class="inventory-slot"><span class="inventory-item-icon">🚀</span><strong>' + hull.toUpperCase() + '</strong><span class="slot-qty">1 owned</span><div class="slot-actions">' + action + '</div></div>';
     groupCount[g]++;
   }
 
   if ((playerData.transportManagerPurchased || 0) > 0) {
-    groupRows.mining += corpOwnedRow('TRANSPORT MANAGER', 'Active (Logistics Online)');
+    groupRows.mining += '<div class="inventory-slot"><span class="inventory-item-icon">📦</span><strong>TRANSPORT MANAGER</strong><span class="slot-qty">Active</span><small>Logistics Online</small></div>';
     groupCount.mining++;
   }
 
   let hangarHtml = '';
   for (const g of ['ore', 'debris', 'explorer', 'mining', 'combat', 'capital']) {
-    const body = groupRows[g] || '<tr><td colspan="3" style="text-align: center; color: #8b949e;">None</td></tr>';
+    const body = groupRows[g] || '<div class="fitting-empty">None stored</div>';
     hangarHtml += '<tr data-hangar-group="' + g + '"><td colspan="3" style="padding:0;"><details data-hangar-group="' + g + '" '+(g==='ore'||g==='debris'?'open':'')+'><summary>' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><div class="inventory-slot-grid">' + body + '</div></details></td></tr>';
   }
   if (playerData.chips > 0) {
@@ -1918,7 +1919,7 @@ function updateStationUI() {
     (!canSellAllHangar || !hasHangarGoods || !playerShip || !playerShip.docked || inTradeHub ? 'disabled' : '') +
     ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></td></tr>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
-  if (hangarEl) hangarEl.innerHTML = hangarHtml;
+  if (hangarEl) { hangarEl.innerHTML = hangarHtml; window.setHangarView(window._miniHangarView || 'items'); }
   const fittingEl=document.getElementById('hangar-fitting-panel');
   if(fittingEl){
     let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div>';
