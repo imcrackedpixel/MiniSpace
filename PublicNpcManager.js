@@ -141,17 +141,23 @@ class PublicNpcManager {
     this.publicNpcMiners=[];this.frontierMapId=system.id;this.playerSlot=0;window.centralStationBoss=null;
     let seed=0;for(let i=0;i<system.id.length;i++)seed=(seed*31+system.id.charCodeAt(i))>>>0;
     const oldRandom=Math.random;let state=seed||1;Math.random=function(){state=(state*1664525+1013904223)>>>0;return state/4294967296;};
-    try {const level=system.level||1,groups=level>=4?4:3,c=4500;
-      for(let g=0;g<groups;g++){const count=1+Math.floor(Math.random()*5),a=2*Math.PI*g/groups+Math.random()*.3,r=1100+g*500,gx=c+Math.cos(a)*r,gy=c+Math.sin(a)*r;
-        for(let i=0;i<count;i++){let cfg,combat=false,elite=false;
-          if(system.kind==='Mining Fleet')cfg=pickPirate(MINER_POOL);
-          else if(level===5){elite=system.id==='frontier_blackstar'?Math.random()<.45:(system.id==='frontier_crypt'?Math.random()<.28:Math.random()<.12);cfg=elite?(Math.random()<.5?PIRATE_TYPES.carrier:(Math.random()<.5?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser)):(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
-          else if(level===4){cfg=Math.random()<.25?PIRATE_TYPES.carrier:PIRATE_TYPES.siegeBattleship;combat=true;}
-          else if(level===3){cfg=Math.random()<.5?PIRATE_TYPES.siegeCruiser:PIRATE_TYPES.siegeBattleship;combat=true;}
-          else if(system.kind==='Mixed Fleets'&&Math.random()<.45)cfg=pickPirate(MINER_POOL);
-          else {cfg=level===1?PIRATE_TYPES.combatFrigate:(Math.random()<.65?PIRATE_TYPES.combatFrigate:PIRATE_TYPES.siegeCruiser);combat=true;}
-          const q=Math.random()*Math.PI*2,d=70+i*100;this.addPirate(cfg,gx+Math.cos(q)*d,gy+Math.sin(q)*d,'frontier_'+system.id+'_g'+g+'_n'+i,{dmg:combat?(level>=4?.32:.22):.08,aggro:combat,slot:0,elite:elite,frontierLevel:level,frontierKind:system.kind});
-        }
+    try {
+      const level=system.level||1,c=4500,count=3+Math.floor(Math.random()*3);
+      const gx=c+(Math.random()-.5)*900,gy=c+(Math.random()-.5)*900;
+      for(let i=0;i<count;i++){
+        let cfg,combat=false;
+        if(system.kind==='Mining Fleet')cfg=pickPirate(MINER_POOL);
+        else if(level===5){cfg=Math.random()<.10?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
+        else if(level===4){cfg=Math.random()<.35?PIRATE_TYPES.siegeCruiser:PIRATE_TYPES.siegeBattleship;combat=true;}
+        else if(level===3){cfg=Math.random()<.6?PIRATE_TYPES.combatFrigate:PIRATE_TYPES.siegeCruiser;combat=true;}
+        else if(system.kind==='Mixed Fleets'&&Math.random()<.45)cfg=pickPirate(MINER_POOL);
+        else {cfg=PIRATE_TYPES.combatFrigate;combat=true;}
+        const a=Math.random()*Math.PI*2,d=100+i*95,rr=Math.random();
+        const rarity=rr<.58?'common':rr<.84?'uncommon':rr<.97?'rare':'elite';
+        const elite=rarity==='elite'&&level===5&&combat;
+        const hpScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;
+        const dmgScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;
+        this.addPirate(cfg,gx+Math.cos(a)*d,gy+Math.sin(a)*d,'frontier_'+system.id+'_squad_n'+i,{dmg:combat?dmgScale:.04,aggro:combat,slot:0,elite:elite,frontierLevel:level,frontierKind:system.kind,frontierRarity:rarity,hpScale:hpScale});
       }
     } finally {Math.random=oldRandom;}
   }
@@ -168,7 +174,7 @@ class PublicNpcManager {
       let cfg=n.cfg;
       const deadEnd=String(this.frontierMapId||'').includes('blackstar')||String(this.frontierMapId||'').includes('crypt');
       const roll=Math.random(),level=n.frontierLevel||1;
-      let rarity=deadEnd?(roll<.38?'common':roll<.68?'uncommon':roll<.88?'rare':'elite'):(roll<.58?'common':roll<.83?'uncommon':roll<.96?'rare':'elite');
+      let rarity=deadEnd?(roll<.48?'common':roll<.76?'uncommon':roll<.94?'rare':'elite'):(roll<.58?'common':roll<.84?'uncommon':roll<.97?'rare':'elite');
       if(level<5&&rarity==='elite')rarity='rare';
       if(n.frontierKind!=='Mining Fleet'){
         if(level>=5)cfg=rarity==='elite'?(Math.random()<.5?PIRATE_TYPES.carrier:(Math.random()<.5?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser)):(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
@@ -247,14 +253,15 @@ class PublicNpcManager {
       shipObj.maxStructure = hp;
     }
     // Scale every layer (max and current) down to NPC_HP_SCALE
+    const npcHpScale=Number(opts.hpScale)||NPC_HP_SCALE;
     for (const layer of ['shield', 'armor', 'structure']) {
       const maxKey = 'max' + layer.charAt(0).toUpperCase() + layer.slice(1);
       if (shipObj[maxKey] > 0) {
-        shipObj[maxKey] *= NPC_HP_SCALE;
-        shipObj[layer] = (shipObj[layer] || 0) * NPC_HP_SCALE;
+        shipObj[maxKey] *= npcHpScale;
+        shipObj[layer] = (shipObj[layer] || 0) * npcHpScale;
       }
     }
-    hp *= NPC_HP_SCALE;
+    hp *= npcHpScale;
     if(opts.elite){for(const layer of ['shield','armor','structure']){const key='max'+layer.charAt(0).toUpperCase()+layer.slice(1);if(shipObj[key]>0){shipObj[key]*=2.4;shipObj[layer]*=2.4;}}hp*=2.4;}
     this.publicNpcMiners.push({
       id: id,
@@ -564,6 +571,15 @@ class PublicNpcManager {
           : 45;
         if (typeof window.awardPlayerXP === 'function') {
           window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
+        }
+        if(npc.frontierLevel&&playerData){
+          if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
+          const rr=Math.random(),rarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
+          const hull=npc.className==='Capital'?'Siege Capital':npc.className;
+          const mods=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
+          const module=mods[Math.floor(Math.random()*mods.length)];
+          playerData.moduleDrops.push({id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1});
+          if(typeof window.showCorpNotification==='function')window.showCorpNotification('MODULE DROP: '+rarity.toUpperCase()+' '+module);
         }
         if(npc.elite&&npc.frontierLevel===5&&playerData){
           const hull=npc.className==='Capital'?'Siege Capital':(npc.className||'Combat Frigate');
