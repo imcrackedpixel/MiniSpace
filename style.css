@@ -357,3 +357,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* MiniSpace HUD, cargo and radar refresh */
 #minimap-container{width:120px;height:120px;border:1px solid #3d6474;border-radius:50%;overflow:hidden;background:#07111b;box-shadow:0 0 14px #36b99a22}#minimap{width:120px;height:120px;display:block}#hud-collapse-btn{min-height:30px;border-radius:5px;cursor:pointer;touch-action:manipulation}#space-cargo-readout{max-height:145px;overflow:auto;pointer-events:none}#space-cargo-items>div{display:contents}#space-cargo-items b{color:#8de0bd;text-align:right}.universe-node.reachable{border-width:2px;box-shadow:0 0 0 2px #36b99a33,0 0 20px #36b99a44}
+
+/* Clearer directional radar: destination route and player heading are drawn in the canvas. */
+#minimap-container{width:148px;height:148px;border-radius:12px;border:1px solid #3d7180;background:radial-gradient(circle at center,#102432,#06101a 72%);box-shadow:0 0 0 3px #10222c,0 6px 18px #000a}
+#minimap{width:148px;height:148px}
