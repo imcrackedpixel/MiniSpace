@@ -2218,15 +2218,36 @@ if (
   if (!botManager) return;
 
   const oldBotUpdate = botManager.update;
+  // Corp logistics continue running even while the pilot is in the Trade Hub.
   botManager.update = function () {
-    if (mapManager.currentMapId === 'public_trade_hub') return;
     return oldBotUpdate.apply(this, arguments);
   };
 
   const oldBotDraw = botManager.draw;
   botManager.draw = function () {
-    if (mapManager.currentMapId === 'public_trade_hub') return;
-    return oldBotDraw.apply(this, arguments);
+    const originalBots = this.bots;
+    const currentMap = mapManager.currentMapId;
+    this.bots = originalBots.filter(function (bot) {
+      const ship = bot && bot.ship;
+      const isTransport =
+        ship && (
+          ship.className === 'Transport Capital' ||
+          ship.className === 'Industrial Hauler' ||
+          ship.className === 'Freighter'
+        );
+
+      if (isTransport) {
+        return (bot.transportMapId || 'private_highsec') === currentMap;
+      }
+
+      return currentMap !== 'public_trade_hub';
+    });
+
+    try {
+      return oldBotDraw.apply(this, arguments);
+    } finally {
+      this.bots = originalBots;
+    }
   };
 
   const oldDrawMinimap = drawMinimap;
@@ -2944,16 +2965,18 @@ if (
             Math.floor(((ship.cargo || 0) / maxCargo) * 100)
           );
 
-          if (percent >= 100) {
-            row.cells[1].innerText =
-              'FULL — Ready for Trade Hub (100%)';
-          } else if (manager.transportState === 'returning') {
-            row.cells[1].innerText =
-              'Returning to station (' + percent + '%)';
-          } else {
-            row.cells[1].innerText =
-              'Loading corporation goods (' + percent + '%)';
-          }
+          const stateLabels = {
+            loading: 'Loading corporation goods',
+            to_trade_gate: 'FULL — Departing High-Sec',
+            to_market: 'Trade Hub — Delivering shipment',
+            to_return_gate: 'Trade Hub — Returning to gate',
+            returning: 'Returning to High-Sec'
+          };
+          const stateLabel =
+            stateLabels[manager.transportState] || 'Transport Manager ready';
+          row.cells[1].innerText =
+            stateLabel + ' (' + percent + '%)';
+
         }
       }
     }
@@ -3006,7 +3029,9 @@ if (
 
       if (totalLabel) {
         totalLabel.textContent =
-          'CORP HANGAR VALUE: ' + totalValue.toLocaleString() + ' ISK';
+          'CORP HANGAR VALUE: ' + totalValue.toLocaleString() +
+          ' ISK  |  CORP WALLET: ' +
+          (Number(playerData.corpIsk) || 0).toLocaleString() + ' ISK';
       }
     }
   };
