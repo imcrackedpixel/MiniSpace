@@ -62,36 +62,3 @@ const SHIP_RECIPES = {};
  SHIP_RECIPES[key] = recipe;
  }
 })();
-
-class StationMarket {
- constructor(playerDataRef, stationName) {
- this.playerData = playerDataRef;
- this.stationName = stationName;
- }
-
- priceOf(item) {
- return ITEM_PRICES[item] || 0;
- }
-
- // Ores and components only. Ships are built in the Shipyard, not bought.
- instantBuy(ore, qty) {
- let item = (ore || '').toLowerCase().trim();
- const unit = ITEM_PRICES[item];
- if (unit === undefined) return { success: false };
- const cost = (qty || 1) * unit;
- if (this.playerData.isk < cost) return { success: false };
- this.playerData.isk -= cost;
- this.playerData.stationOre[item] = (this.playerData.stationOre[item] || 0) + (qty || 1);
- return { success: true };
- }
-
- instantSell(ore, qty) {
- let item = (ore || '').toLowerCase().trim();
- const unit = ITEM_PRICES[item];
- if (unit === undefined) return { success: false };
- if ((this.playerData.stationOre[item] || 0) < qty) return { success: false };
- this.playerData.stationOre[item] -= qty;
- this.playerData.isk += qty * unit;
- return { success: true };
- }
-}
