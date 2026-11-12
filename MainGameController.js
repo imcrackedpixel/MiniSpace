@@ -517,8 +517,12 @@ window.jumpToFrontierSystem=function(id){
 window.openUniverse=function(){
  const modal=document.getElementById('universe-modal'),host=document.getElementById('universe-systems');if(!modal||!host)return;
  const systems=window.MINISPACE_UNIVERSE_SYSTEMS||[],current=mapManager.currentMapId;
- host.innerHTML=systems.map(s=>{const links=s.links.map(id=>{const d=systems.find(x=>x.id===id);return d?d.name:id;}).join(' · ');
- return '<button class="universe-system-card" onclick="window.jumpToFrontierSystem(\''+s.id+'\')" '+(current===s.id?'disabled':'')+'><strong>'+s.name+'</strong><span>THREAT LEVEL '+s.level+' · '+s.kind+'</span><small>Routes: '+links+(s.links.length===1?' · DEAD END':'')+'</small></button>';}).join('');
+ const pos={frontier_ashen:[13,50],frontier_iron:[34,34],frontier_vanta:[34,72],frontier_cinder:[54,24],frontier_umbra:[57,51],frontier_nexus:[58,79],frontier_redline:[80,22],frontier_blackstar:[83,49],frontier_crypt:[84,81]};
+ const xy=id=>{const p=pos[id]||[50,50];return [p[0]*7.6,p[1]*4.8];};
+ const routes=[];systems.forEach(s=>s.links.forEach(id=>{if(s.id<id){const a=xy(s.id),b=xy(id);routes.push('<line x1="'+a[0]+'" y1="'+a[1]+'" x2="'+b[0]+'" y2="'+b[1]+'" class="universe-route-line"/>');}}));
+ const stars=systems.map(s=>{const p=xy(s.id),col=['#8aa8b3','#75c9a8','#5ca8d8','#b18be8','#ed6a70'][s.level-1]||'#8aa8b3';return '<g><circle cx="'+p[0]+'" cy="'+p[1]+'" r="23" fill="'+col+'" opacity=".10"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="10" fill="'+col+'" opacity=".16"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="3.2" fill="'+col+'"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="15" fill="none" stroke="'+col+'" stroke-opacity=".5" stroke-dasharray="2 5"/></g>';}).join('');
+ const nodes=systems.map(s=>{const p=pos[s.id]||[50,50];return '<button class="universe-node level-'+s.level+' '+(current===s.id?'current':'')+'" style="left:'+p[0]+'%;top:'+p[1]+'%" onclick="window.jumpToFrontierSystem(&quot;'+s.id+'&quot;)" '+(current===s.id?'disabled':'')+'><strong>'+s.name+'</strong><small>LVL '+s.level+(s.links.length===1?' · DEAD END':'')+'</small></button>';}).join('');
+ host.innerHTML='<div class="universe-starchart"><svg viewBox="0 0 760 480" preserveAspectRatio="none">'+routes.join('')+stars+'</svg>'+nodes+'<div class="universe-chart-title">FRONTIER NETWORK · 9 SYSTEMS</div><div class="universe-chart-key">LOW THREAT · MID THREAT · HIGH THREAT</div></div><p class="universe-map-note">Select a system to warp there. Lines show gate routes. Dead ends are marked. Autoplay is disabled in frontier space.</p>';
  modal.style.display='flex';
 };
 window.closeUniverse=function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
@@ -2366,6 +2370,16 @@ function updateGame() {
   if (playerShip.structure <= 0) window.handlePlayerDeath();
 }
 
+function drawSpaceDepthBackground(context, camX, camY, width, height, ship) {
+  const t=Date.now()*0.001,vx=Number(ship&&ship.vx)||0,vy=Number(ship&&ship.vy)||0,speed=Math.hypot(vx,vy);
+  const layers=[{count:75,depth:.12,size:.7,alpha:.35},{count:58,depth:.28,size:1.05,alpha:.55},{count:34,depth:.52,size:1.5,alpha:.78}];
+  context.save();context.fillStyle='#07101a';context.fillRect(0,0,width,height);
+  const glow=context.createRadialGradient(width*.52,height*.48,0,width*.52,height*.48,Math.max(width,height)*.72);glow.addColorStop(0,'rgba(20,48,68,.22)');glow.addColorStop(1,'rgba(2,6,13,0)');context.fillStyle=glow;context.fillRect(0,0,width,height);
+  layers.forEach((layer,li)=>{for(let i=0;i<layer.count;i++){const seed=(i*92821+li*12731+17)>>>0,rx=((seed*16807)%2147483647)/2147483647,ry=((seed*48271+97)%2147483647)/2147483647,x=((rx*width-camX*layer.depth*.035)%width+width)%width,y=((ry*height-camY*layer.depth*.035)%height+height)%height,tw=.72+.28*Math.sin(t*(1+li*.35)+i);context.globalAlpha=layer.alpha*tw;context.fillStyle=li===2?'#d9f5ff':'#a8c8dc';context.beginPath();context.arc(x,y,layer.size,0,Math.PI*2);context.fill();}});
+  if(speed>.65){const len=Math.min(42,speed*2.8);context.globalAlpha=Math.min(.42,speed*.035);context.strokeStyle='#9bd9f5';context.lineWidth=1;for(let i=0;i<18;i++){const x=((i*73+t*vx*1.4)%width+width)%width,y=((i*131+t*vy*1.4)%height+height)%height;context.beginPath();context.moveTo(x,y);context.lineTo(x-vx/Math.max(1,speed)*len,y-vy/Math.max(1,speed)*len);context.stroke();}}
+  context.restore();
+}
+
 function render() {
   const dpr = window.devicePixelRatio || 1;
   const W = canvas.width, H = canvas.height;
@@ -2380,6 +2394,7 @@ function render() {
   if (backgroundDecor && typeof backgroundDecor.draw === 'function') {
     backgroundDecor.draw(ctx, -camX, -camY, W / dpr, H / dpr);
   }
+  drawSpaceDepthBackground(ctx,camX,camY,W/dpr,H/dpr,ship);
 
   const z = cameraZoom * dpr;
   ctx.setTransform(z, 0, 0, z, W / 2 - camX * z, H / 2 - camY * z);
