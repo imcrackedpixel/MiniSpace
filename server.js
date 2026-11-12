@@ -29,7 +29,17 @@ async function verifyPilotToken(accessToken) {
     } catch (error) {
       console.warn('GM permission check unavailable:', error.message || error);
     }
-    return { accountId: user.id, isGM };
+    let banned = false;
+    let banReason = '';
+    try {
+      const statusResponse = await fetch(SUPABASE_URL + '/rest/v1/rpc/gm_admin_account_status', {
+        method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:'{}'
+      });
+      if(statusResponse.ok){const status=await statusResponse.json();banned=!!(status&&status.banned);banReason=String(status&&status.reason||'');}
+    } catch (error) {
+      console.warn('Ban status check unavailable:',error.message||error);
+    }
+    return { accountId: user.id, isGM, banned, banReason };
   } catch (error) {
     console.warn('Pilot authentication check failed:', error.message || error);
     return null;
@@ -334,6 +344,11 @@ wss.on('connection',ws=>{
       helloProcessed=true;
       p.name=safeText(m.name,16)||p.name||'Pilot';
       const identity=await verifyPilotToken(m.accessToken);
+      if(identity&&identity.banned){
+        send(ws,{type:'auth-status',authenticated:false,isGM:false,banned:true,reason:identity.banReason});
+        try{ws.close(4003,'Pilot account banned');}catch(error){}
+        return;
+      }
       p.accountId=identity ? identity.accountId : null;
       p.isGM=!!(identity && identity.isGM);
       p.authenticated=!!identity;
@@ -350,6 +365,21 @@ wss.on('connection',ws=>{
         system:q.system,x:q.x,y:q.y,invisible:!!q.invisible
       }));
       send(ws,{type:'gm-online-list',players:online});
+      return;
+    }
+
+    if(m.type==='gm-kick-account') {
+      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      const accountId=String(m.accountId||'');
+      const target=[...players.values()].find(q=>q.accountId===accountId&&q.id!==p.id&&q.ws);
+      if(!target){send(ws,{type:'gm-command-result',message:'That pilot is not currently online.'});return;}
+      send(target.ws,{type:'account-banned',message:'Your pilot account has been banned by a Game Master.'});
+      try{target.ws.close(4003,'Pilot account banned');}catch(error){}
+      leaveRoom(target);
+      players.delete(target.id);
+      friends.delete(target.id);
+      if(target.resumeToken)resumeTokens.delete(target.resumeToken);
+      send(ws,{type:'gm-command-result',message:target.name+' disconnected.'});
       return;
     }
 
