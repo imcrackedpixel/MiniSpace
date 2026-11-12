@@ -367,7 +367,7 @@ wss.on('connection',ws=>{
 
     if(m.type==='gm-list-online') {
       if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
-      const online=[...players.values()].filter(q=>q.ws&&q.ws.readyState===WebSocket.OPEN).map(q=>({
+      const online=[...players.values()].filter(q=>q.ws&&q.ws.readyState===WebSocket.OPEN&&q.authenticated).map(q=>({
         id:q.id,accountId:q.accountId||null,name:q.name,ship:q.ship,mapId:q.mapId,
         system:q.system,x:q.x,y:q.y,invisible:!!q.invisible
       }));
