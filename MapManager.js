@@ -371,8 +371,23 @@ class MapManager {
  jumpToFrontierSystem(playerShip,systemId){
   const system=FRONTIER_SYSTEMS.find(s=>s.id===systemId);if(!system||!playerShip)return null;
   this.currentMapId=system.id;const size=9000,cx=size/2,cy=size/2;
-  this.frontierReturnGate={x:650,y:cy,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','RETURN TO HIGH-SEC','#34d399');}};
-  this.frontierGates=system.links.filter(id=>id!=='private_highsec').map((id,i,all)=>{const a=2*Math.PI*i/Math.max(1,all.length)-Math.PI/2;const g={x:cx+Math.cos(a)*3300,y:cy+Math.sin(a)*3000,radius:90,destinationId:id};g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};return g;});
+  // Gate positions are seeded by system ID: every pilot sees the same exits in
+  // a given system, but different systems have different gate layouts.
+  let gateSeed=0;for(let k=0;k<system.id.length;k++)gateSeed=(gateSeed*33+system.id.charCodeAt(k))>>>0;
+  let gateRng=gateSeed||1;
+  const gateRandom=()=>{gateRng=(gateRng*1664525+1013904223)>>>0;return gateRng/4294967296;};
+  const gateCount=system.links.filter(id=>id!=='private_highsec').length;
+  const gateRotation=gateRandom()*Math.PI*2;
+  const gateRadius=2750+gateRandom()*550;
+  const returnAngle=gateRotation+Math.PI+(gateRandom()-0.5)*0.55;
+  this.frontierReturnGate={x:cx+Math.cos(returnAngle)*gateRadius,y:cy+Math.sin(returnAngle)*gateRadius,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','RETURN TO HIGH-SEC','#34d399');}};
+  this.frontierGates=system.links.filter(id=>id!=='private_highsec').map((id,i,all)=>{
+    const a=gateRotation+(2*Math.PI*i/Math.max(1,all.length))+(gateRandom()-0.5)*0.28;
+    const distance=gateRadius+(gateRandom()-0.5)*420;
+    const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:90,destinationId:id};
+    g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};
+    return g;
+  });
   this.frontierStation=new SpaceStation(cx,cy,system.name+' Station');
   let seed=0;for(let k=0;k<system.id.length;k++)seed=(seed*33+system.id.charCodeAt(k))>>>0;const oldRandom=Math.random;let rng=seed||1;Math.random=function(){rng=(rng*1664525+1013904223)>>>0;return rng/4294967296;};
   let belt,debris;
@@ -380,7 +395,18 @@ class MapManager {
    if(belt.entities)belt.entities.forEach((r,i)=>{const a=Math.random()*Math.PI*2,d=900+Math.random()*3300;r.x=cx+Math.cos(a)*d+(i%5-2)*180;r.y=cy+Math.sin(a)*d;});
    debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size,system.level):null;if(debris&&debris.generate)debris.generate(system.level);
   }finally{Math.random=oldRandom;}
-  playerShip.x=this.frontierReturnGate.x+260;playerShip.y=this.frontierReturnGate.y;playerShip.vx=0;playerShip.vy=0;playerShip.angle=0;playerShip.docked=false;
+  // Each arrival gets a fresh, private spawn point, well away from every gate
+  // and the central station so a waiting camper cannot cover the exit.
+  let spawnX=cx,spawnY=cy,spawnOk=false;
+  for(let attempt=0;attempt<80&&!spawnOk;attempt++){
+    const x=1200+Math.random()*6600,y=1200+Math.random()*6600;
+    const clearOfStation=Math.hypot(x-cx,y-cy)>1050;
+    const clearOfReturn=Math.hypot(x-this.frontierReturnGate.x,y-this.frontierReturnGate.y)>750;
+    const clearOfGates=this.frontierGates.every(g=>Math.hypot(x-g.x,y-g.y)>700);
+    if(clearOfStation&&clearOfReturn&&clearOfGates){spawnX=x;spawnY=y;spawnOk=true;}
+  }
+  if(!spawnOk){spawnX=cx;spawnY=cy-1400;}
+  playerShip.x=spawnX;playerShip.y=spawnY;playerShip.vx=0;playerShip.vy=0;playerShip.angle=Math.random()*Math.PI*2;playerShip.docked=false;
   return {asteroidBelt:belt,debrisField:debris,size:size,system:system,station:this.frontierStation};
  }
  jumpToMissionSystem(playerShip, mission) {
