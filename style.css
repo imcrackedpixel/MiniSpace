@@ -258,3 +258,15 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .online-actions{display:flex;gap:4px;margin-top:6px}.online-actions input,.online-actions select{min-width:0;flex:1;background:#101820;color:#dce8ed;border:1px solid #30424b;padding:5px;font-size:10px}
 #online-chat-log{height:105px;overflow:auto;background:#080d12;margin-top:7px;padding:5px;color:#b8c8ce;overflow-wrap:anywhere}
 @media(max-width:700px){#online-panel{top:auto;bottom:8px;right:8px;width:min(230px,62vw);max-height:35vh}#online-chat-log{height:65px}}
+/* MINISPACE CHAT POSITION */
+#online-panel {
+  right: auto !important;
+  left: 12px !important;
+}
+
+@media (max-width: 700px) {
+  #online-panel {
+    left: 8px !important;
+    right: auto !important;
+  }
+}
