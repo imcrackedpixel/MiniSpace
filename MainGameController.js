@@ -913,6 +913,43 @@ window.applySkillChip=function(id){
   cleanModules(playerShip);applyDesign(playerShip);saveGameSession();updateStationUI();
   window.showCorpNotification('Purple chip fitted: '+chip.module+' maximum level increased to '+getCap(chip.module,chip.hull)+'.');
 };
+
+function moduleDropSaleValue(drop) {
+  const values = { white: 250000, green: 600000, blue: 1500000, purple: 4000000 };
+  return values[String(drop && drop.rarity || 'white').toLowerCase()] || values.white;
+}
+window.fitFrontierModuleDrop = function(id) {
+  if (!playerShip || !playerShip.docked) { window.showCorpNotification('Dock at a station to fit a module drop.'); return; }
+  const drops = Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops : [];
+  const index = drops.findIndex(d => d && d.id === id), drop = drops[index];
+  if (!drop) return;
+  if (playerShip.className !== drop.hull) { window.showCorpNotification('This module is designed for ' + drop.hull + '. Board that ship first.'); return; }
+  if (!MODULE_KEYS[drop.hull] || !MODULE_KEYS[drop.hull].includes(drop.module)) { window.showCorpNotification('This drop does not match a valid fitting slot.'); return; }
+  cleanModules(playerShip);
+  const cap = getCap(drop.module, drop.hull);
+  const level = Number(playerShip.moduleLevels[drop.module]) || 1;
+  if (level >= cap) { window.showCorpNotification('That module is already at its maximum level.'); return; }
+  playerShip.moduleLevels[drop.module] = Math.min(cap, level + Math.max(1, Number(drop.level) || 1));
+  drops.splice(index, 1);
+  playerData.moduleDrops = drops;
+  applyDesign(playerShip); applyPilotTalents();
+  saveGameSession(); updateStationUI();
+  window.showCorpNotification(drop.name + ' fitted · ' + drop.module + ' is now level ' + playerShip.moduleLevels[drop.module] + '.');
+};
+window.sellFrontierModuleDrop = function(id) {
+  if (!playerShip || !playerShip.docked || mapManager.currentMapId !== 'public_trade_hub') {
+    window.showCorpNotification('Dock at the Trade Store to sell frontier module drops.'); return;
+  }
+  const drops = Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops : [];
+  const index = drops.findIndex(d => d && d.id === id), drop = drops[index];
+  if (!drop) return;
+  const value = moduleDropSaleValue(drop);
+  drops.splice(index, 1);
+  playerData.moduleDrops = drops;
+  playerData.isk = Math.max(0, Number(playerData.isk) || 0) + value;
+  updateStationUI(); saveGameSession();
+  window.showCorpNotification('NPC Trade Store bought ' + drop.name + ' for ' + fmtISK(value) + ' Scrap Metals.');
+};
 window.setHangarView=function(view){
   const valid=['items','ships','fitting'];if(!valid.includes(view))view='items';
   window._miniHangarView=view;
@@ -2153,7 +2190,11 @@ function updateStationUI() {
     const chips=Array.isArray(playerData.skillChips)?playerData.skillChips:[];
     const drops=Array.isArray(playerData.moduleDrops)?playerData.moduleDrops:[];
     fit+='<div class="fitting-heading"><strong>FRONTIER MODULE DROPS</strong><span>'+drops.length+' stored</span></div>';
-    if(drops.length)fit+='<div class="fitting-chip-list">'+drops.map(d=>'<div class="fitting-chip rarity-'+d.rarity+'"><span class="chip-glyph">⬡</span><div><strong>'+d.name+'</strong><small>'+d.hull+' · '+d.module+' · '+d.rarity.toUpperCase()+'</small></div></div>').join('')+'</div>';
+    if(drops.length)fit+='<div class="fitting-chip-list">'+drops.map(d=>{
+      const compatible=!!(playerShip&&playerShip.docked&&playerShip.className===d.hull&&MODULE_KEYS[d.hull]&&MODULE_KEYS[d.hull].includes(d.module)&&getCap(d.module,d.hull)<MAX_MODULE_LEVEL);
+      const sale=moduleDropSaleValue(d);
+      return '<div class="fitting-chip rarity-'+d.rarity+'"><span class="chip-glyph">⬡</span><div><strong>'+d.name+'</strong><small>'+d.hull+' · '+d.module+' · '+d.rarity.toUpperCase()+'</small></div><button onclick="window.fitFrontierModuleDrop(\''+d.id+'\')" '+(!compatible?'disabled':'')+'>FIT</button><button onclick="window.sellFrontierModuleDrop(\''+d.id+'\')" '+(!inTradeHub||!playerShip||!playerShip.docked?'disabled':'')+'>SELL '+fmtISK(sale)+'</button></div>';
+    }).join('')+'</div>';
     fit+='<div class="fitting-heading"><strong>PURPLE SKILL CHIPS</strong><span>'+chips.length+' stored</span></div>';
     if(!chips.length)fit+='<p class="fitting-empty">No purple chips yet. Hunt elite pirates in Level 4–5 frontier systems.</p>';
     else fit+='<div class="fitting-chip-list">'+chips.map(ch=>{
@@ -2998,6 +3039,7 @@ window.handlePlayerDeath = function() {
   playerShip = sessionManager.setShipClass(playerShip, 'Mining Frigate', 200, 3.4);
   applyDesign(playerShip);
   playerShip.cargo = 0;
+  playerShip.cargoByOre = {};
   playerShip.structure = playerShip.maxStructure;
   playerShip.docked = false;
 
