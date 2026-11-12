@@ -189,8 +189,14 @@ class PublicNpcManager {
     const state = this._frontierStates[id] || (this._frontierStates[id] = { spawned: false, respawnAt: 0 });
     const live = this.publicNpcMiners.some(n => n && n.isAlive && n.mapId === id && n.stationGuard);
     if (live) return;
+    if (state.spawned && !state.respawnAt) {
+      state.respawnAt = Date.now() + 180000 + Math.floor(Math.random() * 120001);
+    }
     if (state.spawned && state.respawnAt && Date.now() < state.respawnAt) return;
-    if (state.spawned && !state.respawnAt) return;
+    if (state.spawned && state.respawnAt && Date.now() >= state.respawnAt) {
+      state.spawned = false;
+      state.respawnAt = 0;
+    }
     const cx = station && Number.isFinite(station.x) ? station.x : 4500;
     const cy = station && Number.isFinite(station.y) ? station.y : 4500;
     let plan;
