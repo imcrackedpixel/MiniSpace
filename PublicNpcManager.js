@@ -132,72 +132,7 @@ class PublicNpcManager {
     this.CARRIER_HUNT_SPEED = 2.2;
     this.CARRIER_IDEAL_DIST = 320;
     this._dbgFrame = 0;
-    this.frontierMapId = null;
-    window.addEventListener('minispace-frontier-npc-state', e => this.applyFrontierState(e.detail));
-    window.addEventListener('minispace-frontier-npc-death', e => this.applyFrontierDeath(e.detail));
-    window.addEventListener('minispace-frontier-npc-respawn', e => this.applyFrontierRespawn(e.detail));
   }
-  initFrontier(system) {
-    this.publicNpcMiners=[];this.frontierMapId=system.id;this.playerSlot=0;window.centralStationBoss=null;
-    let seed=0;for(let i=0;i<system.id.length;i++)seed=(seed*31+system.id.charCodeAt(i))>>>0;
-    const oldRandom=Math.random;let state=seed||1;Math.random=function(){state=(state*1664525+1013904223)>>>0;return state/4294967296;};
-    try {
-      const level=system.level||1,c=4500,count=3+Math.floor(Math.random()*3);
-      // Keep the frontier skirmish close enough to the return rift for arriving pilots to see it.
-      const gx=1850+Math.random()*350,gy=c+(Math.random()-.5)*900;
-      for(let i=0;i<count;i++){
-        let cfg,combat=false;
-        if(system.kind==='Mining Fleet')cfg=pickPirate(MINER_POOL);
-        else if(level===5){cfg=Math.random()<.10?PIRATE_TYPES.carrier:(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);combat=true;}
-        else if(level===4){cfg=Math.random()<.35?PIRATE_TYPES.siegeCruiser:PIRATE_TYPES.siegeBattleship;combat=true;}
-        else if(level===3){cfg=Math.random()<.6?PIRATE_TYPES.combatFrigate:PIRATE_TYPES.siegeCruiser;combat=true;}
-        else if(system.kind==='Mixed Fleets'&&Math.random()<.45)cfg=pickPirate(MINER_POOL);
-        else {cfg=PIRATE_TYPES.combatFrigate;combat=true;}
-        const a=Math.random()*Math.PI*2,d=100+i*95,rr=Math.random();
-        const rarity=rr<.58?'common':rr<.84?'uncommon':rr<.97?'rare':'elite';
-        const elite=rarity==='elite'&&level===5&&combat;
-        const hpScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;
-        const dmgScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;
-        const forceMiner = i === 0 && system.kind !== 'Mining Fleet';
-        const forcePirate = i === 0 && system.kind === 'Mining Fleet';
-        if (forceMiner) { cfg = pickPirate(MINER_POOL); combat = false; }
-        else if (forcePirate) { cfg = PIRATE_TYPES.combatFrigate; combat = true; }
-        const isMiner = forceMiner || (system.kind === 'Mining Fleet' && !forcePirate) || (system.kind === 'Mixed Fleets' && !combat);
-        this.addPirate(cfg,gx+Math.cos(a)*d,gy+Math.sin(a)*d,'frontier_'+system.id+'_squad_n'+i,{dmg:combat?dmgScale:.04,aggro:false,slot:-1,role:isMiner?'mine':'patrol',faction:isMiner?'miners':'pirates',elite:elite,frontierLevel:level,frontierKind:system.kind,frontierRarity:rarity,hpScale:hpScale});
-      }
-    } finally {Math.random=oldRandom;}
-  }
-  applyFrontierState(d){if(!d||d.mapId!==this.frontierMapId)return;(d.deadNpcs||[]).forEach(x=>this.applyFrontierDeath(x));}
-  applyFrontierDeath(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n){n.isAlive=false;n.respawnAt=Number(d.respawnAt)||Date.now()+90000;}}
-  applyFrontierRespawn(d){if(!d||!d.npcId)return;const n=this.publicNpcMiners.find(x=>x.id===d.npcId);if(n&&!n.isAlive)this.reviveFrontierNpc(n);}
-  reviveFrontierNpc(n){
-    if(!n||!n.cfg)return;
-    let seed=0;for(let i=0;i<n.id.length;i++)seed=(seed*31+n.id.charCodeAt(i))>>>0;
-    seed=(seed+Math.floor((n.respawnAt||Date.now())/1000))>>>0;
-    const oldRandom=Math.random;let st=seed||1;
-    Math.random=function(){st=(st*1664525+1013904223)>>>0;return st/4294967296;};
-    try{
-      let cfg=n.cfg;
-      const deadEnd=String(this.frontierMapId||'').includes('blackstar')||String(this.frontierMapId||'').includes('crypt');
-      const roll=Math.random(),level=n.frontierLevel||1;
-      let rarity=deadEnd?(roll<.48?'common':roll<.76?'uncommon':roll<.94?'rare':'elite'):(roll<.58?'common':roll<.84?'uncommon':roll<.97?'rare':'elite');
-      if(level<5&&rarity==='elite')rarity='rare';
-      if(n.role!=='mine'){
-        if(level>=5)cfg=rarity==='elite'?(Math.random()<.5?PIRATE_TYPES.carrier:(Math.random()<.5?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser)):(Math.random()<.55?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser);
-        else if(level>=4)cfg=PIRATE_TYPES.siegeBattleship;
-        else if(level===3)cfg=rarity==='rare'?PIRATE_TYPES.siegeBattleship:PIRATE_TYPES.siegeCruiser;
-        else if(level<=2&&rarity==='rare')cfg=PIRATE_TYPES.combatFrigate;
-        else if(Math.random()<.30)cfg=pickPirate(MINER_POOL);
-      }else if(rarity==='rare'||rarity==='elite')cfg=pickPirate([{t:'barge',w:2},{t:'command',w:1}]);
-      const elite=rarity==='elite'&&level===5&&n.frontierKind!=='Mining Fleet';
-      const hull=cfg.name==='Capital'?'Siege Capital':cfg.name;
-      const old=this.publicNpcMiners;this.publicNpcMiners=[];
-      const levelScale=level===1?.34:level===2?.40:level===3?.48:level===4?.60:.72;const damageScale=level===1?.055:level===2?.075:level===3?.105:level===4?.16:.22;this.addPirate(cfg,n.home.x,n.home.y,n.id,{dmg:COMBAT_HULLS[cfg.name]?damageScale:.04,aggro:!!COMBAT_HULLS[cfg.name],slot:n.beltSlot,role:n.role||'patrol',faction:n.faction||'pirates',elite:elite,frontierLevel:n.frontierLevel,frontierKind:n.frontierKind,frontierRarity:rarity,hpScale:levelScale});
-      const fresh=this.publicNpcMiners.pop();this.publicNpcMiners=old;
-      if(fresh)Object.assign(n,fresh);
-    }finally{Math.random=oldRandom;}
-  }
-
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
   init(playerShip, playerSlot = 0) {
@@ -576,7 +511,7 @@ class PublicNpcManager {
   }
 
   update(currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession, debrisField) {
-    if (currentMapId !== 'public_space' && String(currentMapId).indexOf('frontier_') !== 0) return;
+    if (currentMapId !== 'public_space') return;
 
     // Check if player is shooting the station boss
     if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure > 0 && playerShip && !playerShip.docked) {
@@ -826,7 +761,7 @@ class PublicNpcManager {
   }
 
   draw(ctx, currentMapId) {
-    if (currentMapId !== 'public_space' && String(currentMapId).indexOf('frontier_') !== 0) return;
+    if (currentMapId !== 'public_space') return;
 
     // Draw Central Station Boss and its health bar
     if (currentMapId === 'public_space' && window.centralStationBoss && typeof window.centralStationBoss.draw === 'function') {
