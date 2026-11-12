@@ -5,7 +5,7 @@
     'mining frigate': 'mining_frigate.png',
     'mining barge': 'mining_barge.png',
     'command ship': 'command_ship.png',
-    'carrier': 'Carrier.png',
+    'carrier': 'carrier.png',
     'mining capital': 'mining_capital.png',
     'combat frigate': 'combat_frigate.png',
     'exploration frigate': 'exploration_frigate.png',
