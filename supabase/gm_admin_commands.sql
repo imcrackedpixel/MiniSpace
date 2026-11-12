@@ -45,6 +45,7 @@ declare
   v_matches integer;
   v_name text;
   v_ban public.minispace_gm_bans%rowtype;
+  v_is_banned boolean:=false;
 begin
   if auth.uid() is null or not exists(select 1 from public.minispace_gm_accounts where pilot_id=auth.uid()) then
     raise exception 'GM access required';
@@ -68,6 +69,7 @@ begin
   ) order by station_id,item_key),'[]'::jsonb)
   into v_hangars from public.pilot_hangars where pilot_id=v_target;
   select * into v_ban from public.minispace_gm_bans where pilot_id=v_target;
+  v_is_banned:=found;
 
   return jsonb_build_object(
     'pilotId',v_target,
@@ -75,8 +77,8 @@ begin
     'playerData',coalesce(v_save->'playerData','{}'::jsonb),
     'wallet',coalesce(v_wallet,0),
     'hangars',coalesce(v_hangars,'[]'::jsonb),
-    'banned',found,
-    'banReason',case when found then v_ban.reason else null end
+    'banned',v_is_banned,
+    'banReason',case when v_is_banned then v_ban.reason else null end
   );
 end;
 $$;
