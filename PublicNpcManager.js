@@ -78,7 +78,7 @@ const PIRATE_TIER_OF = {
 const PEACE_RANGE = 1000;          // pirates attack the player inside this distance, otherwise they carry on their job
 const MATCH_PLAYER_SPEED = false;  // true = every NPC uses the player's maxSpeed instead of its own row
 const NPC_SPEED_FALLBACK = 2.5;    // used if a hull has no maxSpeed anywhere
-const PATROL_SPEED_FRAC = 0.3;     // patrol cruising speed as a fraction of maxSpeed
+const PATROL_SPEED_FRAC = 0.62;     // patrol cruising speed as a fraction of maxSpeed
 const MINE_SPEED_FRAC = 0.5;       // speed flying in to a rock, as a fraction of maxSpeed
 
 // Hulls that patrol their belt. Every other pirate hull mines rocks when the player is away.
@@ -453,7 +453,7 @@ class PublicNpcManager {
     if (npc.role === 'patrol') {
       if (!npc.patrolPt || Math.hypot(npc.patrolPt.x - ship.x, npc.patrolPt.y - ship.y) < 80) {
         const a = Math.random() * Math.PI * 2;
-        const r = 150 + Math.random() * 450;
+        const r = 350 + Math.random() * 850;
         npc.patrolPt = { x: npc.home.x + Math.cos(a) * r, y: npc.home.y + Math.sin(a) * r };
       }
       this.flyTo(ship, npc.patrolPt, speed * PATROL_SPEED_FRAC);
@@ -569,11 +569,20 @@ class PublicNpcManager {
           playerData.isk += Math.floor(npc.bounty);
         }
         const frontierXP = npc.frontierLevel ? Math.round(140 + npc.frontierLevel * 110 + (npc.elite ? 450 : 0)) : 75;
-        if(playerData){if(!playerData.stationOre)playerData.stationOre={};const salvageKey=npc.frontierLevel?(Math.random()<.55?'debris_t2':'debris_t3'):(Math.random()<.65?'debris_t1':'debris_t2');const salvageQty=Math.max(1,Math.round((1+Math.floor(Math.random()*3))*(1+(npc.frontierLevel||0)*.5)*(npc.elite?2:1)));playerData.stationOre[salvageKey]=(Number(playerData.stationOre[salvageKey])||0)+salvageQty;npc.salvageReward={key:salvageKey,qty:salvageQty};}
+        if(playerData){
+          if(!playerData.stationOre)playerData.stationOre={};
+          const salvageTier=Math.max(1,Math.min(5,Number(npc.frontierLevel)||1));
+          const salvageKey='debris_t'+salvageTier;
+          const salvageQty=Math.round((350+salvageTier*250+Math.random()*200)*(npc.elite?2:1));
+          const loaded=typeof window.addOreToCargo==='function'?window.addOreToCargo(playerShip,salvageKey,salvageQty):0;
+          const overflow=Math.max(0,salvageQty-loaded);
+          if(overflow)playerData.stationOre[salvageKey]=(Number(playerData.stationOre[salvageKey])||0)+overflow;
+          npc.salvageReward={key:salvageKey,qty:salvageQty};
+        }
         if (typeof window.awardPlayerXP === 'function') {
           window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
         }
-        if(npc.frontierLevel&&playerData){
+        if(playerData){
           if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
           const rr=Math.random(),rarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
           const hull=npc.className==='Capital'?'Siege Capital':npc.className;
