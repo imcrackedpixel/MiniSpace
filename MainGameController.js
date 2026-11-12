@@ -1607,40 +1607,82 @@ window.sellHangarItemViaTransport = async function(itemKey, requestedQty) {
 };
 
 window.sellAllHangarViaTransport = async function() {
-  const keys = Object.keys(GAME_ITEM_LABELS);
-  const stock = keys.map(function(key) {
-    return { key: key, qty: Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) };
-  }).filter(function(entry) { return entry.qty > 0; });
-  if (!stock.length) {
-    window.showCorpNotification('Your Private High-Sec hangar is empty.');
-    return;
-  }
-  if (!playerShip || !playerShip.docked ||
-      (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
-    window.showCorpNotification('Dock at your Private High-Sec station to sell your hangar through the Transport Manager.');
-    return;
-  }
-  const manager = botManager && botManager.bots ? botManager.bots.find(function (b) {
-    return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className);
-  }) : null;
-  if (!manager || manager.transportTask ||
-      !(['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState))) {
-    window.showCorpNotification('Your Transport Manager cannot accept a Sell All order right now.');
-    return;
-  }
-  let total = 0;
-  for (const entry of stock) {
-    const result = await window.sellHangarItemViaTransport(entry.key, entry.qty);
-    if (result && result.deposited) total += result.deposited;
-    if (!result || !result.success) {
-      window.showCorpNotification('Sell All stopped. Transport accepted ' + total.toLocaleString() +
-        ' goods; ' + entry.qty.toLocaleString() + ' ' + itemLabel(entry.key) +
-        ' could not be fully transferred. ' + (result && result.error ? result.error : 'Check the Transport Manager and try again.'));
+  if (window._miniSpaceSellAllRunning) return;
+  window._miniSpaceSellAllRunning = true;
+  try {
+    if (!playerShip || !playerShip.docked ||
+        (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
+      window.showCorpNotification('Dock at your Private High-Sec station to sell your hangar through the Transport Manager.');
       return;
     }
+    const manager = botManager && botManager.bots ? botManager.bots.find(function (b) {
+      return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className);
+    }) : null;
+    if (!manager || manager.transportTask ||
+        !(['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning'].includes(manager.transportState))) {
+      window.showCorpNotification('Your Transport Manager cannot accept a Sell All order right now.');
+      return;
+    }
+    if (!window.MINISPACE_MARKET || typeof window.MINISPACE_MARKET.ready !== 'function') {
+      throw new Error('The shared hangar system is not ready.');
+    }
+
+    // Always take the Sell All snapshot from the authoritative cloud hangar,
+    // not a possibly stale local save or an old station panel.
+    await window.MINISPACE_MARKET.ready();
+    await window.MINISPACE_MARKET.refresh();
+    if (!window.MINISPACE_MARKET.applyToGame(playerData)) {
+      throw new Error('The cloud hangar has not finished syncing. Please try again.');
+    }
+    const keys = Object.keys(GAME_ITEM_LABELS);
+    const stock = keys.map(function(key) {
+      return { key: key, qty: Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) };
+    }).filter(function(entry) { return entry.qty > 0; });
+    if (!stock.length) {
+      updateStationUI();
+      window.showCorpNotification('Your Private High-Sec hangar is already empty.');
+      return;
+    }
+
+    let total = 0;
+    for (const entry of stock) {
+      const result = await window.sellHangarItemViaTransport(entry.key, entry.qty);
+      if (result && result.deposited) total += result.deposited;
+      if (!result || !result.success || result.deposited !== entry.qty) {
+        await window.MINISPACE_MARKET.refresh().catch(function() {});
+        window.MINISPACE_MARKET.applyToGame(playerData);
+        if (typeof window.saveGameSession === 'function') window.saveGameSession();
+        updateStationUI();
+        updateCorpUI();
+        window.showCorpNotification('Sell All transferred ' + total.toLocaleString() +
+          ' goods so far. ' + itemLabel(entry.key) + ' was only partly accepted. Any accepted batches remain safely queued; try Sell All again for the remainder.');
+        return;
+      }
+    }
+
+    // Re-read the cloud after the final reservation and verify every station item is zero.
+    await window.MINISPACE_MARKET.refresh();
+    if (!window.MINISPACE_MARKET.applyToGame(playerData)) {
+      throw new Error('Goods were queued, but the final cloud-hangar check could not complete. Reopen the station to verify.');
+    }
+    const leftovers = keys.reduce(function(sum, key) {
+      return sum + Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0));
+    }, 0);
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    updateStationUI();
+    updateCorpUI();
+    if (leftovers > 0) {
+      window.showCorpNotification('Transport accepted ' + total.toLocaleString() + ' goods. ' +
+        leftovers.toLocaleString() + ' remain in your station hangar; press Sell All again to send the remainder.');
+      return;
+    }
+    window.showCorpNotification('Hangar emptied: all ' + total.toLocaleString() +
+      ' ore and components are now in the Transport Manager sale queue. He will deliver them in cargo-sized trips.');
+  } catch (error) {
+    window.showCorpNotification('Sell All could not finish: ' + (error.message || error));
+  } finally {
+    window._miniSpaceSellAllRunning = false;
   }
-  window.showCorpNotification('Sell All transferred ' + total.toLocaleString() +
-    ' goods into the Transport Manager sale queue. He will deliver them in cargo-sized trips.');
 };
 
 function updateStationUI() {
