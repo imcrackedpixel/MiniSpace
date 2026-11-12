@@ -691,7 +691,8 @@ function awardPlayerXP(path,amount,reason){
  const p=progressionData();amount=Math.max(0,Number(amount)||0);if(!amount)return;
  p.xp=(p.xp||0)+amount;let gained=0;
  while(p.xp >= xpForNextLevel(p.level||1)){p.xp-=xpForNextLevel(p.level||1);p.level=(p.level||1)+1;p.skillPoints=(p.skillPoints||0)+1;gained++;}
- if(gained){window.showCorpNotification('PILOT LEVEL UP! Level '+p.level+' — '+gained+' talent point'+(gained===1?'':'s')+' earned.');updatePilotPanel();saveGameSession();}
+ updatePilotPanel();
+ if(gained){window.showCorpNotification('PILOT LEVEL UP! Level '+p.level+' — '+gained+' talent point'+(gained===1?'':'s')+' earned.');saveGameSession();}
 }
 window.awardPlayerXP=awardPlayerXP;
 function talentRank(path,id){const p=progressionData();return Math.max(0,Number(p.spent[path]&&p.spent[path][id])||0);}
@@ -2251,8 +2252,13 @@ function drawMinimap() {
       m.fill();
     }
   }
-  m.fillStyle = '#ffffff';
-  m.fillRect(playerShip.x * sc - 2, playerShip.y * sc - 2, 4, 4);
+  if(targetMovePos&&isFinite(targetMovePos.x)&&isFinite(targetMovePos.y)){
+    m.save();m.strokeStyle='rgba(77,208,225,.95)';m.lineWidth=1.5;m.setLineDash([3,2]);
+    m.beginPath();m.moveTo(playerShip.x*sc,playerShip.y*sc);m.lineTo(targetMovePos.x*sc,targetMovePos.y*sc);m.stroke();
+    m.setLineDash([]);m.fillStyle='#4dd0e1';m.beginPath();m.arc(targetMovePos.x*sc,targetMovePos.y*sc,3,0,Math.PI*2);m.fill();m.restore();
+  }
+  m.save();m.translate(playerShip.x*sc,playerShip.y*sc);m.rotate(Number(playerShip.angle)||0);
+  m.fillStyle='#ffffff';m.strokeStyle='#36b99a';m.lineWidth=1.2;m.beginPath();m.moveTo(0,-6);m.lineTo(4.5,5);m.lineTo(0,2.5);m.lineTo(-4.5,5);m.closePath();m.fill();m.stroke();m.restore();
 }
 
 function manualControl() {
@@ -2525,7 +2531,19 @@ function render() {
     if (minedDuringDraw > 0 && ['Mining Frigate','Mining Barge'].includes(ship.className)) awardPlayerXP('mining', minedDuringDraw / 100, 'Ore mined');
   }
   if (!inMissionSpace() && window.SiegeCapital) window.SiegeCapital.draw(ctx);
-  const remote=window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers;if(remote)Object.values(remote).forEach(p=>{if(!p||p.mapId!==mapManager.currentMapId||!isFinite(Number(p.x))||!isFinite(Number(p.y)))return;const z=Math.max(.45,Number(window.cameraZoom)||1);ctx.save();ctx.translate(Number(p.x),Number(p.y));ctx.fillStyle='rgba(8,22,32,.94)';ctx.strokeStyle='#36b99a';ctx.lineWidth=1.5/z;ctx.beginPath();ctx.roundRect(-36/z,-36/z,72/z,19/z,5/z);ctx.fill();ctx.stroke();ctx.fillStyle='#b7f5e4';ctx.font='bold '+11/z+'px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(p.name||'PILOT').slice(0,16),0,-26/z);ctx.fillStyle='#7fa8b8';ctx.font=8/z+'px system-ui,sans-serif';ctx.fillText(String(p.ship||'SHIP').toUpperCase(),0,-12/z);ctx.rotate(Number(p.angle)||0);ctx.fillStyle='#36b99a';ctx.beginPath();ctx.moveTo(0,-13/z);ctx.lineTo(8/z,9/z);ctx.lineTo(0,5/z);ctx.lineTo(-8/z,9/z);ctx.closePath();ctx.fill();ctx.restore();});
+  const remote=window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers;
+  if(remote)Object.values(remote).forEach(p=>{
+    if(!p||p.mapId!==mapManager.currentMapId||!isFinite(Number(p.x))||!isFinite(Number(p.y)))return;
+    const z=Math.max(.45,Number(window.cameraZoom)||1),name=String(p.name||'PILOT').slice(0,16);
+    ctx.save();ctx.translate(Number(p.x),Number(p.y));
+    ctx.font='bold '+11/z+'px system-ui,sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';
+    const labelW=Math.max(82,ctx.measureText(name).width+24/z),labelH=27/z,labelY=-((Number(p.radius)||22)+25)/z;
+    ctx.fillStyle='rgba(3,15,22,.94)';ctx.strokeStyle='#36b99a';ctx.lineWidth=1.5/z;
+    ctx.beginPath();ctx.roundRect(-labelW/2,labelY-labelH/2,labelW,labelH,7/z);ctx.fill();ctx.stroke();
+    ctx.shadowColor='#36b99a';ctx.shadowBlur=6/z;ctx.fillStyle='#b7f5e4';ctx.fillText(name,0,labelY-2/z);
+    ctx.shadowBlur=0;ctx.fillStyle='#7fa8b8';ctx.font='7px system-ui,sans-serif';ctx.fillText('PILOT',0,labelY+8/z);
+    ctx.rotate(Number(p.angle)||0);ctx.fillStyle='#36b99a';ctx.beginPath();ctx.moveTo(0,-13/z);ctx.lineTo(8/z,9/z);ctx.lineTo(0,5/z);ctx.lineTo(-8/z,9/z);ctx.closePath();ctx.fill();ctx.restore();
+  });
 
   const rt = !ship.docked && ship.currentTarget;
   if (rt && rt.oreYield > 0) {
