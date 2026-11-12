@@ -57,8 +57,8 @@
       if (!Number.isSafeInteger(amount) || amount < 1) return status('Enter a valid whole-number amount.');
       try {
         await window.MINISPACE_GM.grantScrapMetals(amount);
-        status('Scrap Metals added. Refreshing wallet…');
-        await window.MINISPACE_MARKET?.refresh?.();
+        status('Scrap Metals added. Reloading your cloud pilot…');
+        window.location.reload();
       } catch (error) { status(error.message || 'Could not grant Scrap Metals.'); }
     };
     document.getElementById('gm-give-item').onclick = async () => {
@@ -66,8 +66,8 @@
       if (!Number.isSafeInteger(amount) || amount < 1) return status('Enter a valid whole-number quantity.');
       try {
         await window.MINISPACE_GM.grantItem(select.value, amount);
-        status(labels[select.value] + ' added to your Private High-Sec hangar.');
-        await window.MINISPACE_MARKET?.refresh?.();
+        status(labels[select.value] + ' added. Reloading your cloud pilot…');
+        window.location.reload();
       } catch (error) { status(error.message || 'Could not grant item.'); }
     };
   }
