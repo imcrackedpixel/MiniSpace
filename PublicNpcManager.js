@@ -132,6 +132,7 @@ class PublicNpcManager {
     this.CARRIER_HUNT_SPEED = 2.2;
     this.CARRIER_IDEAL_DIST = 320;
     this._dbgFrame = 0;
+    this._frontierStates = Object.create(null);
   }
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
@@ -182,6 +183,60 @@ class PublicNpcManager {
     });
   }
 
+  initFrontierSystem(system, station) {
+    if (!system || !system.id) return;
+    const id = system.id;
+    const state = this._frontierStates[id] || (this._frontierStates[id] = { spawned: false, respawnAt: 0 });
+    const live = this.publicNpcMiners.some(n => n && n.isAlive && n.mapId === id && n.stationGuard);
+    if (live) return;
+    if (state.spawned && state.respawnAt && Date.now() < state.respawnAt) return;
+    if (state.spawned && !state.respawnAt) return;
+    const cx = station && Number.isFinite(station.x) ? station.x : 4500;
+    const cy = station && Number.isFinite(station.y) ? station.y : 4500;
+    let plan;
+    if (system.ring <= 2) plan = ['combatFrigate','combatFrigate','frigate','frigate','frigate'];
+    else if (system.ring <= 6) plan = ['siegeCruiser','combatFrigate','combatFrigate','frigate','frigate','frigate'];
+    else plan = ['siegeBattleship','siegeCruiser','combatFrigate','combatFrigate','combatFrigate','carrier'];
+    const hpScale = system.ring >= 9 ? 0.42 : (system.ring >= 7 ? 0.48 : 0.6);
+    plan.forEach((type, i) => {
+      const cfg = PIRATE_TYPES[type];
+      if (!cfg) return;
+      const a = (i / plan.length) * Math.PI * 2 + Math.random() * 0.3;
+      const radius = 720 + Math.random() * 650;
+      this.addPirate(cfg, cx + Math.cos(a) * radius, cy + Math.sin(a) * radius,
+        'station_guard_' + id + '_' + i, {
+          mapId: id, stationGuard: true, role: 'patrol', hpScale: hpScale,
+          elite: system.ring >= 9 && i === 0
+        });
+    });
+    state.spawned = true;
+    state.respawnAt = 0;
+  }
+
+  hasLivingStationGuards(systemId) {
+    return this.publicNpcMiners.some(n => n && n.isAlive && n.stationGuard && n.mapId === systemId);
+  }
+
+  updateFrontierRespawn(systemId) {
+    const state = this._frontierStates[systemId];
+    if (!state || !state.spawned) return;
+    if (this.hasLivingStationGuards(systemId)) return;
+    if (!state.respawnAt) {
+      state.respawnAt = Date.now() + 180000 + Math.floor(Math.random() * 120001);
+      if (typeof window.showCorpNotification === 'function') {
+        window.showCorpNotification('Station guards cleared. Docking unlocked · patrols return in 3–5 minutes.');
+      }
+      return;
+    }
+    if (Date.now() >= state.respawnAt) {
+      state.spawned = false;
+      state.respawnAt = 0;
+      const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
+      if (system) this.initFrontierSystem(system, window.MINISPACE_FRONTIER_STATION);
+      if (typeof window.showCorpNotification === 'function') window.showCorpNotification('Station patrols have respawned. Clear the guards to dock again.');
+    }
+  }
+
   addPirate(cfg, x, y, id, opts) {
     opts = opts || {};
     const scale = (opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1)) * (opts.elite ? 1.5 : 1);
@@ -223,6 +278,9 @@ class PublicNpcManager {
     if(opts.elite){for(const layer of ['shield','armor','structure']){const key='max'+layer.charAt(0).toUpperCase()+layer.slice(1);if(shipObj[key]>0){shipObj[key]*=2.4;shipObj[layer]*=2.4;}}hp*=2.4;}
     this.publicNpcMiners.push({
       id: id,
+      mapId: opts.mapId || null,
+      stationGuard: !!opts.stationGuard,
+      role: opts.role || null,
       cfg: cfg,
       elite: !!opts.elite,
       rewarded: false,
@@ -513,7 +571,12 @@ class PublicNpcManager {
   }
 
   update(currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession, debrisField) {
-    if (currentMapId !== 'public_space') return;
+    const isFrontier = String(currentMapId || '').indexOf('frontier_') === 0;
+    if (currentMapId !== 'public_space' && !isFrontier) return;
+    if (isFrontier) {
+      const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === currentMapId);
+      this.initFrontierSystem(system, window.MINISPACE_FRONTIER_STATION);
+    }
 
     // Check if player is shooting the station boss
     if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure > 0 && playerShip && !playerShip.docked) {
@@ -529,6 +592,7 @@ class PublicNpcManager {
     // Update all active NPC pirate ships
     this.publicNpcMiners.forEach(npc => {
       try {
+      if (npc.mapId && npc.mapId !== currentMapId) return;
       if (!npc.isAlive) return;
       if (!npc.ship) return;
       const ship = npc.ship;
@@ -633,6 +697,7 @@ class PublicNpcManager {
 
     // Filter out dead NPCs
     this.publicNpcMiners = this.publicNpcMiners.filter(n => n.isAlive);
+    if (isFrontier) this.updateFrontierRespawn(currentMapId);
   }
 
   // Shield, armor and hull bars, each showing the ship's real current / max values
@@ -665,7 +730,8 @@ class PublicNpcManager {
   }
 
   draw(ctx, currentMapId) {
-    if (currentMapId !== 'public_space') return;
+    const isFrontier = String(currentMapId || '').indexOf('frontier_') === 0;
+    if (currentMapId !== 'public_space' && !isFrontier) return;
 
     // Draw Central Station Boss and its health bar
     if (currentMapId === 'public_space' && window.centralStationBoss && typeof window.centralStationBoss.draw === 'function') {
@@ -692,6 +758,7 @@ class PublicNpcManager {
     // Draw all live NPC pirate ships, health bars, and labels
     this.publicNpcMiners.forEach(npc => {
       try {
+      if (npc.mapId && npc.mapId !== currentMapId) return;
       if (npc.isAlive && npc.ship && typeof npc.ship.draw === 'function') {
         // Draw at the manager's position, in case something moved the ship after update()
         if (npc.pos) this.setPos(npc.ship, npc.pos.x, npc.pos.y);
