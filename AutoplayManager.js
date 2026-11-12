@@ -45,6 +45,7 @@ class AutoplayManager{
   const active=missionManager&&missionManager.activeMission;
   if(!active){
    if(!missionManager.acceptMission('easy',ship)){this.isAutoplay=false;this.combatMode=false;return;}
+   missionManager.activeMission.autoplayContract=true;
    if(mapManager&&mapManager.missionEntryGate)mapManager.missionEntryGate.destinationName=missionManager.activeMission.systemName;
    saveGameSession();updateMissionsUI();
   }else if(active.difficulty!=='Easy'){
@@ -94,6 +95,12 @@ class AutoplayManager{
  }
  explorerCloak(ship,target){if(typeof ship.toggleCloak!=='function')return;let want;if(!target)want=true;else{const d=Math.hypot(target.x-ship.x,target.y-ship.y),hr=typeof ship.hackRange==='function'?ship.hackRange(target):60;if(d<=hr+30)want=false;else if(d>hr+80)want=true;else want=!!ship.isCloaked;}if(!!ship.isCloaked!==want){if(ship===playerShip&&typeof window.toggleExplorationCloak==='function')window.toggleExplorationCloak();else ship.toggleCloak();}}
  combatUpdate(ship){
+  if(!this.playerData.offensiveMode){
+   this.isAutoplay=false;this.combatMode=false;this.combatPhase='';
+   if(typeof window.showCorpNotification==='function')window.showCorpNotification('Combat autoplay paused: switch OFFENSIVE ON to allow weapons fire.');
+   if(typeof syncAutoplayButton==='function')syncAutoplayButton();
+   return;
+  }
   if(this.combatPhase==='docking'){
    const stationPos={x:this.station.x,y:this.station.y};
    if(Math.hypot(ship.x-this.station.x,ship.y-this.station.y)<150){performDock();return;}
@@ -131,6 +138,18 @@ class AutoplayManager{
  update(ship,activeBelt){if(!this.isAutoplay||!ship)return;const reason=this.blockReason(ship);if(reason){this.isAutoplay=false;this.combatMode=false;this.combatPhase='';window.showCorpNotification(reason);if(typeof syncAutoplayButton==='function')syncAutoplayButton();return;}if(ship.docked)return;if(this.combatMode){this.combatUpdate(ship);return;}
   const belt=activeBelt||this.belt,explorer=isExplorerHull(ship.className),maxCap=ship.maxCargo||200,full=(ship.cargo||0)>=maxCap-0.5;
   if(full){const dist=Math.hypot(this.station.x-ship.x,this.station.y-ship.y);if(dist<200)performDock(true);else this.moveShip(ship,{x:this.station.x,y:this.station.y},null,belt);return;}
-  const target=this.nearest(explorer?this.relicList():this.oreList(belt),ship);if(explorer)this.explorerCloak(ship,target);this.moveShip(ship,null,target,belt);
+  const target=this.nearest(explorer?this.relicList():this.oreList(belt),ship);if(explorer)this.explorerCloak(ship,target);
+  const cargoBefore=Number(ship.cargo)||0;
+  this.moveShip(ship,null,target,belt);
+  const mined=Math.max(0,(Number(ship.cargo)||0)-cargoBefore);
+  if(mined>0&&window.mapManager&&window.mapManager.currentMapId==='private_highsec'){
+   const keep=mined*0.45,reduce=mined-keep;
+   ship.cargo=Math.max(0,(Number(ship.cargo)||0)-reduce);
+   const map=ship.cargoByOre;
+   if(map&&typeof map==='object'){
+    const key=ship.oreType||Object.keys(map).find(k=>Number(map[k])>0);
+    if(key&&Number(map[key])>0)map[key]=Math.max(0,Number(map[key])-reduce);
+   }
+  }
  }
 }
