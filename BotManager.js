@@ -124,6 +124,23 @@ class BotManager {
     return this.addBot('Transport Capital');
   }
 
+  // Keep corporation logistics moving while the pilot is visiting the public Trade Hub,
+  // without advancing private corporation miners in the public map.
+  updateTransportOnly(player, asteroidBelt, debrisField) {
+    const allBots = this.bots;
+    this.bots = allBots.filter(function (bot) {
+      const name = bot && bot.ship && bot.ship.className;
+      return name === 'Transport Capital' ||
+        name === 'Industrial Hauler' ||
+        name === 'Freighter';
+    });
+    try {
+      return this.update(player, asteroidBelt, debrisField);
+    } finally {
+      this.bots = allBots;
+    }
+  }
+
   serializeBots() {
     return this.bots.map(function (b) {
       const ship = b.ship || {};
