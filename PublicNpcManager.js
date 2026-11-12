@@ -658,7 +658,12 @@ class PublicNpcManager {
 
     // Draw Central Station Boss and its health bar
     if (currentMapId === 'public_space' && window.centralStationBoss && typeof window.centralStationBoss.draw === 'function') {
-      window.centralStationBoss.draw(ctx);
+      ctx.save();
+      try {
+        window.centralStationBoss.draw(ctx);
+      } finally {
+        ctx.restore();
+      }
       let frac = Math.max(0, Math.min(1, window.centralStationBoss.structure / window.centralStationBoss.maxStructure));
       ctx.save();
       ctx.fillStyle = '#f85149';
@@ -679,7 +684,14 @@ class PublicNpcManager {
       if (npc.isAlive && npc.ship && typeof npc.ship.draw === 'function') {
         // Draw at the manager's position, in case something moved the ship after update()
         if (npc.pos) this.setPos(npc.ship, npc.pos.x, npc.pos.y);
-        npc.ship.draw(ctx);
+        // Isolate each hull's drawing state so particle, drone, or ship-art
+        // effects cannot leak transforms/compositing/alpha into the rest of the world.
+        ctx.save();
+        try {
+          npc.ship.draw(ctx);
+        } finally {
+          ctx.restore();
+        }
 
         // Gate-style nameplate, scaled down for ships. Rarity colours the frame and title.
         ctx.save();
