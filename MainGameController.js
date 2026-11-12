@@ -209,7 +209,8 @@ function getRemotePvpTargets() {
   const active = new Set(), targets = [];
   Object.values(remote).forEach(p => {
     if (!p || !p.id || p.id === online.id || p.mapId !== mapManager.currentMapId || p.pvp === false || p.docked) return;
-    const structure = Math.max(1, Number(p.structure) || Number(p.maxStructure) || 1000);
+    const rawStructure = Number(p.structure);
+    const structure = Number.isFinite(rawStructure) ? Math.max(0, rawStructure) : Math.max(1, Number(p.maxStructure) || 1000);
     if (structure <= 0) return;
     active.add(p.id);
     let proxy = cache[p.id];
