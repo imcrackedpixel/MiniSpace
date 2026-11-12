@@ -54,9 +54,9 @@ async function hasCurrentGM(player) {
 }
 
 const PUBLIC_MAPS = new Set([
-  'public_trade_hub',
-  'public_lowsec',
-  'public_nullsec'
+ 'public_trade_hub','public_lowsec','public_nullsec',
+ 'frontier_ashen','frontier_iron','frontier_vanta','frontier_cinder',
+ 'frontier_umbra','frontier_nexus','frontier_redline','frontier_blackstar','frontier_crypt'
 ]);
 
 const MATCH_MAPS = new Set(['public_space']);
