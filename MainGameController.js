@@ -1331,7 +1331,7 @@ function tradeEsc(value) {
 function renderTradeMarket() {
   const state = tradeMarketState();
   const wallet = document.getElementById('trade-market-wallet');
-  if (wallet) wallet.textContent = 'Cloud wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  if (wallet) wallet.textContent = 'Market wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
   const body = document.getElementById('trade-market-list');
   if (!body) return;
   const rows = (state.items || []).map(function(item) {
@@ -1350,7 +1350,7 @@ function renderTradeMarket() {
 function renderTradeHangars() {
   const state = tradeMarketState();
   const wallet = document.getElementById('trade-hangar-wallet');
-  if (wallet) wallet.textContent = 'Cloud wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  if (wallet) wallet.textContent = 'Market wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
   ['private_highsec','trade_hub'].forEach(function(station) {
     const id = station === 'private_highsec' ? 'private-hangar-list' : 'trade-hangar-list';
     const body = document.getElementById(id);
