@@ -300,50 +300,82 @@ class BotManager {
   }
 
   processCorpExplorerDocking(bot) {
-    if (!bot) return;
-    let transferredAny = false;
+    if (!bot || !bot.ship || !this.playerData) return;
+
     const ship = bot.ship;
+    const personalHangar = this.playerData.stationOre ||
+      (this.playerData.stationOre = {});
+    const corporationHangar = this.playerData.corpStationOre ||
+      (this.playerData.corpStationOre = {});
 
-    if (bot.tempStock) {
-      bot.stock = bot.stock || {};
-      for (const [itemKey, qty] of Object.entries(bot.tempStock)) {
-        if (qty > 0) {
-          const price = (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[itemKey]) || 10;
-          const sold = Math.floor(qty * CRUISER_RELIC_SELL_SHARE);
-          bot.wallet = (bot.wallet || 0) + sold * price;
-          bot.stock[itemKey] = (bot.stock[itemKey] || 0) + (qty - sold);
-          transferredAny = true;
-        }
+    bot.stock = bot.stock || {};
+    let personalValue = 0;
+    let explorerValue = 0;
+    let corporationValue = 0;
+
+    // Explorer salvage is split 50% to the pilot, 25% to Explorer
+    // development, and 25% to the corporation logistics hangar.
+    const recovered = bot.tempStock || {};
+    for (const [itemKey, rawQty] of Object.entries(recovered)) {
+      const qty = Math.max(0, Math.floor(Number(rawQty) || 0));
+      if (!qty) continue;
+
+      const personalQty = Math.floor(qty * 0.50);
+      const explorerQty = Math.floor(qty * 0.25);
+      const corporationQty = qty - personalQty - explorerQty;
+
+      // Pilot's half goes straight into the personal High-Sec hangar.
+      if (personalQty > 0) {
+        personalHangar[itemKey] =
+          (personalHangar[itemKey] || 0) + personalQty;
       }
-      bot.tempStock = {};
-    }
 
-    if (ship) ship.cargo = 0;
-
-    if (bot.stock && this.playerData) {
-      this.playerData.stationOre = this.playerData.stationOre || {};
-      for (const [itemKey, qty] of Object.entries(bot.stock)) {
-        if (qty > 0) {
-          this.playerData.stationOre[itemKey] = (this.playerData.stationOre[itemKey] || 0) + qty;
-          bot.stock[itemKey] = 0;
-          transferredAny = true;
-        }
+      // Half of the Explorer's quarter becomes development materials;
+      // the other half becomes the Explorer's own ISK reserve.
+      const developmentItems = Math.floor(explorerQty * 0.50);
+      const developmentIskItems = explorerQty - developmentItems;
+      if (developmentItems > 0) {
+        bot.stock[itemKey] = (bot.stock[itemKey] || 0) + developmentItems;
       }
+      if (developmentIskItems > 0) {
+        const unitPrice =
+          (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[itemKey]) || 10;
+        bot.wallet = (bot.wallet || 0) + developmentIskItems * unitPrice;
+      }
+
+      // The corporation's quarter is reserved for the Transport Manager.
+      if (corporationQty > 0) {
+        corporationHangar[itemKey] =
+          (corporationHangar[itemKey] || 0) + corporationQty;
+      }
+
+      const price =
+        (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[itemKey]) || 10;
+      personalValue += personalQty * price;
+      explorerValue += explorerQty * price;
+      corporationValue += corporationQty * price;
     }
 
-    if (bot.wallet && bot.wallet > 0 && this.playerData) {
-      this.playerData.isk = (this.playerData.isk || 0) + bot.wallet;
-      bot.wallet = 0;
-      transferredAny = true;
-    }
+    bot.tempStock = {};
+    ship.cargo = 0;
+    ship.cargoByOre = {};
 
-    if (transferredAny) {
+    if (personalValue || explorerValue || corporationValue) {
       if (typeof window.showCorpNotification === 'function') {
-        window.showCorpNotification('📦 Corp explorer docked: Delivered cargo, sold relics, and deposited ISK & loot!');
+        window.showCorpNotification(
+          'Explorer delivery split: 50% personal hangar, 25% Explorer development, 25% corporation hangar.'
+        );
       }
-      if (typeof window.saveGameSession === 'function') window.saveGameSession();
-      if (typeof window.updateStationUI === 'function') window.updateStationUI();
+      if (typeof window.saveGameSession === 'function') {
+        window.saveGameSession();
+      }
+      if (typeof window.updateStationUI === 'function') {
+        window.updateStationUI();
+      }
     }
+
+    // Keep the Explorer's own stock and wallet for its Cruiser progression.
+    this.tryBuildCruiser(bot);
   }
 
   deliver(bot) {
@@ -531,6 +563,8 @@ class BotManager {
   }
 
   paySurplus(bot) {
+    // Explorer reserves belong to its own Cruiser progression.
+    if (isExplorerBot(bot)) return null;
     if (SURPLUS_PAYOUT_SHARE <= 0) return null;
     if (!this.isFullyMaxed(bot)) return null;
     const share = Math.min(1, SURPLUS_PAYOUT_SHARE);
