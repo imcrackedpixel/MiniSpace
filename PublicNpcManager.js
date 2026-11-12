@@ -78,8 +78,8 @@ const PIRATE_TIER_OF = {
 const PEACE_RANGE = 1000;          // pirates attack the player inside this distance, otherwise they carry on their job
 const MATCH_PLAYER_SPEED = false;  // true = every NPC uses the player's maxSpeed instead of its own row
 const NPC_SPEED_FALLBACK = 2.5;    // used if a hull has no maxSpeed anywhere
-const PATROL_SPEED_FRAC = 0.62;     // patrol cruising speed as a fraction of maxSpeed
-const MINE_SPEED_FRAC = 0.5;       // speed flying in to a rock, as a fraction of maxSpeed
+const PATROL_SPEED_FRAC = 0.85;     // patrol cruising speed as a fraction of maxSpeed
+const MINE_SPEED_FRAC = 0.75;       // speed flying in to a rock, as a fraction of maxSpeed
 
 // Hulls that patrol their belt. Every other pirate hull mines rocks when the player is away.
 const PATROL_NAMES = { 'Mining Frigate': true, 'Mining Barge': true, 'Command Ship': true, 'Carrier': true, 'Capital': true, 'Combat Frigate': true, 'Exploration Frigate': true, 'Siege Cruiser': true, 'Siege Battleship': true };
