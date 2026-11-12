@@ -182,7 +182,7 @@ window.showCorpNotification = function(msg) {
   }
 };
 
-function inPublicSpace() { return mapManager && mapManager.currentMapId === 'public_space'; }
+function inPublicSpace() { return !!(mapManager && (mapManager.currentMapId === 'public_space' || String(mapManager.currentMapId).indexOf('frontier_') === 0)); }
 function inMissionSpace() { return !!(mapManager && String(mapManager.currentMapId).indexOf('mission_') === 0); }
 function autoplayIsOn() { return !!(autoplayManager && autoplayManager.isAutoplay); }
 function balancedShips() {
@@ -191,7 +191,7 @@ function balancedShips() {
   if (publicNpcManager && publicNpcManager.publicNpcMiners) publicNpcManager.publicNpcMiners.forEach(n => list.push(n.ship));
   return list.filter(Boolean);
 }
-function currentWorldSize() { return inPublicSpace() ? PUBLIC_SIZE : (inMissionSpace() ? 7000 : WORLD_SIZE); }
+function currentWorldSize() { return mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0 ? 9000 : (inPublicSpace() ? PUBLIC_SIZE : (inMissionSpace() ? 7000 : WORLD_SIZE)); }
 
 const MODULE_KEYS = {
   'Mining Frigate':      ['laser', 'shield', 'cargo', 'propulsion'],
@@ -504,6 +504,24 @@ window.resetGameSave = function() {
   try { localStorage.removeItem('minispace_save'); } catch (e) {}
   location.reload();
 };
+
+
+window.jumpToFrontierSystem=function(id){
+ if(!playerShip||(missionManager&&missionManager.activeMission)){window.showCorpNotification('Finish your active mission before entering the frontier.');return;}
+ if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
+ const r=mapManager.jumpToFrontierSystem(playerShip,id);if(!r)return;
+ asteroidBelt=r.asteroidBelt;debrisField=r.debrisField;targetMovePos=null;lockedTarget=null;isDockingRequested=false;gateCooldown=180;
+ window.showCorpNotification('Warp complete: '+r.system.name+'. Threat level '+r.system.level+'. Manual flight only.');
+ if(typeof saveGameSession==='function')saveGameSession();window.closeUniverse();
+};
+window.openUniverse=function(){
+ const modal=document.getElementById('universe-modal'),host=document.getElementById('universe-systems');if(!modal||!host)return;
+ const systems=window.MINISPACE_UNIVERSE_SYSTEMS||[],current=mapManager.currentMapId;
+ host.innerHTML=systems.map(s=>{const links=s.links.map(id=>{const d=systems.find(x=>x.id===id);return d?d.name:id;}).join(' · ');
+ return '<button class="universe-system-card" onclick="window.jumpToFrontierSystem(\''+s.id+'\')" '+(current===s.id?'disabled':'')+'><strong>'+s.name+'</strong><span>THREAT LEVEL '+s.level+' · '+s.kind+'</span><small>Routes: '+links+(s.links.length===1?' · DEAD END':'')+'</small></button>';}).join('');
+ modal.style.display='flex';
+};
+window.closeUniverse=function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
 
 window.jumpToPublicSpace = function(slot = 0) {
   let res = mapManager.jumpToPublicSpace(playerShip, mainStation, publicNpcManager, slot);
@@ -2089,7 +2107,8 @@ function drawMinimap() {
     }
   }
   if (inPublicSpace()) {
-    if (mapManager && mapManager.playerGates) {
+    if(mapManager&&String(mapManager.currentMapId).indexOf('frontier_')===0){if(mapManager.frontierReturnGate){m.fillStyle='#36b99a';m.fillRect(mapManager.frontierReturnGate.x*sc-2,mapManager.frontierReturnGate.y*sc-2,4,4);}(mapManager.frontierGates||[]).forEach(g=>{m.fillStyle='#fb923c';m.fillRect(g.x*sc-2,g.y*sc-2,4,4);});}
+    else if (mapManager && mapManager.playerGates) {
             for (const gate of mapManager.playerGates) {
         if (gate) {
           m.fillStyle = '#3fb950';
@@ -2235,7 +2254,7 @@ function updateGame() {
   if (inMissionSpace() && missionManager) missionManager.updateMissionFleet(playerShip);
   if (!inMissionSpace() && window.SiegeCapital) window.SiegeCapital.update();
 
-  if (pub) {
+  if (pub && mapManager.currentMapId === 'public_space') {
     if (window.centralStationBoss && window.centralStationBoss.structure <= 0 && !window.extractionCountdownActive) {
       window.extractionCountdownActive = true;
       window.extractionDeadline = Date.now() + EXTRACTION_SECONDS * 1000;
@@ -2330,6 +2349,10 @@ function updateGame() {
       const g = mapManager ? mapManager.publicGate : null;
       if (g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius) window.jumpToPublicSpace(0);
     }
+  } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
+    const back=mapManager.frontierReturnGate;
+    if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius)window.jumpToPrivateSec();
+    else for(const gate of (mapManager.frontierGates||[])){if(Math.hypot(playerShip.x-gate.x,playerShip.y-gate.y)<gate.radius){window.jumpToFrontierSystem(gate.destinationId);break;}}
   } else {
     if (mapManager && mapManager.playerGates) {
       for (let gate of mapManager.playerGates) {
@@ -2364,6 +2387,9 @@ function render() {
 
   if (inMissionSpace()) {
     if (mapManager && mapManager.missionReturnGate) mapManager.missionReturnGate.draw(ctx);
+  } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
+    if(mapManager.frontierReturnGate)mapManager.frontierReturnGate.draw(ctx);
+    (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
   } else if (!pub) {
     if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
     if (mapManager && mapManager.publicGate && typeof mapManager.publicGate.draw === 'function') mapManager.publicGate.draw(ctx);
