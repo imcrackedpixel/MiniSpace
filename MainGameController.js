@@ -1618,7 +1618,7 @@ window.openHangarItem=function(itemKey){
  const available=Math.max(0,Math.floor(Number(playerData.stationOre&&playerData.stationOre[itemKey])||0));
  const room=playerShip?Math.max(0,Math.floor((Number(playerShip.maxCargo)||0)-(Number(playerShip.cargo)||0))):0;
  const max=Math.min(available,room);
- panel.innerHTML='<div class="hangar-item-detail-head"><strong>'+itemLabel(itemKey).toUpperCase()+'</strong><button onclick="window.closeHangarItem()" aria-label="Close">✕</button></div><p>Station storage: '+available.toLocaleString()+'</p><p>Available cargo space: '+room.toLocaleString()+'</p><label>Quantity to move <input id="hangar-detail-qty" type="number" min="1" max="'+max+'" value="'+max+'" inputmode="numeric"></label><button onclick="window.moveHangarItemToCargo(\''+itemKey+'\')" '+(!playerShip||!playerShip.docked||max<1?'disabled':'')+'>MOVE TO CARGO</button>';
+ panel.innerHTML='<div class="hangar-item-detail-head">'+hangarItemPicture(itemKey)+'<strong>'+itemLabel(itemKey).toUpperCase()+'</strong><button onclick="window.closeHangarItem()" aria-label="Close">✕</button></div><p>Station storage: '+available.toLocaleString()+'</p><p>Available cargo space: '+room.toLocaleString()+'</p><label>Quantity to move <input id="hangar-detail-qty" type="number" min="1" max="'+max+'" value="'+max+'" inputmode="numeric"></label><button onclick="window.moveHangarItemToCargo(\''+itemKey+'\')" '+(!playerShip||!playerShip.docked||max<1?'disabled':'')+'>MOVE TO CARGO</button>';
  panel.style.display='block';panel.scrollIntoView({behavior:'smooth',block:'nearest'});
 };
 window.closeHangarItem=function(){const p=document.getElementById('hangar-item-details');if(p){p.style.display='none';p.innerHTML='';}};
@@ -1823,6 +1823,29 @@ function updateStationUI() {
   if (iskDisplay) iskDisplay.innerText = fmtISK(playerData.isk || 0) + ' Scrap Metals';
 
   const HANGAR_GROUP_TITLES = { ore: 'ORE', debris: 'COMPONENTS', explorer: 'EXPLORER SHIPS', mining: 'MINING SHIPS', combat: 'COMBAT SHIPS', capital: 'CAPITALS' };
+  const HANGAR_SHIP_ART = {
+    'Mining Frigate':'mining_frigate.png','Mining Barge':'mining_barge.png',
+    'Command Ship':'command_ship.png','Mining Capital':'mining_capital.png',
+    'Carrier':'carrier.png','Combat Frigate':'combat_frigate.png',
+    'Siege Cruiser':'siege_capital.png','Siege Battleship':'siege_capital.png',
+    'Siege Capital':'siege_capital.png','Exploration Frigate':'exploration_frigate.png',
+    'Improved Explorer Frigate':'improved_explorer_frigate.png',
+    'Transport Capital':'carrier.png','Industrial Hauler':'mining_capital.png','Freighter':'mining_capital.png'
+  };
+  function hangarShipPicture(name) {
+    const file = HANGAR_SHIP_ART[name] || 'mining_frigate.png';
+    const safeName = String(name).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    return '<div class="hangar-art-frame"><img src="'+file+'" alt="'+safeName+'" loading="lazy" onerror="this.style.display=\'none\'"></div>';
+  }
+  function hangarItemPicture(key) {
+    const colors = {veldspar:'#c99b59',scordite:'#b9c0c8',pyroxeres:'#54b8c8',omber:'#e7bd45',debris_t1:'#a4b3bf',debris_t2:'#58c7d7',debris_t3:'#6c9df2',debris_t4:'#b58be8',debris_t5:'#e5a4ef'};
+    const color = colors[key] || '#8bc9d9';
+    const isOre = String(key).indexOf('debris_') !== 0;
+    const art = isOre
+      ? '<path d="M32 5 51 22 45 49 30 59 12 43 14 18Z" fill="'+color+'" stroke="#e8f7ff" stroke-opacity=".8" stroke-width="2"/><path d="m32 5-2 54M14 18l16 12 21-8M12 43l18-13 15 19" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="2"/>'
+      : '<rect x="13" y="13" width="38" height="38" rx="5" fill="'+color+'" fill-opacity=".25" stroke="'+color+'" stroke-width="3"/><path d="M20 22h24v20H20zM25 18v-5m12 5v-5m-12 38v-5m12 5v-5M8 26h5m38 0h5M8 39h5m38 0h5" fill="none" stroke="'+color+'" stroke-width="3"/><path d="m25 32 6 5 9-11" fill="none" stroke="#eafaff" stroke-width="3"/>';
+    return '<div class="hangar-art-frame item-art"><svg viewBox="0 0 64 64" role="img" aria-label="'+itemLabel(key)+'"><circle cx="32" cy="32" r="30" fill="'+color+'" fill-opacity=".12"/>'+art+'</svg></div>';
+  }
   const HANGAR_SHIP_GROUP = {
     'Exploration Frigate': 'explorer', 'Improved Explorer Frigate': 'explorer', 'Explorer Cruiser': 'explorer',
     'Mining Frigate': 'mining', 'Mining Barge': 'mining', 'Command Ship': 'mining',
