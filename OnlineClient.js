@@ -1,3 +1,4 @@
+
 /* MiniSpace Online: multiplayer presence, chat, friends and ship rendering */
 (function(){
  const state={
@@ -313,7 +314,8 @@
     y:Number(ship.y)||0,
     angle:Number(ship.angle)||0,
     ship:ship.className||ship.type||'Ship',
-    system:$('system-text')?.textContent||'Unknown'
+    system:$('system-text')?.textContent||'Unknown',
+    mapId:window.getMiniSpaceMapId?.()||'private_highsec'
    });
   }
  }
@@ -336,6 +338,7 @@
   setInterval(tick,250);
  }
 })();
+
 // TEMPORARY MULTIPLAYER MOVEMENT TEST
 setInterval(function () {
   const online = window.MinispaceOnline;
@@ -351,6 +354,7 @@ setInterval(function () {
       ' · Y ' + Math.round(other.y);
   }
 }, 500);
+
 // USE THE GAME'S REAL PILOT NAME
 setInterval(function () {
   const name = document.getElementById('ui-pilot-name')?.textContent?.trim();
