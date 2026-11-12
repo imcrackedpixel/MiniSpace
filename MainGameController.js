@@ -1334,7 +1334,7 @@ function tradeEsc(value) {
 function renderTradeMarket() {
   const state = tradeMarketState();
   const wallet = document.getElementById('trade-market-wallet');
-  if (wallet) wallet.textContent = (state.gameStateSynced ? 'Pilot wallet: ' : 'Wallet sync required: ') + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  if (wallet) wallet.textContent = (state.gameStateSynced ? 'Scrap Metals wallet: ' : 'Scrap Metals wallet sync required: ') + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' Scrap Metals';
   const body = document.getElementById('trade-market-list');
   if (!body) return;
   if (!state.gameStateSynced) {
@@ -1357,7 +1357,7 @@ function renderTradeMarket() {
 function renderTradeHangars() {
   const state = tradeMarketState();
   const wallet = document.getElementById('trade-hangar-wallet');
-  if (wallet) wallet.textContent = (state.gameStateSynced ? 'Pilot wallet: ' : 'Wallet sync required: ') + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  if (wallet) wallet.textContent = (state.gameStateSynced ? 'Scrap Metals wallet: ' : 'Scrap Metals wallet sync required: ') + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' Scrap Metals';
   ['private_highsec','trade_hub'].forEach(function(station) {
     const id = station === 'private_highsec' ? 'private-hangar-list' : 'trade-hangar-list';
     const body = document.getElementById(id);
@@ -3166,7 +3166,7 @@ if (
 
         nameCell.textContent = key.replace(/_/g, ' ').toUpperCase();
         quantityCell.textContent = quantity.toLocaleString();
-        priceCell.textContent = unitPrice.toLocaleString() + ' ISK';
+        priceCell.textContent = unitPrice.toLocaleString() + ' Scrap Metals';
 
         row.appendChild(nameCell);
         row.appendChild(quantityCell);
@@ -3186,8 +3186,8 @@ if (
       if (totalLabel) {
         totalLabel.textContent =
           'CORP HANGAR VALUE: ' + totalValue.toLocaleString() +
-          ' ISK  |  CORP WALLET: ' +
-          (Number(playerData.corpIsk) || 0).toLocaleString() + ' ISK';
+          ' Scrap Metals  |  CORP WALLET: ' +
+          (Number(playerData.corpIsk) || 0).toLocaleString() + ' Scrap Metals';
       }
     }
   };
