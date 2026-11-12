@@ -2016,14 +2016,19 @@ window.handlePlayerDeath = function() {
   saveGameSession();
 };
 
-// RESTORE SAVED SHIP POSITION AFTER STARTUP
-if (window.MINISPACE_SAVED_POSITION && playerShip) {
-  const saved = window.MINISPACE_SAVED_POSITION;
 
-  playerShip.x = saved.x;
-  playerShip.y = saved.y;
-  playerShip.vx = saved.vx;
-  playerShip.vy = saved.vy;
-  playerShip.angle = saved.angle;
-  playerShip.docked = saved.docked;
+// RESTORE SAVED POSITION IN PRIVATE HIGH-SEC ONLY
+const savedPosition = window.MINISPACE_SAVED_POSITION;
+
+if (
+  savedPosition &&
+  savedPosition.mapId === 'private_highsec' &&
+  playerShip
+) {
+  playerShip.x = savedPosition.x;
+  playerShip.y = savedPosition.y;
+  playerShip.vx = savedPosition.vx;
+  playerShip.vy = savedPosition.vy;
+  playerShip.angle = savedPosition.angle;
+  playerShip.docked = savedPosition.docked;
 }
