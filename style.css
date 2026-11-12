@@ -341,3 +341,7 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .fitting-chip button:disabled{opacity:.5}
 .fitting-empty{padding:12px;color:#8498a3;font-size:11px;text-align:center}
 @media(max-width:520px){.hangar-inventory-layout{gap:5px}.hangar-side-tabs{flex-basis:48px}.hangar-side-btn{min-height:52px}.hangar-bag-main #hangar-items-table details>table tbody{grid-template-columns:repeat(2,minmax(0,1fr))}.fitting-chip{align-items:flex-start;flex-wrap:wrap}.fitting-chip button{margin-left:30px}}
+
+/* Highlight clickable frontier destinations in the universe chart. */
+.universe-node.reachable{cursor:pointer;pointer-events:auto;box-shadow:0 0 0 1px rgba(88,166,255,.45),0 0 18px rgba(88,166,255,.18)}
+.universe-node.reachable:hover{transform:translate(-50%,-50%) scale(1.08);filter:brightness(1.25)}
