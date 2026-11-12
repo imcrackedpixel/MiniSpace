@@ -348,7 +348,12 @@ wss.on('connection',ws=>{
 
       const z=zoneAt(p.x,p.y);
       p.zone=z.id;
-      p.pvp=z.pvp;
+
+      // TRADE HUB IS ALWAYS NON-PVP
+      p.pvp=p.mapId==='public_trade_hub'
+        ? false
+        : z.pvp;
+
       p.last=Date.now();
 
       broadcastRoom(
