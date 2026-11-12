@@ -237,18 +237,21 @@
     });
     if (Array.isArray(rows) && rows.length && rows[0].save_data) {
       localStorage.setItem('minispace_save', JSON.stringify(rows[0].save_data));
-      return;
-    }
-    // First login on this browser: preserve and import the existing local pilot save.
-    const local = localStorage.getItem('minispace_save');
-    if (local) {
-      let saveData;
-      try { saveData = JSON.parse(local); } catch (e) { return; }
-      await api('/rest/v1/pilot_saves?on_conflict=pilot_id', {
-        method: 'POST',
-        headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
-        body: JSON.stringify({ pilot_id: session.user.id, save_data: saveData })
-      });
+    } else {
+      // First login on this browser: preserve and upload the existing local pilot save.
+      const local = localStorage.getItem('minispace_save');
+      if (local) {
+        try {
+          const saveData = JSON.parse(local);
+          await api('/rest/v1/pilot_saves?on_conflict=pilot_id', {
+            method: 'POST',
+            headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+            body: JSON.stringify({ pilot_id: session.user.id, save_data: saveData })
+          });
+        } catch (error) {
+          console.warn('Could not upload the first local pilot save:', error.message || error);
+        }
+      }
     }
     await initializeMarketBridge();
   }
