@@ -910,7 +910,7 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
         (Number(marketRow.player_stock || 0) + Number(marketRow.npc_stock || 0))) : 0;
       if (stock < toBuy) throw new Error('Trade Hub is short of ' + itemLabel(entry.item) +
         ' (needs ' + toBuy.toLocaleString() + ', market has ' + stock.toLocaleString() + ').');
-      return { key: entry.item, quantity: entry.need - entry.have };
+      return { key: entry.item, quantity: entry.need - entry.have, target: entry.need };
     });
     const cost = items.reduce(function(total, item) {
       const row = (state.items || []).find(function(candidate) { return candidate.item_key === item.key; });
@@ -950,7 +950,7 @@ window.completeTransportMaterialPickup = async function(transport) {
         return row.station_id === 'private_highsec' && row.item_key === item.key;
       });
       const privateQty = Math.max(0, Number(privateRow && privateRow.quantity) || 0);
-      const required = Math.max(0, item.quantity - privateQty);
+      const required = Math.max(0, (Number(item.target) || Number(item.quantity) || 0) - privateQty);
       if (!required) continue;
       const tradeRow = (state.hangars || []).find(function(row) {
         return row.station_id === 'trade_hub' && row.item_key === item.key;
