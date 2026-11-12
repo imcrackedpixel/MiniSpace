@@ -777,6 +777,33 @@ window.quickSellAllVault = function() {
   window.showCorpNotification('Use Trade Hangar to move materials, then sell them on the Trade Hub Market.');
 };
 
+window.applySkillChip=function(id){
+  if(!playerShip||!playerShip.docked){window.showCorpNotification('Dock at your Private High-Sec station to fit a skill chip.');return;}
+  const chips=Array.isArray(playerData.skillChips)?playerData.skillChips:[];
+  const index=chips.findIndex(c=>c&&c.id===id),chip=chips[index];
+  if(!chip)return;
+  if(playerShip.className!==chip.hull){window.showCorpNotification('This chip is designed for '+chip.hull+'. Board that ship first.');return;}
+  if(!MODULE_KEYS[chip.hull]||!MODULE_KEYS[chip.hull].includes(chip.module)){window.showCorpNotification('This chip does not match a valid module slot.');return;}
+  if(getCap(chip.module,chip.hull)>=MAX_MODULE_LEVEL){window.showCorpNotification('That module has reached the absolute level cap.');return;}
+  if(!playerData.moduleBonusCap)playerData.moduleBonusCap={};
+  if(!playerData.moduleBonusCap[chip.hull])playerData.moduleBonusCap[chip.hull]={};
+  playerData.moduleBonusCap[chip.hull][chip.module]=Math.min(15,(Number(playerData.moduleBonusCap[chip.hull][chip.module])||0)+1);
+  chips.splice(index,1);playerData.skillChips=chips;
+  cleanModules(playerShip);applyDesign(playerShip);saveGameSession();updateStationUI();
+  window.showCorpNotification('Purple chip fitted: '+chip.module+' maximum level increased to '+getCap(chip.module,chip.hull)+'.');
+};
+window.setHangarView=function(view){
+  const valid=['items','ships','fitting'];if(!valid.includes(view))view='items';
+  window._miniHangarView=view;
+  const table=document.getElementById('hangar-items-table'),fit=document.getElementById('hangar-fitting-panel');
+  if(table)table.style.display=view==='fitting'?'none':'';
+  if(fit)fit.style.display=view==='fitting'?'block':'none';
+  document.querySelectorAll('[data-hangar-view]').forEach(b=>b.classList.toggle('active',b.getAttribute('data-hangar-view')===view));
+  document.querySelectorAll('#items-hanger-list details[data-hangar-group]').forEach(d=>{
+    const group=d.getAttribute('data-hangar-group'),isItem=group==='ore'||group==='debris';
+    const row=d.closest('tr');if(row)row.style.display=view==='items'?(isItem?'':'none'):(view==='ships'?(isItem?'none':''):'none');
+  });
+};
 window.upgradeFrigateModule = function(mod) {
   if (!playerShip || !playerShip.moduleLevels) return;
   let lvl = playerShip.moduleLevels[mod] || 1;
@@ -1838,7 +1865,7 @@ function updateStationUI() {
   let hangarHtml = '';
   for (const g of ['ore', 'debris', 'explorer', 'mining', 'combat', 'capital']) {
     const body = groupRows[g] || '<tr><td colspan="3" style="text-align: center; color: #8b949e;">None</td></tr>';
-    hangarHtml += '<tr><td colspan="3" style="padding: 0;"><details><summary style="cursor: pointer; font-weight: bold; color: #58a6ff; padding: 4px 2px;">' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><table class="station-table">' + body + '</table></details></td></tr>';
+    hangarHtml += '<tr><td colspan="3" style="padding: 0;"><details data-hangar-group="' + g + '"><summary style="cursor: pointer; font-weight: bold; color: #58a6ff; padding: 4px 2px;">' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><table class="station-table">' + body + '</table></details></td></tr>';
   }
   if (playerData.chips > 0) {
     hangarHtml += '<tr><td>ITEM LEVEL CHIP</td><td>' + playerData.chips + '</td><td style="color:#8b949e;">Applied on drop</td></tr>';
@@ -1858,7 +1885,27 @@ function updateStationUI() {
     ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></div>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
   if (hangarEl) hangarEl.innerHTML = hangarHtml;
-
+  const fittingEl=document.getElementById('hangar-fitting-panel');
+  if(fittingEl){
+    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div>';
+    if(playerShip&&playerShip.moduleLevels){
+      fit+='<div class="fitting-module-grid">';
+      for(const mod of Object.keys(playerShip.moduleLevels)){
+        const level=Number(playerShip.moduleLevels[mod])||1,cap=getCap(mod,playerShip.className);
+        fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+'</span><strong>LV '+level+' / '+cap+'</strong><small>'+(cap>5?'Chip-extended maximum':'Standard maximum')+'</small></div>';
+      }
+      fit+='</div>';
+    }else fit+='<p>Board a ship to view its module slots.</p>';
+    const chips=Array.isArray(playerData.skillChips)?playerData.skillChips:[];
+    fit+='<div class="fitting-heading"><strong>PURPLE SKILL CHIPS</strong><span>'+chips.length+' stored</span></div>';
+    if(!chips.length)fit+='<p class="fitting-empty">No purple chips yet. Hunt elite pirates in Level 4–5 frontier systems.</p>';
+    else fit+='<div class="fitting-chip-list">'+chips.map(ch=>{
+      const compatible=!!(playerShip&&playerShip.docked&&playerShip.className===ch.hull&&MODULE_KEYS[ch.hull]&&MODULE_KEYS[ch.hull].includes(ch.module));
+      const full=(Number(getBonusCap(ch.hull,ch.module))||0)>=15;
+      return '<div class="fitting-chip"><span class="chip-glyph">✦</span><div><strong>'+ch.name+'</strong><small>'+ch.hull+' · '+ch.module+' · Maximum level +1</small></div><button onclick="window.applySkillChip(\''+ch.id+'\')" '+(!compatible||full?'disabled':'')+'>'+(full?'CAP REACHED':compatible?'FIT CHIP':'BOARD '+ch.hull.toUpperCase())+'</button></div>';
+    }).join('')+'</div>';
+    fittingEl.innerHTML=fit;
+  }
   let hangarValue = 0;
   for (let itemKey in playerData.stationOre) {
     hangarValue += (playerData.stationOre[itemKey] || 0) * (itemPrices[itemKey] || 10);
@@ -1881,6 +1928,7 @@ function updateStationUI() {
   }
   let upgradesEl = document.getElementById('upgrades-list');
   if (upgradesEl) upgradesEl.innerHTML = upgradesHtml;
+  window.setHangarView(window._miniHangarView||'items');
   if (typeof syncAutoplayButton === 'function') syncAutoplayButton();
 }
 
