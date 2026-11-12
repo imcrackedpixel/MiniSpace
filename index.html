@@ -54,6 +54,7 @@ try {
 
 <div id="ui-layer">
 <div style="display: flex; flex-direction: column; gap: 6px;">
+
 <div class="panel" id="pilot-panel" onclick="window.openSkillsUI()" title="Open pilot talent tree" style="max-width: 230px;cursor:pointer;">
 <div id="pilot-panel-heading"><strong>PILOT:</strong> <span id="ui-pilot-name">CRACKED</span></div>
 <div id="pilot-level-text" style="color:#36b99a;font-weight:bold;">LEVEL 1 · 0 TALENT POINTS</div>
@@ -80,8 +81,10 @@ try {
 </div>
 
 <div style="display: flex; gap: 4px;">
-<div class="panel" style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
-<div style="font-size: 8px; font-weight: bold; color: #8aa8b3;">MINIMAP</div>
+<div class="panel" id="minimap-panel" style="display: flex; flex-direction: column; gap: 4px; align-items: center;">
+<div id="minimap-heading" style="width:100%;font-size: 8px; font-weight: bold; color: #8aa8b3;">
+MINIMAP
+</div>
 <div id="minimap-container"><canvas id="minimap"></canvas></div>
 </div>
 </div>
@@ -218,13 +221,40 @@ window.MINISPACE_SERVER_URL = "wss://minispace-server.onrender.com";
   button.addEventListener('click', function(event) {
     event.stopPropagation();
     collapsed = !collapsed;
-
     details.forEach(item => {
       item.style.display = collapsed ? 'none' : '';
     });
-
     button.textContent = collapsed ? '+' : '−';
     button.title = collapsed ? 'Expand pilot information' : 'Collapse pilot information';
+  });
+})();
+</script>
+
+<!-- MINIMAP COLLAPSE -->
+<script>
+(function() {
+  const panel = document.getElementById('minimap-panel');
+  const heading = document.getElementById('minimap-heading');
+  const map = document.getElementById('minimap-container');
+
+  if (!panel || !heading || !map) return;
+
+  const button = document.createElement('button');
+  button.textContent = '−';
+  button.title = 'Collapse minimap';
+  button.style.cssText =
+    'float:right;background:#203943;color:#dce8ed;border:1px solid #45616c;padding:2px 8px;font-size:12px;cursor:pointer;';
+
+  heading.appendChild(button);
+
+  let collapsed = false;
+
+  button.addEventListener('click', function(event) {
+    event.stopPropagation();
+    collapsed = !collapsed;
+    map.style.display = collapsed ? 'none' : '';
+    button.textContent = collapsed ? '+' : '−';
+    button.title = collapsed ? 'Expand minimap' : 'Collapse minimap';
   });
 })();
 </script>
