@@ -197,6 +197,7 @@ class BotManager {
         transportTask: b.transportTask ? JSON.parse(JSON.stringify(b.transportTask)) : null,
         playerSaleTask: b.playerSaleTask ? JSON.parse(JSON.stringify(b.playerSaleTask)) : null,
         playerSaleQueue: Array.isArray(b.playerSaleQueue) ? JSON.parse(JSON.stringify(b.playerSaleQueue)) : [],
+        playerSaleIdleSince: Number(b.playerSaleIdleSince) || 0,
         transportLevel: b.transportLevel || null
       };
     });
@@ -231,6 +232,7 @@ class BotManager {
       bot.transportTask = s.transportTask ? JSON.parse(JSON.stringify(s.transportTask)) : null;
       bot.playerSaleTask = s.playerSaleTask ? JSON.parse(JSON.stringify(s.playerSaleTask)) : null;
       bot.playerSaleQueue = Array.isArray(s.playerSaleQueue) ? JSON.parse(JSON.stringify(s.playerSaleQueue)) : [];
+      bot.playerSaleIdleSince = Number(s.playerSaleIdleSince) || 0;
       bot.transportLevel = String(s.className).toLowerCase().includes('transport') ? Math.max(1, Math.floor(Number(s.transportLevel) || 1)) : null;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
@@ -1004,7 +1006,10 @@ class BotManager {
             return;
           }
           const task = bot.playerSaleTask;
-          if (!task || !task.shipmentId) {
+          const shipments = task && Array.isArray(task.shipments)
+            ? task.shipments
+            : (task && task.shipmentId ? [task] : []);
+          if (!shipments.length) {
             bot.transportState = 'sell_to_return_gate';
             return;
           }
@@ -1012,44 +1017,55 @@ class BotManager {
           if (bot._playerMarketRetryAt && Date.now() < bot._playerMarketRetryAt) return;
           if (!window.MINISPACE_MARKET || typeof window.MINISPACE_MARKET.completeTransportSale !== 'function') return;
           bot._playerMarketSalePending = true;
-          window.MINISPACE_MARKET.completeTransportSale(task.shipmentId)
-            .then((raw) => {
+          (async () => {
+            const completed = [];
+            for (const shipment of shipments) {
+              const raw = await window.MINISPACE_MARKET.completeTransportSale(shipment.shipmentId);
               const receipt = Array.isArray(raw) ? raw[0] : raw;
-              if (!receipt || receipt.success === false) throw new Error('The shared market did not confirm the sale.');
-              if (window.MINISPACE_MARKET.applyToGame(this.playerData)) {
-                if (typeof window.updateStationUI === 'function') window.updateStationUI();
-              }
+              if (!receipt || receipt.success === false) throw new Error('The market did not confirm shipment ' + shipment.shipmentId + '.');
+              completed.push({
+                receipt: receipt,
+                shipment: shipment
+              });
+            }
+            if (window.MINISPACE_MARKET.applyToGame(this.playerData)) {
+              if (typeof window.updateStationUI === 'function') window.updateStationUI();
+            }
+            this.playerData.marketSales = Array.isArray(this.playerData.marketSales) ? this.playerData.marketSales : [];
+            let grossTotal = 0, feeTotal = 0, netTotal = 0;
+            completed.forEach(({ receipt, shipment }) => {
               const gross = Math.max(0, Math.floor(Number(receipt.gross) || 0));
               const fee = Math.max(0, Math.floor(Number(receipt.fee) || 0));
               const net = Math.max(0, Math.floor(Number(receipt.net) || 0));
-              this.playerData.marketSales = Array.isArray(this.playerData.marketSales) ? this.playerData.marketSales : [];
+              grossTotal += gross; feeTotal += fee; netTotal += net;
               this.playerData.marketSales.push({
                 source: 'player_transport_sale',
-                items: Object.keys(task.items || {}).map(function (key) {
-                  return Math.max(0, Math.floor(Number(task.items[key]) || 0)).toLocaleString() + ' ' + key;
+                shipmentId: shipment.shipmentId,
+                items: Object.keys(shipment.items || {}).map(function (key) {
+                  return Math.max(0, Math.floor(Number(shipment.items[key]) || 0)).toLocaleString() + ' ' + key;
                 }),
                 gross: gross, fee: fee, proceeds: net, time: Date.now()
               });
-              if (this.playerData.marketSales.length > 100) this.playerData.marketSales.splice(0, this.playerData.marketSales.length - 100);
-              ship.cargo = 0;
-              ship.cargoByOre = {};
-              bot.playerSaleTask = null;
-              bot.transportState = 'sell_to_return_gate';
-              bot._playerMarketSalePending = false;
-              bot._playerMarketRetryAt = 0;
-              if (typeof window.showCorpNotification === 'function') {
-                window.showCorpNotification('Sale complete: ' + gross.toLocaleString() + ' gross, ' + fee.toLocaleString() + ' Transport Manager fee, ' + net.toLocaleString() + ' Scrap Metals paid to you.');
-              }
-              if (typeof window.saveGameSession === 'function') window.saveGameSession();
-              if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
-            })
-            .catch((error) => {
-              bot._playerMarketSalePending = false;
-              bot._playerMarketRetryAt = Date.now() + 15000;
-              if (typeof window.showCorpNotification === 'function') {
-                window.showCorpNotification('Transport Manager reached the market but could not complete the sale. Cargo is safe and he will retry. ' + (error.message || error));
-              }
             });
+            if (this.playerData.marketSales.length > 100) this.playerData.marketSales.splice(0, this.playerData.marketSales.length - 100);
+            ship.cargo = 0;
+            ship.cargoByOre = {};
+            bot.playerSaleTask = null;
+            bot.transportState = 'sell_to_return_gate';
+            bot._playerMarketSalePending = false;
+            bot._playerMarketRetryAt = 0;
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('Delivery sold: ' + grossTotal.toLocaleString() + ' gross, ' + feeTotal.toLocaleString() + ' Transport Manager fee, ' + netTotal.toLocaleString() + ' Scrap Metals credited to the submitting pilot.');
+            }
+            if (typeof window.saveGameSession === 'function') window.saveGameSession();
+            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+          })().catch((error) => {
+            bot._playerMarketSalePending = false;
+            bot._playerMarketRetryAt = Date.now() + 15000;
+            if (typeof window.showCorpNotification === 'function') {
+              window.showCorpNotification('Transport Manager reached the market but could not complete every queued sale. Cargo and shipment records are safe; he will retry. ' + (error.message || error));
+            }
+          });
           return;
         }
 
@@ -1070,12 +1086,10 @@ class BotManager {
           else {
             bot.transportState = 'loading';
             ship.docked = true; ship.vx = 0; ship.vy = 0;
-            const nextSale = Array.isArray(bot.playerSaleQueue) ? bot.playerSaleQueue.shift() : null;
-            if (nextSale) {
-              bot.playerSaleTask = nextSale;
-              if (typeof window.showCorpNotification === 'function') window.showCorpNotification('Back at High-Sec. Loading the next queued sale for the Trade Hub.');
-            } else if (typeof window.showCorpNotification === 'function') {
-              window.showCorpNotification('All queued sales delivered. Transport Manager is ready for the next job.');
+            bot.playerSaleIdleSince = 0;
+            if (typeof window.showCorpNotification === 'function') {
+              const waiting = Array.isArray(bot.playerSaleQueue) ? bot.playerSaleQueue.length : 0;
+              window.showCorpNotification(waiting ? 'Back at High-Sec. ' + waiting + ' deposited sale(s) waiting; loading for the next trip.' : 'All deposited sales delivered. Transport Manager is ready.');
             }
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
             if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
@@ -1085,28 +1099,54 @@ class BotManager {
 
         if (bot.transportState === 'loading') {
           ship.docked = true;
+          ship.vx = 0;
+          ship.vy = 0;
 
-          // Player-ordered sales take priority over the corporation's automatic market stock.
-          if (bot.playerSaleTask && (ship.cargo || 0) <= 0) {
-            const saleItems = bot.playerSaleTask.items || {};
-            const saleTotal = Object.keys(saleItems).reduce(function (sum, key) {
-              return sum + Math.max(0, Math.floor(Number(saleItems[key]) || 0));
-            }, 0);
-            if (saleTotal > 0 && saleTotal <= maxCargo) {
-              ship.cargoByOre = Object.assign({}, saleItems);
-              ship.cargo = saleTotal;
-              bot.playerSaleTask.status = 'in_transit';
+          // Player deposits collect in the manager's hangar while he is away.
+          // At High-Sec he batches whole orders, leaving when full or after 30 seconds idle.
+          if (Array.isArray(bot.playerSaleQueue) && bot.playerSaleQueue.length > 0 && !bot.playerSaleTask && (ship.cargo || 0) <= 0) {
+            if (!bot.playerSaleIdleSince) bot.playerSaleIdleSince = Date.now();
+            const staged = [];
+            const batchItems = {};
+            let batchTotal = 0;
+            for (const order of bot.playerSaleQueue) {
+              const orderTotal = Object.keys(order.items || {}).reduce(function (sum, key) {
+                return sum + Math.max(0, Math.floor(Number(order.items[key]) || 0));
+              }, 0);
+              if (orderTotal < 1 || batchTotal + orderTotal > maxCargo) break;
+              staged.push(order);
+              batchTotal += orderTotal;
+              Object.keys(order.items || {}).forEach(function (key) {
+                batchItems[key] = (batchItems[key] || 0) + Math.max(0, Math.floor(Number(order.items[key]) || 0));
+              });
+              if (batchTotal >= maxCargo) break;
+            }
+            const full = batchTotal >= maxCargo;
+            const timerExpired = Date.now() - bot.playerSaleIdleSince >= 30000;
+            if (staged.length && (full || timerExpired)) {
+              bot.playerSaleQueue.splice(0, staged.length);
+              bot.playerSaleTask = { shipments: staged, items: batchItems, status: 'in_transit' };
+              ship.cargoByOre = Object.assign({}, batchItems);
+              ship.cargo = batchTotal;
+              bot.playerSaleIdleSince = 0;
               bot.transportState = 'sell_to_trade_gate';
               if (typeof window.showCorpNotification === 'function') {
-                window.showCorpNotification('Transport Manager loaded your sale and is departing for the Trade Hub.');
+                window.showCorpNotification('Transport Manager departing with ' + batchTotal.toLocaleString() + ' goods from ' + staged.length + ' deposited sale(s).');
               }
               if (typeof window.saveGameSession === 'function') window.saveGameSession();
               if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
-            } else {
-              if (typeof window.showCorpNotification === 'function') {
-                window.showCorpNotification('Transport Manager could not load the reserved sale. Contact support before making another sale.');
-              }
+              return;
             }
+            bot._saleQueueUiTick = ((bot._saleQueueUiTick || 0) + 1) % 60;
+            if (bot._saleQueueUiTick === 0 && typeof window.updateCorpUI === 'function') window.updateCorpUI();
+            return;
+          }
+          if (bot.playerSaleTask && (ship.cargo || 0) <= 0) {
+            // Recover legacy single-shipment saves into the new batching queue.
+            bot.playerSaleQueue = Array.isArray(bot.playerSaleQueue) ? bot.playerSaleQueue : [];
+            bot.playerSaleQueue.unshift(bot.playerSaleTask);
+            bot.playerSaleTask = null;
+            bot.playerSaleIdleSince = Date.now();
             return;
           }
           ship.vx = 0;
