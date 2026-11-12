@@ -539,9 +539,9 @@ class PublicNpcManager {
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
         }
-        const frontierXP = 75;
+        const pirateXP = 75;
         if (typeof window.awardPlayerXP === 'function') {
-          window.awardPlayerXP('combat', frontierXP, 'Pirate destroyed');
+          window.awardPlayerXP('combat', pirateXP, 'Pirate destroyed');
         }
         if(playerData){
           if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
