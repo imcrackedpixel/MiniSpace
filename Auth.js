@@ -311,7 +311,7 @@
         await refreshMarketState();
         return result;
       });
- ,
+    },
     transferToPrivate: function (itemKey, quantity) {
       return queueMarketTask(async function () {
         await initializeMarketBridge();
@@ -324,7 +324,6 @@
         return result;
       });
     }
-  }
   };
 
   // Secure GM tools. The database verifies the signed-in pilot against the private GM table.
