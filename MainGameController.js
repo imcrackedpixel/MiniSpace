@@ -2383,3 +2383,69 @@ if (
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
 })();
+
+/* TRADE HUB - CONNECT DOCKING TO ITS OWN STATION */
+(function () {
+  const oldRequestDock = window.requestDock;
+
+  window.requestDock = function () {
+    if (mapManager.currentMapId !== 'public_trade_hub') {
+      return oldRequestDock();
+    }
+
+    if (!playerShip || playerShip.docked) return;
+
+    if (autoplayManager && autoplayManager.isAutoplay) {
+      window.toggleAutoplay();
+    }
+
+    isDockingRequested = true;
+    targetMovePos = null;
+    lockedTarget = null;
+  };
+
+  const oldManualControl = manualControl;
+
+  manualControl = function () {
+    if (mapManager.currentMapId !== 'public_trade_hub') {
+      return oldManualControl.apply(this, arguments);
+    }
+
+    const station = window.MINISPACE_TRADE_HUB.station;
+    const oldX = mainStation.x;
+    const oldY = mainStation.y;
+
+    mainStation.x = station.x;
+    mainStation.y = station.y;
+
+    try {
+      return oldManualControl.apply(this, arguments);
+    } finally {
+      mainStation.x = oldX;
+      mainStation.y = oldY;
+    }
+  };
+
+  const oldUndockShip = undockShip;
+
+  undockShip = function () {
+    if (mapManager.currentMapId !== 'public_trade_hub') {
+      return oldUndockShip();
+    }
+
+    const station = window.MINISPACE_TRADE_HUB.station;
+    const oldX = mainStation.x;
+    const oldY = mainStation.y;
+
+    mainStation.x = station.x;
+    mainStation.y = station.y;
+
+    try {
+      return oldUndockShip();
+    } finally {
+      mainStation.x = oldX;
+      mainStation.y = oldY;
+    }
+  };
+})();
+
