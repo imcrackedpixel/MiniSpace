@@ -622,12 +622,18 @@ class PublicNpcManager {
         }
         if(playerData){
           if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
-          const rr=Math.random(),rarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
-          const hull=npc.className==='Capital'?'Siege Capital':npc.className;
-          const mods=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
-          const module=mods[Math.floor(Math.random()*mods.length)];
-          playerData.moduleDrops.push({id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1});
-          if(typeof window.showCorpNotification==='function')window.showCorpNotification('MODULE DROP: '+rarity.toUpperCase()+' '+module);
+          const system = npc.mapId && (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === npc.mapId);
+          // The loot fairy rolls per kill: deeper systems and elite guards improve the odds,
+          // but ordinary pirates do not guarantee a module every time.
+          const dropChance = npc.elite ? 0.75 : (system ? Math.min(0.52, 0.16 + system.ring * 0.036) : 1);
+          if (Math.random() < dropChance) {
+            const rr=Math.random(),rarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
+            const hull=npc.className==='Capital'?'Siege Capital':npc.className;
+            const mods=({'Carrier':['droneTether','shieldExtender','resistance','propulsion'],'Siege Battleship':['missiles','shield','propulsion'],'Siege Cruiser':['guns','shield','resistance','shieldRecharge'],'Siege Capital':['guns','shieldPlating','propulsion','resistance'],'Combat Frigate':['missiles','shield','scrambler','propulsion']})[hull]||['shield','propulsion'];
+            const module=mods[Math.floor(Math.random()*mods.length)];
+            playerData.moduleDrops.push({id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1});
+            if(typeof window.showCorpNotification==='function')window.showCorpNotification('LOOT DROP: '+rarity.toUpperCase()+' '+module+' Module');
+          }
         }
         if (typeof window.showCorpNotification === 'function') {
           window.showCorpNotification('PIRATE DESTROYED · +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals · +' + pirateXP + ' XP');
