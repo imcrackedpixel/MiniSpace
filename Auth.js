@@ -342,6 +342,13 @@
     }
   };
 
+  // Read-only bridge for the online server handshake. This is a user session token,
+  // never a service-role key; privileged actions still require server/database checks.
+  window.MINISPACE_AUTH = {
+    getAccessToken: function () { return session && session.access_token ? session.access_token : null; },
+    getUserId: function () { return session && session.user ? session.user.id : null; }
+  };
+
   // Secure GM tools. The database verifies the signed-in pilot against the private GM table.
   window.MINISPACE_GM = {
     isAuthorized: async function () {
