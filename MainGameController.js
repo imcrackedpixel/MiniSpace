@@ -2464,14 +2464,32 @@ function manualControl() {
   }
 }
 
+function getPlayerSalvageCollectionRange() {
+  if (!playerShip) return 105;
+  const ranges = [
+    Number(playerShip.weaponRange) || 0,
+    Number(playerShip.laserRange) || 0,
+    Number(playerShip.scramblerRange) || 0
+  ];
+  // Carrier and other drone ships can collect from the effective reach of their deployed drones.
+  const drones = Array.isArray(playerShip.drones) ? playerShip.drones : [];
+  drones.forEach(entry => {
+    const drone = entry && (entry.ship || entry);
+    if (!drone) return;
+    ranges.push(Number(drone.weaponRange) || 0, Number(drone.scramblerRange) || 0, Number(drone.laserRange) || 0);
+  });
+  // Keep the old pickup radius as a minimum for mining/exploration hulls without a combat range.
+  return Math.max(105, ...ranges.filter(n => Number.isFinite(n) && n > 0));
+}
 function autoLootNearbyWrecks() {
   if (!playerShip || playerShip.docked || !debrisField ||
       typeof debrisField.getEntities !== 'function' ||
       typeof addOreToCargo !== 'function') return 0;
   let collected = 0;
+  const pickupRange = getPlayerSalvageCollectionRange();
   for (const crate of debrisField.getEntities()) {
     if (!crate || crate.isLootCrate === false || !(Number(crate.oreYield) > 0)) continue;
-    if (Math.hypot(playerShip.x - crate.x, playerShip.y - crate.y) > 105) continue;
+    if (Math.hypot(playerShip.x - crate.x, playerShip.y - crate.y) > pickupRange) continue;
     const tier = Math.max(1, Math.min(5, Math.floor(Number(crate.tier) || 1)));
     const key = 'debris_t' + tier;
     const room = Math.max(0, Math.floor((Number(playerShip.maxCargo) || 0) - (Number(playerShip.cargo) || 0)));
