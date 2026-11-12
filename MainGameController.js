@@ -4,7 +4,6 @@ var mainStation = null;
 var asteroidBelt = null;
 var debrisField = null;
 var botManager = null;
-var stationMarket = null;
 var autoplayManager = null;
 var backgroundDecor = null;
 
@@ -135,7 +134,6 @@ asteroidBelt = new AsteroidBelt(2500, 3800, 150, WORLD_SIZE);
 asteroidBelt.generate(150, ['veldspar', 'scordite']);
 debrisField = new DebrisField(2500, 3800, 3, WORLD_SIZE);
 botManager = new BotManager(playerData, mainStation, asteroidBelt, debrisField);
-stationMarket = new StationMarket(playerData, 'Private Station Market');
 backgroundDecor = new BackgroundDecor(2400, 1600);
 
 playerShip = new MiningFrigate(mainStation.x + 250, mainStation.y + 250);
@@ -1803,7 +1801,16 @@ function updateGame() {
   normalizeWrecks();
   const pub = inPublicSpace();
   if (window.Balance) window.Balance.applyAll(balancedShips());
-  if (!pub && !inMissionSpace() && botManager) botManager.update(playerShip, asteroidBelt, debrisField);
+  if (!inMissionSpace() && botManager) {
+    if (!pub) {
+      botManager.update(playerShip, asteroidBelt, debrisField);
+    } else if (
+      mapManager.currentMapId === 'public_trade_hub' &&
+      typeof botManager.updateTransportOnly === 'function'
+    ) {
+      botManager.updateTransportOnly(playerShip, asteroidBelt, debrisField);
+    }
+  }
   if (asteroidBelt) asteroidBelt.update();
   if (debrisField) debrisField.update();
   if (!inMissionSpace() && publicNpcManager) publicNpcManager.update(mapManager.currentMapId, playerShip, asteroidBelt, playerData, updateStationUI, saveGameSession);
