@@ -258,10 +258,26 @@ function drawPortalLabel(ctx, x, y, radius, title, subtitle, accent) {
   ctx.restore();
 }
 
+
+const FRONTIER_SYSTEMS=[
+{id:'frontier_ashen',name:'Ashen Reach',level:1,kind:'Mining Fleet',links:['frontier_iron','frontier_vanta']},
+{id:'frontier_iron',name:'Ironwake',level:2,kind:'Pirate Patrols',links:['frontier_ashen','frontier_cinder','frontier_umbra']},
+{id:'frontier_vanta',name:'Vanta Expanse',level:2,kind:'Mining Fleet',links:['frontier_ashen','frontier_nexus']},
+{id:'frontier_cinder',name:'Cinder Drift',level:3,kind:'Mixed Fleets',links:['frontier_iron','frontier_redline']},
+{id:'frontier_umbra',name:'Umbra Verge',level:4,kind:'Pirate Armada',links:['frontier_iron','frontier_blackstar']},
+{id:'frontier_nexus',name:'Nexus Scar',level:4,kind:'Mixed Fleets',links:['frontier_vanta','frontier_redline','frontier_crypt']},
+{id:'frontier_redline',name:'Redline Abyss',level:5,kind:'Elite Pirate Fleet',links:['frontier_cinder','frontier_nexus']},
+{id:'frontier_blackstar',name:'Blackstar End',level:5,kind:'Elite Carrier Territory',links:['frontier_umbra']},
+{id:'frontier_crypt',name:'The Crypt',level:5,kind:'Relic Graveyard',links:['frontier_nexus']}
+];
+window.MINISPACE_UNIVERSE_SYSTEMS=FRONTIER_SYSTEMS;
+
 class MapManager {  
  constructor() {  
  this.currentMapId = 'private_highsec';  
  this.missionReturnGate = null;
+ this.frontierReturnGate = null;
+ this.frontierGates = [];
  this.missionEntryGate = { x: 4450, y: 4450, radius: 105, destinationName: '', draw: function(ctx) {
    drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 12);
    drawPortalLabel(ctx, this.x, this.y, this.radius, 'MISSION PORTAL',
@@ -305,6 +321,19 @@ class MapManager {
  drawPortalLabel(ctx, this.x, this.y, this.radius, label.replace(' RETURN GATE', ''), 'RETURN TO HIGH-SEC', '#34d399');
  }  
   
+
+ jumpToFrontierSystem(playerShip,systemId){
+  const system=FRONTIER_SYSTEMS.find(s=>s.id===systemId);if(!system||!playerShip)return null;
+  this.currentMapId=system.id;const size=9000,cx=size/2,cy=size/2;
+  this.frontierReturnGate={x:650,y:cy,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','SAFE RETURN','#34d399');}};
+  this.frontierGates=system.links.map((id,i)=>{const a=2*Math.PI*i/Math.max(1,system.links.length)-Math.PI/2;const g={x:cx+Math.cos(a)*3300,y:cy+Math.sin(a)*3000,radius:90,destinationId:id};g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};return g;});
+  const belt=new AsteroidBelt(cx,cy,0,size);belt.generate(75+system.level*12,system.level>=4?['pyroxeres','omber','scordite']:['veldspar','scordite','pyroxeres']);
+  if(belt.entities)belt.entities.forEach((r,i)=>{const a=Math.random()*Math.PI*2,d=900+Math.random()*3300;r.x=cx+Math.cos(a)*d+(i%5-2)*180;r.y=cy+Math.sin(a)*d;});
+  const debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size):null;if(debris&&debris.generate)debris.generate(system.level);
+  playerShip.x=this.frontierReturnGate.x+260;playerShip.y=this.frontierReturnGate.y;playerShip.vx=0;playerShip.vy=0;playerShip.angle=0;playerShip.docked=false;
+  return {asteroidBelt:belt,debrisField:debris,size:size,system:system};
+ }
+
  jumpToMissionSystem(playerShip, mission) {
    const size = 7000;
    this.currentMapId = 'mission_' + String(mission.systemName || mission.id || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '_');
