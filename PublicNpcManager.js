@@ -204,7 +204,7 @@ class PublicNpcManager {
 
   addPirate(cfg, x, y, id, opts) {
     opts = opts || {};
-    const scale = opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1);
+    const scale = (opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1)) * (opts.elite ? 1.5 : 1);
     // Instant aggro only for combat-capable hulls that belong to the player's own belt
     const autoAggro = !!opts.aggro && opts.slot === this.playerSlot;
     const shipObj = cfg.makeShip(x, y);
@@ -229,6 +229,7 @@ class PublicNpcManager {
       }
     }
     hp *= NPC_HP_SCALE;
+    if(opts.elite){for(const layer of ['shield','armor','structure']){const key='max'+layer.charAt(0).toUpperCase()+layer.slice(1);if(shipObj[key]>0){shipObj[key]*=2.4;shipObj[layer]*=2.4;}}hp*=2.4;}
     this.publicNpcMiners.push({
       id: id,
       cfg: cfg,
@@ -530,6 +531,12 @@ class PublicNpcManager {
         if(npc.frontierLevel){npc.respawnAt=Date.now()+60000+Math.floor(Math.random()*60001);if(window.MinispaceOnline&&window.MinispaceOnline.send)window.MinispaceOnline.send({type:'frontier-npc-killed',mapId:currentMapId,npcId:npc.id,respawnAt:npc.respawnAt});}
         if (playerData && playerData.isk !== undefined) {
           playerData.isk += Math.floor(npc.bounty);
+        }
+        if(npc.elite&&npc.frontierLevel===5&&playerData){
+          if(!Array.isArray(playerData.purpleModules))playerData.purpleModules=[];
+          playerData.purpleModules.push({id:'elite-'+npc.id+'-'+Date.now(),name:'Unidentified Purple Module',rarity:'purple',source:'Level 5 Elite Pirate'});
+          if(typeof window.showCorpNotification==='function')window.showCorpNotification('✦ ELITE DROP: Purple Module recovered!');
+          if(typeof saveGameSession==='function')saveGameSession();
         }
         if (typeof window.showCorpNotification === 'function') {
           window.showCorpNotification('🎯 Pirate ' + npc.className + ' destroyed! Bounty: +' + Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals');
