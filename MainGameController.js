@@ -2300,22 +2300,23 @@ function updateHUD() {
 }
 
 function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
-window.setNearbySpaceTab=function(tab){if(!['tears','pirates','ore'].includes(tab))return;window._miniSpaceNearbyTab=tab;document.querySelectorAll('#nearby-space-tabs .nearby-tab').forEach(function(btn){btn.classList.toggle('active',btn.dataset.nearbyTab===tab);});updateNearbySpacePanel();};
+window.setNearbySpaceTab=function(tab){if(!['tears','pirates','ore','players'].includes(tab))return;window._miniSpaceNearbyTab=tab;document.querySelectorAll('#nearby-space-tabs .nearby-tab').forEach(function(btn){btn.classList.toggle('active',btn.dataset.nearbyTab===tab);});updateNearbySpacePanel();};
 function updateNearbySpacePanel(){
  const list=document.getElementById('nearby-space-list');if(!list)return;
  if(!playerShip||!mapManager){list.innerHTML='<div class="nearby-empty">Waiting for your ship…</div>';return;}
  const px=Number(playerShip.x)||0,py=Number(playerShip.y)||0,dist=o=>Math.hypot((Number(o&&o.x)||0)-px,(Number(o&&o.y)||0)-py);
- const g={tears:[],pirates:[],ore:[]},add=(k,n,o,t,x)=>{if(o&&Number.isFinite(Number(o.x))&&Number.isFinite(Number(o.y)))g[k].push({name:String(n||t),x:Number(o.x),y:Number(o.y),distance:dist(o),kind:t,ref:o,extra:x||null});};
+ const g={tears:[],pirates:[],ore:[],players:[]},add=(k,n,o,t,x)=>{if(o&&Number.isFinite(Number(o.x))&&Number.isFinite(Number(o.y)))g[k].push({name:String(n||t),x:Number(o.x),y:Number(o.y),distance:dist(o),kind:t,ref:o,extra:x||null});};
  const id=String(mapManager.currentMapId||'');
  if(id==='public_trade_hub'&&window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station)add('tears','Trade Hub Station',window.MINISPACE_TRADE_HUB.station,'station','trade');
  else if(id.indexOf('frontier_')===0&&mapManager.frontierReturnGate)add('tears','High-Sec Station · return tear',mapManager.frontierReturnGate,'station','return');
  else if(id.indexOf('mission_')===0&&mapManager.missionReturnGate)add('tears','High-Sec Station · return tear',mapManager.missionReturnGate,'station','return');
- else if(id==='public_space'&&Array.isArray(mapManager.playerGates))mapManager.playerGates.forEach((o,i)=>add('tears','High-Sec Return Gate '+(i+1),o,'station','return'));
+ /* 3v3 High-Sec exit gates are hidden from Nearby. */
  else if(mainStation)add('tears','High-Sec Station',mainStation,'station','home');
  const gate=(o,n,x)=>add('tears',n,o,'gate',x);
  if(id.indexOf('frontier_')===0){gate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});(Array.isArray(mapManager.frontierGates)?mapManager.frontierGates:[]).forEach(o=>{const d=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===o.destinationId);gate(o,(d?d.name:'Frontier')+' Tear',{destinationId:o.destinationId});});}
  else if(id.indexOf('mission_')===0)gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
  else{gate(mapManager.frontierEntryGate,'Frontier Tear',{destinationId:'frontier_ashen'});if(id!=='public_trade_hub')gate(mapManager.publicGate,'Arena Tear',{});if(mapManager.missionEntryGate&&missionManager&&missionManager.activeMission&&!missionManager.activeMission.returned)gate(mapManager.missionEntryGate,'Mission Tear',{mission:true});}
+ if(id==='public_space'&&window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers){Object.values(window.MinispaceOnline.state.remotePlayers).forEach(p=>{if(!p||!Number.isFinite(Number(p.x))||!Number.isFinite(Number(p.y)))return;const pname=String(p.name||p.pilotName||'Pilot').slice(0,16);add('players',pname,p,'player');});}
  if(id==='public_space'&&publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners))publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship)add('pirates',n.ship.pilotName||n.ship.name||n.className||'Pirate',n.ship,'pirate');});
  if(Array.isArray(asteroidBelt&&asteroidBelt.entities))asteroidBelt.entities.forEach((o,i)=>{if(o&&Number(o.oreYield)>0)add('ore',itemLabel(o.oreType||'veldspar'),o,'rock');});
  if(debrisField&&typeof debrisField.getEntities==='function')(debrisField.getEntities()||[]).forEach((o)=>{if(o&&Number(o.oreYield)>0)add('ore',itemLabel('debris_t'+(Number(o.tier)||1)),o,'salvage');});
