@@ -934,6 +934,7 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
       if (!duplicate) transport.transportBuildQueue.push({ unlockKey: unlockKey, className: className });
       if (typeof window.saveGameSession === 'function') window.saveGameSession();
       if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+      if (typeof updateStationUI === 'function') updateStationUI();
       window.showCorpNotification(className + ' fetch & build order queued. The Transport Manager will collect the materials after his current trip.');
       return;
     }
@@ -984,6 +985,7 @@ window.requestTransportShipBuild = async function(unlockKey, className, recipe, 
     transport.ship.docked = false;
     if (typeof window.saveGameSession === 'function') window.saveGameSession();
     if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+    if (typeof updateStationUI === 'function') updateStationUI();
     window.showCorpNotification('Transport Manager dispatched to collect materials for ' + className +
       '. It will fly to the Trade Hub and return to finish the build.');
   } catch (error) {
@@ -1876,6 +1878,25 @@ function recipeHtml(recipe) {
   }).join('<br>');
 }
 
+function transportBuildOrderStatus(unlockKey) {
+  const manager = botManager && botManager.bots
+    ? botManager.bots.find(function(bot) {
+        const name = bot && bot.ship && bot.ship.className;
+        return name === 'Transport Capital' || name === 'Industrial Hauler' || name === 'Freighter';
+      })
+    : null;
+  if (!manager) return null;
+  const task = manager.transportTask;
+  if (task && task.type === 'ship_build' && task.unlockKey === unlockKey) {
+    return { label: '⌛ IN TRANSIT', state: 'transit' };
+  }
+  if (Array.isArray(manager.transportBuildQueue) &&
+      manager.transportBuildQueue.some(function(order) { return order && order.unlockKey === unlockKey; })) {
+    return { label: '◷ QUEUED', state: 'queued' };
+  }
+  return null;
+}
+
 function marketShipRows(group) {
   const cur = playerShip ? playerShip.className : '';
   const unlocked = playerData.unlockedShips || {};
@@ -1910,7 +1931,13 @@ function marketShipRows(group) {
       btn = '<button onclick="window.boardShip(\'' + sh.name + '\', ' + sh.cargo + ', ' + sh.speed + ')">Board</button>';
     } else {
       const canBuild = recipe && recipeShortfall(recipe).length === 0;
-      btn = '<button onclick="window.buildShip(\'' + sh.key + '\', \'' + sh.name + '\')" ' + (canBuild ? '' : 'style="opacity:0.9;"') + '>' + (canBuild ? 'Build' : 'Fetch & Build') + '</button>';
+      const orderStatus = !canBuild ? transportBuildOrderStatus(sh.key) : null;
+      if (orderStatus) {
+        btn = '<button disabled style="opacity:0.42;background:#171b20!important;color:#7b858d!important;border-color:#303840!important;">Fetch & Build</button>' +
+          '<span style="display:inline-block;margin-left:6px;padding:4px 6px;border:1px solid #45535c;border-radius:4px;color:#aab6bd;font-size:10px;white-space:nowrap;">' + orderStatus.label + '</span>';
+      } else {
+        btn = '<button onclick="window.buildShip(\'' + sh.key + '\', \'' + sh.name + '\')" ' + (canBuild ? '' : 'style="opacity:0.9;"') + '>' + (canBuild ? 'Build' : 'Fetch & Build') + '</button>';
+      }
     }
     h += '<tr><td>' + sh.name + (isCur ? ' (current)' : '') + '</td><td style="font-size:12px;">' + info + '</td><td>' + btn + '</td></tr>';
   }
