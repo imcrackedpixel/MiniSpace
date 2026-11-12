@@ -184,11 +184,12 @@
       // One-time import of a real existing pilot save. New accounts with no save
       // keep the starter wallet created by the database trigger.
       const raw = localStorage.getItem('minispace_save');
+      let bootstrappedFromSave = false;
       if (raw) {
         try {
           const saved = JSON.parse(raw);
           const data = saved && saved.playerData;
-          if (data && Number.isFinite(Number(data.isk)) &&
+          if (data && data.pilotName && Number.isFinite(Number(data.isk)) &&
               data.stationOre && typeof data.stationOre === 'object') {
             const walletRows = await api('/rest/v1/pilot_wallets?select=legacy_imported&pilot_id=eq.' +
               encodeURIComponent(session.user.id), { method: 'GET' });
@@ -213,12 +214,28 @@
                   p_bootstrap: true
                 })
               });
+              bootstrappedFromSave = true;
             } catch (syncError) {
               console.warn('Game economy sync needs the market_game_sync SQL migration:', syncError.message || syncError);
             }
           }
         } catch (error) {
           console.warn('Legacy market import will need retry:', error.message || error);
+        }
+      }
+      if (!bootstrappedFromSave) {
+        // No established local pilot save: preserve the database starter wallet.
+        try {
+          await api('/rest/v1/rpc/market_sync_game_state', {
+            method: 'POST',
+            body: JSON.stringify({
+              p_isk: null,
+              p_inventory: null,
+              p_bootstrap: true
+            })
+          });
+        } catch (syncError) {
+          console.warn('Game economy sync needs the market_game_sync SQL migration:', syncError.message || syncError);
         }
       }
       return refreshMarketState();
