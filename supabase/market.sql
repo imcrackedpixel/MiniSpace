@@ -198,5 +198,12 @@ revoke insert, update, delete on public.pilot_inventory from anon, authenticated
 revoke insert, update, delete on public.market_items from anon, authenticated;
 revoke insert, update, delete on public.market_transactions from anon, authenticated;
 
+revoke all on function public.market_buy(text,bigint) from public, anon;
+revoke all on function public.market_sell(text,bigint) from public, anon;
 grant execute on function public.market_buy(text,bigint) to authenticated;
 grant execute on function public.market_sell(text,bigint) to authenticated;
+
+grant select on public.market_items to anon, authenticated;
+grant select on public.pilot_wallets to authenticated;
+grant select on public.pilot_inventory to authenticated;
+grant select on public.market_transactions to authenticated;
