@@ -2526,4 +2526,26 @@ if (
   };
 })();
 
+/* TRADE HUB - REMOVE WRONG MINIMAP GATE MARKER */
+(function () {
+  const previousDrawMinimap = drawMinimap;
+
+  drawMinimap = function () {
+    previousDrawMinimap();
+
+    if (mapManager.currentMapId !== 'public_trade_hub') return;
+    if (!minimapCtx) return;
+
+    // Remove the High-Sec entrance marker from the Hub minimap.
+    const scale = 120 / 7000;
+    minimapCtx.fillStyle = '#0d1117';
+    minimapCtx.fillRect(
+      4200 * scale - 4,
+      2500 * scale - 4,
+      8,
+      8
+    );
+  };
+})();
+
 
