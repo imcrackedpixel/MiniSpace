@@ -140,9 +140,7 @@ class BotManager {
       return entry && entry.ship && entry.ship.className === 'Transport Capital';
     });
     if (!bot || !bot.ship) return { success: false, message: 'Transport Manager not found.' };
-    if (bot.transportTask || !['loading', null].includes(bot.transportState)) {
-      return { success: false, message: 'The Transport Manager must finish its current trip before upgrading.' };
-    }
+    // Cargo capacity can be upgraded during any route; the current trip continues unchanged.
     const level = Math.max(1, Math.floor(Number(bot.transportLevel) || 1));
     const cost = this.transportUpgradeCost(bot);
     if ((Number(this.playerData.isk) || 0) < cost) {
