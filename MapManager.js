@@ -307,9 +307,9 @@ const FRONTIER_SYSTEMS = (function () {
         const target = Math.round(i * outer.length / nodes.length) % outer.length;
         node.links.push(outer[target].id);
       }
-      node.links = Array.from(new Set(node.links));
     });
   });
+  rings.forEach(nodes => nodes.forEach(node => { node.links = Array.from(new Set(node.links)); }));
   return rings.flat();
 })();
 window.MINISPACE_UNIVERSE_SYSTEMS = FRONTIER_SYSTEMS;
