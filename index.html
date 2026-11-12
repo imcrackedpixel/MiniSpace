@@ -55,7 +55,7 @@ try {
 <div id="ui-layer">
 <div style="display: flex; flex-direction: column; gap: 6px;">
 
-<button id="hud-collapse-btn" type="button" onclick="(function(b){var p=document.getElementById('pilot-panel'),c=document.getElementById('flight-controls');var hide=p.style.display!=='none';p.style.display=hide?'none':'';c.style.display=hide?'none':'';b.textContent=hide?'SHOW HUD':'HIDE HUD';})(this)" style="background:#162d36;color:#9be7d4;border:1px solid #34785d;padding:5px 8px;font-size:9px;font-weight:bold;">HIDE HUD</button>
+<button id="hud-collapse-btn" type="button" onclick="(function(b){var p=document.getElementById('pilot-panel'),c=document.getElementById('flight-controls');var hide=p.style.display!=='none';p.style.display=hide?'none':'';c.style.display=hide?'none':'';window._miniSpaceHudCollapsed=hide;b.textContent=hide?'SHOW HUD':'HIDE HUD';})(this)" style="background:#162d36;color:#9be7d4;border:1px solid #34785d;padding:5px 8px;font-size:9px;font-weight:bold;">HIDE HUD</button>
 <div class="panel" id="pilot-panel" onclick="window.openSkillsUI()" title="Open pilot talent tree" style="max-width: 230px;cursor:pointer;">
 <div id="pilot-panel-heading"><strong>PILOT:</strong> <span id="ui-pilot-name">CRACKED</span></div>
 <div id="pilot-level-text" style="color:#36b99a;font-weight:bold;">LEVEL 1 · 0 TALENT POINTS</div>
