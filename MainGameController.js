@@ -1311,9 +1311,9 @@ const SHIP_CATALOG = {
 
 // CLOUD PLAYER MARKET: only visible while docked in the public Trade Hub.
 const TRADE_ITEM_LABELS = {
-  veldspar:'Veldspar', scordite:'Scordite', pyroxeres:'Pyroxeres', omber:'Omber',
-  debris_t1:'T1 Resistor', debris_t2:'T2 Capacitor', debris_t3:'T3 Circuit Board',
-  debris_t4:'T4 Microchip', debris_t5:'T5 Processor'
+  veldspar:'Copper', scordite:'Steel', pyroxeres:'Titanium', omber:'Gold',
+  debris_t1:'Resistor', debris_t2:'Capacitor', debris_t3:'Circuit Board',
+  debris_t4:'Microchip', debris_t5:'Processor'
 };
 function tradeMarketState() {
   return window.MINISPACE_MARKET && window.MINISPACE_MARKET.state
