@@ -1364,9 +1364,7 @@ window.initializeNewGameSession = function() {
 
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas ? canvas.getContext('2d') : null;
-const minimapCanvas = document.getElementById('minimap');
-const minimapCtx = minimapCanvas ? minimapCanvas.getContext('2d') : null;
-if (minimapCanvas) { minimapCanvas.width = 148; minimapCanvas.height = 148; }
+// The old canvas minimap has been replaced by the live Nearby in Space list.
 
 var cameraZoom = 0.35;
 window.adjustZoom = function(amount) {
@@ -2220,92 +2218,117 @@ function updateHUD() {
 }
 
 function updateCargoReadout(){const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');if(!panel||!list||!playerShip)return;const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';list.innerHTML=keys.map(k=>'<div><span>'+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');}
-function drawMinimap() {
-  if (!minimapCtx || !playerShip) return;
+function updateNearbySpacePanel() {
   updateCargoReadout();
-  const m = minimapCtx, size = 120, sc = size / currentWorldSize();m.setTransform(1,0,0,1,0,0);m.fillStyle='#07111b';m.fillRect(0,0,size,size);m.save();m.strokeStyle='rgba(112,166,190,.18)';m.lineWidth=.65;for(let i=1;i<4;i++){m.beginPath();m.moveTo(i*size/4,0);m.lineTo(i*size/4,size);m.moveTo(0,i*size/4);m.lineTo(size,i*size/4);m.stroke();}m.strokeStyle='rgba(112,166,190,.28)';m.beginPath();m.arc(size/2,size/2,size*.22,0,Math.PI*2);m.arc(size/2,size/2,size*.42,0,Math.PI*2);m.stroke();m.restore();
-  m.fillStyle = '#6b7280';
-  if (asteroidBelt && asteroidBelt.entities) {
-    for (const r of asteroidBelt.entities) {
-      if (r && r.oreYield > 0) m.fillRect(r.x * sc, r.y * sc, 1.5, 1.5);
-    }
+  const list = document.getElementById('nearby-space-list');
+  if (!list || !playerShip || !mapManager) return;
+  const px = Number(playerShip.x) || 0, py = Number(playerShip.y) || 0;
+  const distanceTo = p => Math.hypot((Number(p.x)||0)-px,(Number(p.y)||0)-py);
+  const entries = { tears: [], pirates: [], rocks: [], stations: [] };
+  const add = (group, name, x, y, kind, ref, extra) => {
+    if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return;
+    const point={x:Number(x),y:Number(y)};
+    entries[group].push({name:String(name||kind),x:point.x,y:point.y,distance:distanceTo(point),kind,ref:ref||null,extra:extra||null});
+  };
+  const currentId=String(mapManager.currentMapId||'');
+  // Stations are pinned to the top of the list and are never distance-filtered.
+  if (currentId === 'public_trade_hub' && window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station) {
+    const st=window.MINISPACE_TRADE_HUB.station;
+    add('stations','Trade Hub Station',st.x,st.y,'station',st,'trade');
+  } else if (mainStation) {
+    add('stations','High-Sec Station',mainStation.x,mainStation.y,'station',mainStation,'home');
   }
-  m.fillStyle = '#d29922';
-  if (debrisField && debrisField.getEntities()) {
-    for (const d of debrisField.getEntities()) {
-      if (d) m.fillRect(d.x * sc - 1, d.y * sc - 1, 3, 3);
-    }
-  }
-  if (inPublicSpace()) {
-    if(mapManager&&String(mapManager.currentMapId).indexOf('frontier_')===0){if(mapManager.frontierReturnGate){m.fillStyle='#36b99a';m.fillRect(mapManager.frontierReturnGate.x*sc-2,mapManager.frontierReturnGate.y*sc-2,4,4);}(mapManager.frontierGates||[]).forEach(g=>{m.fillStyle='#fb923c';m.fillRect(g.x*sc-2,g.y*sc-2,4,4);});
-      if(publicNpcManager&&publicNpcManager.publicNpcMiners){const lv=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===mapManager.currentMapId)?.level||1;const skull=['#9ca3af','#3fb950','#58a6ff','#a371f7','#f85149'][Math.max(1,Math.min(5,lv))-1];m.fillStyle=skull;m.font='10px Arial';publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship&&n.combat)m.fillText('☠',n.ship.x*sc-4,n.ship.y*sc+4);});}}
-    else if (mapManager && mapManager.playerGates) {
-            for (const gate of mapManager.playerGates) {
-        if (gate) {
-          m.fillStyle = '#3fb950';
-          m.fillRect(gate.x * sc - 2, gate.y * sc - 2, 4, 4);
-        }
-      }
-    }
-    m.fillStyle = '#f85149';
-    if (publicNpcManager && publicNpcManager.publicNpcMiners) {
-      for (const n of publicNpcManager.publicNpcMiners) {
-        if (n && n.isAlive && n.ship) m.fillRect(n.ship.x * sc - 2, n.ship.y * sc - 2, 4, 4);
-      }
-    }
-  } else if (inMissionSpace()) {
-    if (mapManager && mapManager.missionReturnGate) {
-      m.fillStyle = '#3fb950';
-      m.beginPath();
-      m.arc(mapManager.missionReturnGate.x * sc, mapManager.missionReturnGate.y * sc, 4, 0, Math.PI * 2);
-      m.fill();
-    }
-    if (missionManager && missionManager.activeMission) {
-      m.fillStyle = '#f85149';
-      missionManager.getLivingEnemies().forEach(function(enemy) {
-        m.fillRect(enemy.x * sc - 2, enemy.y * sc - 2, 4, 4);
-      });
-    }
+  const addGate=(g,name,extra)=>{if(g)add('tears',name,g.x,g.y,'gate',g,extra);};
+  if (currentId.indexOf('frontier_')===0) {
+    addGate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});
+    (mapManager.frontierGates||[]).forEach(g=>{
+      const dest=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===g.destinationId);
+      addGate(g,dest?dest.name+' Tear':'Frontier Tear',{destinationId:g.destinationId});
+    });
+  } else if (currentId.indexOf('mission_')===0) {
+    addGate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
   } else {
-    if (mainStation) {
-      m.fillStyle = '#58a6ff';
-      m.fillRect(mainStation.x * sc - 3, mainStation.y * sc - 3, 6, 6);
-    }
-    if (mapManager && mapManager.publicGate) {
-      m.fillStyle = '#f85149';
-      m.fillRect(mapManager.publicGate.x * sc - 2, mapManager.publicGate.y * sc - 2, 4, 4);
-    }
-    if (mapManager && mapManager.frontierEntryGate) {
-      m.fillStyle = '#fb923c';
-      m.fillRect(mapManager.frontierEntryGate.x * sc - 3, mapManager.frontierEntryGate.y * sc - 3, 6, 6);
-    }
-    if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned &&
-        mapManager && mapManager.missionEntryGate) {
-      const gx = mapManager.missionEntryGate.x * sc;
-      const gy = mapManager.missionEntryGate.y * sc;
-      m.save();
-      m.setLineDash([3, 2]);
-      m.strokeStyle = 'rgba(52,211,153,0.75)';
-      m.lineWidth = 1;
-      m.beginPath();
-      m.moveTo(playerShip.x * sc, playerShip.y * sc);
-      m.lineTo(gx, gy);
-      m.stroke();
-      m.restore();
-      m.fillStyle = '#34d399';
-      m.beginPath();
-      m.arc(gx, gy, 4, 0, Math.PI * 2);
-      m.fill();
-    }
+    if (mapManager.frontierEntryGate) addGate(mapManager.frontierEntryGate,'Frontier Tear',{destinationId:'frontier_ashen'});
+    if (mapManager.publicGate && currentId!=='public_trade_hub') addGate(mapManager.publicGate,'Arena Tear',{});
+    if (mapManager.missionEntryGate && missionManager && missionManager.activeMission && !missionManager.activeMission.returned)
+      addGate(mapManager.missionEntryGate,'Mission Tear',{mission:true});
+    (mapManager.playerGates||[]).forEach((g,i)=>addGate(g,'Return Gate '+(i+1),{}));
   }
-  if(targetMovePos&&isFinite(targetMovePos.x)&&isFinite(targetMovePos.y)){
-    m.save();m.strokeStyle='rgba(77,208,225,.95)';m.lineWidth=1.5;m.setLineDash([3,2]);
-    m.beginPath();m.moveTo(playerShip.x*sc,playerShip.y*sc);m.lineTo(targetMovePos.x*sc,targetMovePos.y*sc);m.stroke();
-    m.setLineDash([]);m.fillStyle='#4dd0e1';m.beginPath();m.arc(targetMovePos.x*sc,targetMovePos.y*sc,3,0,Math.PI*2);m.fill();m.restore();
+  // Live pirate/miner ships. Include only hostile pirate faction in the pirate group.
+  if (publicNpcManager && Array.isArray(publicNpcManager.publicNpcMiners)) {
+    publicNpcManager.publicNpcMiners.forEach(n=>{
+      if(!n||!n.isAlive||!n.ship)return;
+      const ship=n.ship, faction=String(n.faction||n.role||'').toLowerCase();
+      if(faction==='miners'||faction==='mine')return;
+      const label=n.name||n.pilotName||ship.pilotName||ship.name||ship.className||'Pirate';
+      add('pirates',label,ship.x,ship.y,'pirate',ship,{npc:n});
+    });
   }
-  m.save();m.translate(playerShip.x*sc,playerShip.y*sc);m.rotate(Number(playerShip.angle)||0);
-  m.fillStyle='#ffffff';m.strokeStyle='#36b99a';m.lineWidth=1.2;m.beginPath();m.moveTo(0,-6);m.lineTo(4.5,5);m.lineTo(0,2.5);m.lineTo(-4.5,5);m.closePath();m.fill();m.stroke();m.restore();
+  if (inMissionSpace() && missionManager && missionManager.activeMission) {
+    try { missionManager.getLivingEnemies().forEach((enemy,i)=>add('pirates',enemy.name||enemy.pilotName||enemy.className||('Mission Pirate '+(i+1)),enemy.x,enemy.y,'pirate',enemy,{mission:true})); } catch(e) {}
+  }
+  if (asteroidBelt && Array.isArray(asteroidBelt.entities)) {
+    asteroidBelt.entities.forEach((rock,i)=>{
+      if(rock && Number(rock.oreYield)>0) add('rocks',rock.name||rock.oreName||rock.oreType||'Asteroid '+(i+1),rock.x,rock.y,'rock',rock);
+    });
+  }
+  if (debrisField && typeof debrisField.getEntities==='function') {
+    debrisField.getEntities().forEach((wreck,i)=>{
+      if(wreck && (Number(wreck.oreYield)>0 || Number(wreck.value)>0 || wreck.isMineable!==false))
+        add('rocks',wreck.name||wreck.type||'Salvage '+(i+1),wreck.x,wreck.y,'salvage',wreck);
+    });
+  }
+  Object.keys(entries).forEach(k=>entries[k].sort((a,b)=>a.distance-b.distance));
+  const shown=[];
+  const section=(key,title,icon,limit)=>{
+    const rows=key==='stations'?entries[key]:entries[key].slice(0,limit);
+    if(!rows.length)return '';
+    let out='<div class="nearby-group"><div class="nearby-group-title">'+icon+' '+title+'</div>';
+    rows.forEach(item=>{
+      const index=shown.push(item)-1;
+      out+='<button type="button" class="nearby-entry" data-nearby-index="'+index+'"><span class="nearby-entry-name">'+item.name.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]))+'</span><span class="nearby-entry-distance">'+Math.round(item.distance).toLocaleString()+' m</span></button>';
+    });
+    return out+'</div>';
+  };
+  const markup=section('tears','TEARS / GATES','🌀',6)+section('pirates','PIRATES','☠️',6)+section('rocks','ROCKS / SALVAGE','☄️',8)+section('stations','STATIONS','⌂',20);
+  list.innerHTML=markup||'<div class="nearby-empty">Nothing detected nearby</div>';
+  window._miniSpaceNearbyTargets=shown;
 }
+(function bindNearbySpaceClicks(){
+  const list=document.getElementById('nearby-space-list');
+  if(!list||list.dataset.bound)return;
+  list.dataset.bound='1';
+  list.addEventListener('click',function(event){
+    const button=event.target.closest('button[data-nearby-index]');
+    if(!button||!playerShip)return;
+    const item=(window._miniSpaceNearbyTargets||[])[Number(button.dataset.nearbyIndex)];
+    if(!item)return;
+    if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();
+    lockedTarget=null;isDockingRequested=false;
+    if(item.kind==='station'){
+      window.requestDock();
+      return;
+    }
+    if(item.kind==='rock'||item.kind==='salvage'){
+      lockedTarget=item.ref;
+      targetMovePos=null;
+      window.showCorpNotification('Destination selected: '+item.name);
+      return;
+    }
+    if(item.kind==='gate'&&item.extra&&item.extra.destinationId&&typeof window.flyToFrontierGate==='function'){
+      window.flyToFrontierGate(item.extra.destinationId);
+      return;
+    }
+    if(item.kind==='gate'&&item.extra&&item.extra.return){
+      if(String(mapManager.currentMapId).indexOf('frontier_')===0)window.jumpToPrivateSec();
+      else if(inMissionSpace()&&typeof window.returnFromMission==='function')window.returnFromMission();
+      else if(typeof window.jumpToPrivateSec==='function')window.jumpToPrivateSec();
+      return;
+    }
+    targetMovePos={x:item.x,y:item.y};
+    window.showCorpNotification('Auto-flight engaged: '+item.name);
+  });
+})();
 
 function manualControl() {
   const ship = playerShip;
@@ -2640,7 +2663,7 @@ function gameLoop(timestamp) {
     render();
     frameCount++;
     if (frameCount % 5 === 0) updateHUD();
-    try { drawMinimap(); } catch (minimapError) { if (!drawMinimap._warned) { console.error('Minimap renderer error:', minimapError); drawMinimap._warned = true; } }
+    try { updateNearbySpacePanel(); } catch (nearbyError) { if (!updateNearbySpacePanel._warned) { console.error('Nearby space list error:', nearbyError); updateNearbySpacePanel._warned = true; } }
     if (frameCount % 900 === 0) saveGameSession();
   } catch (err) {
     if (!gameLoop._warned || frameCount % 300 === 0) { console.error('Game loop error:', err && err.stack ? err.stack : err); gameLoop._warned = true; }
