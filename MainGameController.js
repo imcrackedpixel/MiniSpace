@@ -194,7 +194,9 @@ function autoplayIsOn() { return !!(autoplayManager && autoplayManager.isAutopla
 function balancedShips() {
   const list = [playerShip];
   if (botManager && botManager.bots) botManager.bots.forEach(b => list.push(b.ship));
-  if (publicNpcManager && publicNpcManager.publicNpcMiners) publicNpcManager.publicNpcMiners.forEach(n => list.push(n.ship));
+  if (publicNpcManager && publicNpcManager.publicNpcMiners) publicNpcManager.publicNpcMiners.forEach(n => {
+    if (n && n.ship && (n.mapId ? n.mapId === mapManager.currentMapId : mapManager.currentMapId === 'public_space')) list.push(n.ship);
+  });
   return list.filter(Boolean);
 }
 function currentWorldSize() { return mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0 ? 9000 : (inPublicSpace() ? PUBLIC_SIZE : (inMissionSpace() ? 7000 : WORLD_SIZE)); }
@@ -2576,7 +2578,9 @@ function manualControl() {
   }
   const enemies = playerData.offensiveMode
     ? (pub && publicNpcManager && publicNpcManager.publicNpcMiners
-      ? publicNpcManager.publicNpcMiners.filter(function(n) { return n && n.isAlive && n.ship; }).map(function(n) { return n.ship; })
+      ? publicNpcManager.publicNpcMiners.filter(function(n) {
+          return n && n.isAlive && n.ship && (n.mapId ? n.mapId === mapManager.currentMapId : mapManager.currentMapId === 'public_space');
+        }).map(function(n) { return n.ship; })
       : [])
     : [];
   if (playerData.offensiveMode && inMissionSpace() && missionManager) enemies.push.apply(enemies, missionManager.getLivingEnemies());
