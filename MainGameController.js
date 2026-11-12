@@ -2490,3 +2490,40 @@ if (
   };
 })();
 
+/* TRADE HUB - RESTORE STATION AND KEEP PLAYER SHIP IN FRONT */
+(function () {
+  const previousRender = render;
+
+  render = function () {
+    previousRender();
+
+    if (
+      !mapManager ||
+      mapManager.currentMapId !== 'public_trade_hub' ||
+      !playerShip ||
+      !ctx ||
+      !canvas
+    ) return;
+
+    const station = window.MINISPACE_TRADE_HUB.station;
+    const dpr = window.devicePixelRatio || 1;
+    const z = cameraZoom * dpr;
+
+    ctx.setTransform(
+      z, 0, 0, z,
+      canvas.width / 2 - playerShip.x * z,
+      canvas.height / 2 - playerShip.y * z
+    );
+
+    station.draw(ctx);
+
+    // Redraw the player's ship above the station image.
+    if (!playerShip.docked && typeof playerShip.draw === 'function') {
+      playerShip.draw(ctx, null);
+    }
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+  };
+})();
+
+
