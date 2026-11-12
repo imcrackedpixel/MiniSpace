@@ -799,9 +799,9 @@ window.setHangarView=function(view){
   if(table)table.style.display=view==='fitting'?'none':'';
   if(fit)fit.style.display=view==='fitting'?'block':'none';
   document.querySelectorAll('[data-hangar-view]').forEach(b=>b.classList.toggle('active',b.getAttribute('data-hangar-view')===view));
-  document.querySelectorAll('#items-hanger-list details[data-hangar-group]').forEach(d=>{
-    const group=d.getAttribute('data-hangar-group'),isItem=group==='ore'||group==='debris';
-    const row=d.closest('tr');if(row)row.style.display=view==='items'?(isItem?'':'none'):(view==='ships'?(isItem?'none':''):'none');
+  document.querySelectorAll('#items-hanger-list > tr[data-hangar-group]').forEach(row=>{
+    const group=row.getAttribute('data-hangar-group'),isItem=group==='ore'||group==='debris';
+    row.style.display=view==='items'?(isItem?'':'none'):(view==='ships'?(isItem?'none':''):'none');
   });
 };
 window.upgradeFrigateModule = function(mod) {
@@ -1865,10 +1865,10 @@ function updateStationUI() {
   let hangarHtml = '';
   for (const g of ['ore', 'debris', 'explorer', 'mining', 'combat', 'capital']) {
     const body = groupRows[g] || '<tr><td colspan="3" style="text-align: center; color: #8b949e;">None</td></tr>';
-    hangarHtml += '<tr><td colspan="3" style="padding: 0;"><details data-hangar-group="' + g + '"><summary style="cursor: pointer; font-weight: bold; color: #58a6ff; padding: 4px 2px;">' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><table class="station-table">' + body + '</table></details></td></tr>';
+    hangarHtml += '<tr data-hangar-group="' + g + '"><td colspan="3" style="padding: 0;"><details data-hangar-group="' + g + '"><summary style="cursor: pointer; font-weight: bold; color: #58a6ff; padding: 4px 2px;">' + HANGAR_GROUP_TITLES[g] + ' (' + groupCount[g] + ')</summary><table class="station-table">' + body + '</table></details></td></tr>';
   }
   if (playerData.chips > 0) {
-    hangarHtml += '<tr><td>ITEM LEVEL CHIP</td><td>' + playerData.chips + '</td><td style="color:#8b949e;">Applied on drop</td></tr>';
+    hangarHtml += '<tr data-hangar-group="debris"><td>ITEM LEVEL CHIP</td><td>' + playerData.chips + '</td><td style="color:#8b949e;">Applied on drop</td></tr>';
   }
 
   const transportManagerForHangar = botManager && botManager.bots ? botManager.bots.find(function (b) {
@@ -1880,7 +1880,7 @@ function updateStationUI() {
   const hasHangarGoods = Object.keys(GAME_ITEM_LABELS).some(function(key) {
     return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
   });
-  hangarHtml = '<tr><td colspan="3" style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" ' +
+  hangarHtml = '<tr data-hangar-group="ore"><td colspan="3" style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" ' +
     (!canSellAllHangar || !hasHangarGoods || !playerShip || !playerShip.docked || inTradeHub ? 'disabled' : '') +
     ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></td></tr>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
