@@ -108,13 +108,22 @@ class MissionManager {
       if(d<1400){
         enemy.docked=false;
         enemy.currentTarget=playerShip;
-        // NpcCarrier has a six-argument update signature. The old five-argument
-        // call passed [] as forceStop and true as enemyListRef, breaking its
-        // drone targeting with enemyListRef.map is not a function.
+        // Keep the player explicitly available to every pirate weapon system.
+        // Siege Cruisers use independently rotating gun mounts; smoothly keep
+        // the pirate hull facing its target as well so the mounts can acquire it.
+        if(enemy.className==='Siege Cruiser'){
+          const desired=Math.atan2(playerShip.y-enemy.y,playerShip.x-enemy.x);
+          let diff=desired-(enemy.angle||0);
+          while(diff>Math.PI)diff-=Math.PI*2;
+          while(diff< -Math.PI)diff+=Math.PI*2;
+          enemy.angle=(enemy.angle||0)+Math.max(-0.08,Math.min(0.08,diff));
+        }
+        // NpcCarrier has a six-argument update signature; its drone wing needs
+        // the player supplied as an enemy list.
         if(enemy.className==='Carrier' && Array.isArray(enemy.drones)){
           enemy.update(null,playerShip,false,false,[playerShip],true);
         }else{
-          enemy.update(null,playerShip,false,[],true);
+          enemy.update(null,playerShip,false,[playerShip],true);
         }
       }
       else {const a=Math.atan2(playerShip.y-enemy.y,playerShip.x-enemy.x);enemy.vx=(enemy.vx+Math.cos(a)*0.04)*0.96;enemy.vy=(enemy.vy+Math.sin(a)*0.04)*0.96;enemy.x+=enemy.vx;enemy.y+=enemy.vy;}
