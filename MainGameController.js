@@ -1537,6 +1537,8 @@ function renderTradeMarket() {
     return '<tr><td>' + tradeEsc(label) + '<br><small>Trade Hub hangar: ' + qty.toLocaleString() + '</small></td>' +
       '<td>' + fmtISK(price) + ' Scrap Metals</td><td>' + stock.toLocaleString() + '</td>' +
       '<td><button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1)" ' + (stock < 1 ? 'disabled' : '') + '>Buy 1</button> ' +
+      '<button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',100)" ' + (stock < 100 ? 'disabled' : '') + '>Buy 100</button> ' +
+      '<button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1000)" ' + (stock < 1000 ? 'disabled' : '') + '>Buy 1k</button> ' +
       '<button onclick="window.tradeMarketSellAll(\'' + tradeEsc(key) + '\')" ' + (qty < 1 ? 'disabled' : '') + '>Sell all</button></td></tr>';
   });
   body.innerHTML = rows.join('') || '<tr><td colspan="4">No market items available.</td></tr>';
