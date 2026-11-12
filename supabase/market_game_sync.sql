@@ -23,9 +23,6 @@ declare
   v_qty bigint;
 begin
   if v_pilot is null then raise exception 'Pilot login required'; end if;
-  if p_isk is null or p_isk < 0 or p_isk > 9000000000000000 then
-    raise exception 'Invalid game wallet';
-  end if;
   if p_inventory is not null and jsonb_typeof(p_inventory) <> 'object' then
     raise exception 'Invalid private hangar inventory';
   end if;
@@ -43,6 +40,19 @@ begin
   -- save snapshots and intentionally keep the game's wallet/hangar mirrored.
   if p_bootstrap and v_synced then
     return jsonb_build_object('success',true,'skipped',true);
+  end if;
+
+  -- A brand-new pilot may not have a local save yet. Preserve the starter
+  -- wallet and any existing hangar contents, but mark the bridge as ready.
+  if p_bootstrap and p_isk is null and p_inventory is null then
+    update public.pilot_wallets
+    set game_state_synced=true, updated_at=now()
+    where pilot_id=v_pilot;
+    return jsonb_build_object('success',true,'skipped',false,'preservedStarterWallet',true);
+  end if;
+
+  if p_isk is null or p_isk < 0 or p_isk > 9000000000000000 then
+    raise exception 'Invalid game wallet';
   end if;
 
   update public.pilot_wallets
