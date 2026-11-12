@@ -124,7 +124,7 @@
           if (playerData && playerData.isk !== undefined) playerData.isk += Math.floor(npc.bounty);
           if (typeof window.showCorpNotification === 'function') {
             window.showCorpNotification('🏴‍☠️ Pirate ' + npc.className + ' destroyed! Bounty: +' +
-              Math.floor(npc.bounty).toLocaleString() + ' ISK');
+              Math.floor(npc.bounty).toLocaleString() + ' Scrap Metals');
           }
           if (debrisField && debrisField.entities) {
             debrisField.entities.push({ x: ship.x, y: ship.y, radius: 40, oreYield: 8000, oreType: 'debris_t3' });
