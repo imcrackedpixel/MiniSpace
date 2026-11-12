@@ -94,7 +94,7 @@
     document.getElementById('gm-ban-target').onclick=async()=>{
       if(!targetName())return status('Enter the exact pilot callsign first.');
       if(!confirm('Ban '+targetName()+'? They will be disconnected and blocked from logging in.'))return;
-      try{const result=await window.MINISPACE_GM.banPilot(targetName(),document.getElementById('gm-ban-reason').value);window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId});status(targetName()+' banned and disconnected if online.');}
+      try{const result=await window.MINISPACE_GM.banPilot(targetName(),document.getElementById('gm-ban-reason').value);window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId,banned:true});status(targetName()+' banned and disconnected if online.');}
       catch(error){status(error.message||'Could not ban pilot.');}
     };
     document.getElementById('gm-unban-target').onclick=async()=>{
@@ -108,7 +108,7 @@
       if(!targetName())return status('Enter the exact pilot callsign first.');
       const amount=Number(document.getElementById('gm-scrap-amount').value);
       if(!Number.isSafeInteger(amount)||amount<1)return status('Enter a valid whole-number amount.');
-      try{const result=await window.MINISPACE_GM.adjustPilotWallet(targetName(),amount*direction);window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId});status('Wallet updated. Pilot will reconnect to load the new balance.');}
+      try{const result=await window.MINISPACE_GM.adjustPilotWallet(targetName(),amount*direction);window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId,banned:false});status('Wallet updated. Pilot will reconnect to load the new balance.');}
       catch(error){status(error.message||'Could not adjust pilot wallet.');}
     }
     document.getElementById('gm-give-target-item').onclick=async()=>adjustItem(1);
@@ -117,7 +117,7 @@
       if(!targetName())return status('Enter the exact pilot callsign first.');
       const amount=Number(document.getElementById('gm-item-amount').value);
       if(!Number.isSafeInteger(amount)||amount<1)return status('Enter a valid whole-number quantity.');
-      try{const result=await window.MINISPACE_GM.adjustPilotItem(targetName(),select.value,amount*direction,'private_highsec');window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId});status('Hangar updated. Pilot will reconnect to load the new inventory.');}
+      try{const result=await window.MINISPACE_GM.adjustPilotItem(targetName(),select.value,amount*direction,'private_highsec');window.MinispaceOnline?.send({type:'gm-kick-account',accountId:result.pilotId,banned:false});status('Hangar updated. Pilot will reconnect to load the new inventory.');}
       catch(error){status(error.message||'Could not adjust pilot hangar.');}
     }
     document.getElementById('gm-refresh-online').onclick=()=>{
