@@ -1,5 +1,5 @@
 
-/* MiniSpace Online: multiplayer presence, chat and friends */
+/* MiniSpace Online: multiplayer presence, chat, friends and ship rendering */
 (function(){
  const state={
   socket:null,
@@ -22,18 +22,14 @@
     <span>MINISPACE ONLINE <span id="online-status">OFFLINE</span></span>
     <button id="online-collapse">−</button>
    </header>
-
    <div id="online-content">
     <div id="online-count">0 pilots nearby</div>
     <div id="online-roster"></div>
-
     <div class="online-actions">
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
      <button id="online-add-friend">ADD FRIEND</button>
     </div>
-
     <div id="online-chat-log" aria-live="polite"></div>
-
     <div class="online-actions">
      <select id="online-channel">
       <option value="global">Global</option>
@@ -103,6 +99,20 @@
   input.value='';
  }
 
+ function updatePlayer(p){
+  if(!p||!p.id)return;
+
+  const old=state.players.get(p.id)||{};
+
+  state.players.set(p.id,{
+   ...old,
+   ...p,
+   renderX:old.renderX??p.x,
+   renderY:old.renderY??p.y,
+   renderAngle:old.renderAngle??p.angle
+  });
+ }
+
  function render(){
   if(!$('online-roster'))return;
 
@@ -135,8 +145,85 @@
   });
  }
 
+ // Draw other players in the same system as your ship.
+ function drawRemotePlayers(ctx){
+  const local=window.playerShip;
+  if(!local||local.docked||!window.ShipArt)return;
+
+  const localSystem=$('system-text')?.textContent||'';
+
+  for(const p of state.players.values()){
+   if(!p.id||p.id===state.id)continue;
+   if(!p.system||p.system!==localSystem)continue;
+
+   p.renderX+=(p.x-p.renderX)*0.35;
+   p.renderY+=(p.y-p.renderY)*0.35;
+
+   let angleDiff=(p.angle||0)-(p.renderAngle||0);
+   while(angleDiff>Math.PI)angleDiff-=Math.PI*2;
+   while(angleDiff< -Math.PI)angleDiff+=Math.PI*2;
+   p.renderAngle+=angleDiff*0.35;
+
+   const drawn=originalShipDraw(
+    ctx,
+    p.ship,
+    p.renderX,
+    p.renderY,
+    p.renderAngle
+   );
+
+   if(!drawn){
+    ctx.save();
+    ctx.fillStyle='#58a6ff';
+    ctx.beginPath();
+    ctx.arc(p.renderX,p.renderY,15,0,Math.PI*2);
+    ctx.fill();
+    ctx.restore();
+   }
+
+   // Pilot name above the other ship.
+   ctx.save();
+   ctx.font='bold 13px Arial';
+   ctx.textAlign='center';
+   ctx.lineWidth=3;
+   ctx.strokeStyle='#071018';
+   ctx.fillStyle='#8fc7d5';
+   ctx.strokeText(p.name||'Pilot',p.renderX,p.renderY-55);
+   ctx.fillText(p.name||'Pilot',p.renderX,p.renderY-55);
+   ctx.restore();
+  }
+ }
+
+ // Hook into the existing ship artwork renderer.
+ let originalShipDraw=null;
+
+ function installShipRenderer(){
+  if(!window.ShipArt||!window.ShipArt.draw)return false;
+  if(window.ShipArt.draw._onlineRenderer)return true;
+
+  originalShipDraw=window.ShipArt.draw;
+
+  const wrapped=function(ctx,className,x,y,angle){
+   const result=originalShipDraw.apply(this,arguments);
+
+   const local=window.playerShip;
+
+   // Add remote ships immediately after drawing your own ship.
+   if(local&&x===local.x&&y===local.y){
+    drawRemotePlayers(ctx);
+   }
+
+   return result;
+  };
+
+  wrapped._onlineRenderer=true;
+  window.ShipArt.draw=wrapped;
+  return true;
+ }
+
  function connect(){
   panel();
+  installShipRenderer();
 
   const url=window.MINISPACE_SERVER_URL;
 
@@ -183,19 +270,13 @@
    if(message.type==='welcome'){
     state.id=message.id;
 
-    (message.players||[]).forEach(p=>{
-     state.players.set(p.id,p);
-    });
+    (message.players||[]).forEach(updatePlayer);
 
     render();
    }
 
    if(message.type==='player'){
-    state.players.set(
-     message.player.id,
-     message.player
-    );
-
+    updatePlayer(message.player);
     render();
    }
 
@@ -222,6 +303,8 @@
  }
 
  function tick(){
+  installShipRenderer();
+
   if(state.socket?.readyState===1&&window.playerShip){
    const ship=window.playerShip;
 
