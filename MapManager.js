@@ -278,6 +278,13 @@ class MapManager {
  this.missionReturnGate = null;
  this.frontierReturnGate = null;
  this.frontierGates = [];
+ this.frontierEntryGate = {
+   x: 4400, y: 2500, radius: 105,
+   draw: function(ctx) {
+     drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.pvp, 18);
+     drawPortalLabel(ctx, this.x, this.y, this.radius, 'ASHEN REACH', 'FRONTIER GATE · PVP ZONE', '#fb923c');
+   }
+ };
  this.missionEntryGate = { x: 4450, y: 4450, radius: 105, destinationName: '', draw: function(ctx) {
    drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 12);
    drawPortalLabel(ctx, this.x, this.y, this.radius, 'MISSION PORTAL',
