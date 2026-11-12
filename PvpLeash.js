@@ -55,7 +55,7 @@
 
     // Belt pirates: home is the spawn their belt rings.
     this.publicNpcMiners.forEach(npc => {
-      if (!npc || npc.mapId) return;
+      if (!npc || npc.mapId || npc.kind === 'guard') return;
       let home = M.spawns[0], best = Infinity;
       for (const sp of M.spawns) {
         const d = dist(npc.ship.x, npc.ship.y, sp.x, sp.y);
@@ -66,6 +66,9 @@
       npc.homeY = home.y;
       npc.leash = LEASH_BELT;
     });
+
+    // Keep one station-guard pair in the arena when pilots re-enter.
+    if (this.publicNpcMiners.some(npc => npc && npc.isAlive && !npc.mapId && npc.kind === 'guard')) return;
 
     // Central main base: two carrier guards, leashed to the station.
     for (let i = 0; i < 2; i++) {
