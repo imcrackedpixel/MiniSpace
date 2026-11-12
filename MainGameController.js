@@ -2213,3 +2213,62 @@ if (
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
 })();
+/* TRADE HUB: HIDE CORP MINERS AND SHOW HUB GATES ON MINIMAP */
+(function () {
+  if (!botManager) return;
+
+  const oldBotUpdate = botManager.update;
+  botManager.update = function () {
+    if (mapManager.currentMapId === 'public_trade_hub') return;
+    return oldBotUpdate.apply(this, arguments);
+  };
+
+  const oldBotDraw = botManager.draw;
+  botManager.draw = function () {
+    if (mapManager.currentMapId === 'public_trade_hub') return;
+    return oldBotDraw.apply(this, arguments);
+  };
+
+  const oldDrawMinimap = drawMinimap;
+
+  drawMinimap = function () {
+    if (mapManager.currentMapId !== 'public_trade_hub') {
+      return oldDrawMinimap();
+    }
+
+    if (!minimapCtx || !playerShip) return;
+
+    const m = minimapCtx;
+    const size = 120;
+    const sc = size / 7000;
+
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.fillStyle = '#0d1117';
+    m.fillRect(0, 0, size, size);
+
+    m.fillStyle = '#6b7280';
+    if (asteroidBelt && asteroidBelt.entities) {
+      for (const rock of asteroidBelt.entities) {
+        if (rock && rock.oreYield > 0) {
+          m.fillRect(rock.x * sc, rock.y * sc, 1.5, 1.5);
+        }
+      }
+    }
+
+    m.fillStyle = '#d29922';
+    if (debrisField && debrisField.getEntities) {
+      for (const debris of debrisField.getEntities()) {
+        if (debris) {
+          m.fillRect(debris.x * sc, debris.y * sc, 3, 3);
+        }
+      }
+    }
+
+    m.fillStyle = '#36b99a';
+    m.fillRect(4200 * sc - 3, 2500 * sc - 3, 6, 6);
+    m.fillRect(700 * sc - 3, 3500 * sc - 3, 6, 6);
+
+    m.fillStyle = '#ffffff';
+    m.fillRect(playerShip.x * sc - 2, playerShip.y * sc - 2, 4, 4);
+  };
+})();
