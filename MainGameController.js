@@ -2272,3 +2272,24 @@ if (
     m.fillRect(playerShip.x * sc - 2, playerShip.y * sc - 2, 4, 4);
   };
 })();
+/* TRADE HUB ENTRANCE ON HIGH-SEC MINIMAP */
+(function () {
+  const previousDrawMinimap = drawMinimap;
+
+  drawMinimap = function () {
+    previousDrawMinimap();
+
+    if (mapManager.currentMapId !== 'private_highsec') return;
+    if (!minimapCtx || !playerShip) return;
+
+    const scale = 120 / currentWorldSize();
+
+    minimapCtx.fillStyle = '#36b99a';
+    minimapCtx.fillRect(
+      4200 * scale - 3,
+      2500 * scale - 3,
+      6,
+      6
+    );
+  };
+})();
