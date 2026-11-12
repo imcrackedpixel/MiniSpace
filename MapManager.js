@@ -259,18 +259,60 @@ function drawPortalLabel(ctx, x, y, radius, title, subtitle, accent) {
 }
 
 
-const FRONTIER_SYSTEMS=[
-{id:'frontier_ashen',name:'Ashen Reach',level:1,kind:'Mining Fleet',recommendedShip:'Frigate',shipIcon:'🚀',links:['frontier_iron','frontier_vanta']},
-{id:'frontier_iron',name:'Ironwake',level:2,kind:'Pirate Patrols',recommendedShip:'Frigate',shipIcon:'🚀',links:['frontier_ashen','frontier_cinder','frontier_umbra']},
-{id:'frontier_vanta',name:'Vanta Expanse',level:2,kind:'Mining Fleet',recommendedShip:'Cruiser',shipIcon:'🛡️',links:['frontier_ashen','frontier_nexus']},
-{id:'frontier_cinder',name:'Cinder Drift',level:3,kind:'Mixed Fleets',recommendedShip:'Cruiser',shipIcon:'🛡️',links:['frontier_iron','frontier_redline']},
-{id:'frontier_umbra',name:'Umbra Verge',level:4,kind:'Pirate Armada',recommendedShip:'Battleship',shipIcon:'⚔️',links:['frontier_iron','frontier_blackstar']},
-{id:'frontier_nexus',name:'Nexus Scar',level:4,kind:'Mixed Fleets',recommendedShip:'Battleship',shipIcon:'⚔️',links:['frontier_vanta','frontier_redline','frontier_crypt']},
-{id:'frontier_redline',name:'Redline Abyss',level:5,kind:'Elite Pirate Fleet',recommendedShip:'Battleship',shipIcon:'⚔️',links:['frontier_cinder','frontier_nexus']},
-{id:'frontier_blackstar',name:'Blackstar End',level:5,kind:'Elite Carrier Territory',recommendedShip:'Carrier',shipIcon:'🛸',links:['frontier_umbra']},
-{id:'frontier_crypt',name:'The Crypt',level:5,kind:'Relic Graveyard',recommendedShip:'Carrier',shipIcon:'🛸',links:['frontier_nexus']}
-];
-window.MINISPACE_UNIVERSE_SYSTEMS=FRONTIER_SYSTEMS;
+const FRONTIER_SYSTEMS = (function () {
+  const old = [
+    ['frontier_ashen','Ashen Reach','🚀','Frigate'],
+    ['frontier_iron','Ironwake','🚀','Frigate'],
+    ['frontier_vanta','Vanta Expanse','🛡️','Cruiser'],
+    ['frontier_cinder','Cinder Drift','🛡️','Cruiser'],
+    ['frontier_umbra','Umbra Verge','⚔️','Battleship'],
+    ['frontier_nexus','Nexus Scar','⚔️','Battleship'],
+    ['frontier_redline','Redline Abyss','⚔️','Battleship'],
+    ['frontier_blackstar','Blackstar End','🛸','Carrier'],
+    ['frontier_crypt','The Crypt','🛸','Carrier']
+  ];
+  const counts = [6,6,6,6,6,6,3,3,3,4];
+  const names = ['Kestrel','Morrow','Glass','Riven','Solace','Thorn','Cobalt','Drift','Hollow','Ember','Pale','Vesper','Orison','Fallow','Gallow','Aster','Nacre','Sable','Lumen','Tarn','Warden','Rook','Haven','Bastion','Dusk','Mire','Glimmer','Cairn','Oxbow','Vigil','Ashfall','Kepler','Wraith','Sunder','Eclipse','Null','Grave','Obsidian','Lastlight','Eventide'];
+  const rings = [];
+  let oldIndex = 0, generated = 0;
+  counts.forEach((count, ringIndex) => {
+    const ring = ringIndex + 1, nodes = [];
+    for (let i = 0; i < count; i++) {
+      let row;
+      if (oldIndex < old.length) row = old[oldIndex++];
+      else {
+        const word = names[generated % names.length];
+        row = ['frontier_ring' + ring + '_sector' + (i + 1), word + ' ' + (ring > 6 ? 'Abyss' : 'Reach'), ring >= 7 ? '☠️' : (ring >= 4 ? '⚔️' : '🚀'), ring >= 7 ? 'Battleship' : (ring >= 4 ? 'Cruiser' : 'Frigate')];
+        generated++;
+      }
+      nodes.push({id:row[0],name:row[1],shipIcon:row[2],recommendedShip:row[3],ring:ring,level:ring,
+        security:ring <= 6 ? 'protected' : 'full-loot',
+        lossMode:ring <= 6 ? 'no-loss' : 'full-loot',
+        kind:ring <= 6 ? 'Protected PvP' : 'Full-Loot PvP',links:[]});
+    }
+    rings.push(nodes);
+  });
+  rings.forEach((nodes, ri) => {
+    nodes.forEach((node, i) => {
+      node.links.push(nodes[(i + 1) % nodes.length].id, nodes[(i + nodes.length - 1) % nodes.length].id);
+      if (ri === 0) node.links.push('private_highsec');
+      if (ri > 0) {
+        const inner = rings[ri - 1];
+        const target = Math.round(i * inner.length / nodes.length) % inner.length;
+        node.links.push(inner[target].id);
+        inner[target].links.push(node.id);
+      }
+      if (ri < rings.length - 1) {
+        const outer = rings[ri + 1];
+        const target = Math.round(i * outer.length / nodes.length) % outer.length;
+        node.links.push(outer[target].id);
+      }
+      node.links = Array.from(new Set(node.links));
+    });
+  });
+  return rings.flat();
+})();
+window.MINISPACE_UNIVERSE_SYSTEMS = FRONTIER_SYSTEMS;
 
 class MapManager {  
  constructor() {  
@@ -278,13 +320,15 @@ class MapManager {
  this.missionReturnGate = null;
  this.frontierReturnGate = null;
  this.frontierGates = [];
- this.frontierEntryGate = {
-   x: 3500, y: 1450, radius: 115,
-   draw: function(ctx) {
-     drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.pvp, 18);
-     drawPortalLabel(ctx, this.x, this.y, this.radius, 'ASHEN REACH', 'FRONTIER GATE · PVP ZONE', '#fb923c');
-   }
- };
+ this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.ring === 1).map((system, i) => {
+   const spots = [[500,500],[2500,350],[4500,500],[4500,2500],[4500,3900],[500,2500]];
+   const p = spots[i] || [2500,2500];
+   return {x:p[0],y:p[1],radius:88,destinationId:system.id,draw:function(ctx){
+     drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,18+i);
+     drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER GATE',system.name,'#fb923c');
+   }};
+ });
+ this.frontierEntryGate = this.frontierEntryGates[0];
  this.missionEntryGate = { x: 4450, y: 4450, radius: 105, destinationName: '', draw: function(ctx) {
    drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 12);
    drawPortalLabel(ctx, this.x, this.y, this.radius, 'MISSION PORTAL',
@@ -332,8 +376,9 @@ class MapManager {
  jumpToFrontierSystem(playerShip,systemId){
   const system=FRONTIER_SYSTEMS.find(s=>s.id===systemId);if(!system||!playerShip)return null;
   this.currentMapId=system.id;const size=9000,cx=size/2,cy=size/2;
-  this.frontierReturnGate={x:650,y:cy,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','SAFE RETURN','#34d399');}};
-  this.frontierGates=system.links.map((id,i)=>{const a=2*Math.PI*i/Math.max(1,system.links.length)-Math.PI/2;const g={x:cx+Math.cos(a)*3300,y:cy+Math.sin(a)*3000,radius:90,destinationId:id};g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};return g;});
+  this.frontierReturnGate={x:650,y:cy,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','RETURN TO HIGH-SEC','#34d399');}};
+  this.frontierGates=system.links.filter(id=>id!=='private_highsec').map((id,i,all)=>{const a=2*Math.PI*i/Math.max(1,all.length)-Math.PI/2;const g={x:cx+Math.cos(a)*3300,y:cy+Math.sin(a)*3000,radius:90,destinationId:id};g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};return g;});
+  this.frontierStation=new SpaceStation(cx,cy,system.name+' Station');
   let seed=0;for(let k=0;k<system.id.length;k++)seed=(seed*33+system.id.charCodeAt(k))>>>0;const oldRandom=Math.random;let rng=seed||1;Math.random=function(){rng=(rng*1664525+1013904223)>>>0;return rng/4294967296;};
   let belt,debris;
   try{belt=new AsteroidBelt(cx,cy,0,size);belt.generate(75+system.level*12,system.level>=4?['pyroxeres','omber','scordite']:['veldspar','scordite','pyroxeres']);
@@ -341,9 +386,8 @@ class MapManager {
    debris=typeof DebrisField!=='undefined'?new DebrisField(cx,cy,system.level,size,system.level):null;if(debris&&debris.generate)debris.generate(system.level);
   }finally{Math.random=oldRandom;}
   playerShip.x=this.frontierReturnGate.x+260;playerShip.y=this.frontierReturnGate.y;playerShip.vx=0;playerShip.vy=0;playerShip.angle=0;playerShip.docked=false;
-  return {asteroidBelt:belt,debrisField:debris,size:size,system:system};
+  return {asteroidBelt:belt,debrisField:debris,size:size,system:system,station:this.frontierStation};
  }
-
  jumpToMissionSystem(playerShip, mission) {
    const size = 7000;
    this.currentMapId = 'mission_' + String(mission.systemName || mission.id || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '_');
