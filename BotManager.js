@@ -834,12 +834,18 @@ class BotManager {
 
           // Never depart with a partial load. Wait for the corporation hangar
           // to contain enough goods to fill the transport ship completely.
+          bot._corpUiTick = ((bot._corpUiTick || 0) + 1) % 60;
+          if (bot._corpUiTick === 0 && typeof window.updateCorpUI === 'function') {
+            window.updateCorpUI();
+          }
+
           if ((ship.cargo || 0) >= maxCargo) {
             bot.transportState = 'to_trade_gate';
             if (typeof window.showCorpNotification === 'function') {
               window.showCorpNotification('Transport Manager loaded to 100% and is departing for the Trade Hub.');
             }
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
+            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
           return;
         }
@@ -907,6 +913,7 @@ class BotManager {
               );
             }
             if (typeof window.saveGameSession === 'function') window.saveGameSession();
+            if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
           }
           return;
         }
