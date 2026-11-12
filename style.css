@@ -361,3 +361,14 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 /* Clearer directional radar: destination route and player heading are drawn in the canvas. */
 #minimap-container{width:148px;height:148px;border-radius:12px;border:1px solid #3d7180;background:radial-gradient(circle at center,#102432,#06101a 72%);box-shadow:0 0 0 3px #10222c,0 6px 18px #000a}
 #minimap{width:148px;height:148px}
+
+/* Station inventory artwork */
+.inventory-slot{min-height:158px;gap:6px;padding:8px 6px}
+.hangar-art-frame{width:100%;height:76px;display:flex;align-items:center;justify-content:center;overflow:hidden;border:1px solid #294452;border-radius:7px;background:radial-gradient(ellipse at center,#1c3442 0%,#0b151e 72%);box-shadow:inset 0 0 18px #0008}
+.hangar-art-frame img{display:block;width:100%;height:100%;max-width:100%;object-fit:contain;padding:5px;filter:drop-shadow(0 2px 5px #000b)}
+.hangar-art-frame.item-art svg{width:62px;height:62px;filter:drop-shadow(0 0 7px #54b8c855)}
+.hangar-art-frame.blueprint-art span{font-size:48px;color:#78c9ed;text-shadow:0 0 12px #48a9dc}
+.hangar-item-detail-head .hangar-art-frame{width:64px;height:58px;flex:0 0 64px}
+.hangar-item-detail-head{justify-content:flex-start}
+.hangar-item-detail-head strong{flex:1}
+@media(max-width:420px){.inventory-slot{min-height:148px}.hangar-art-frame{height:68px}}
