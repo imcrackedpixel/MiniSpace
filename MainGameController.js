@@ -868,8 +868,7 @@ window.buildShip = function(unlockKey, className) {
   if (!recipe) { window.showCorpNotification('No recipe for ' + className); return; }
   const short = recipeShortfall(recipe);
   if (short.length > 0) {
-    window.showCorpNotification(className + ' cannot be built. ' + missingMaterialsMessage(short) +
-      '. Materials must physically be in your Private High-Sec hangar; the shipyard cannot create or buy missing stock.');
+    window.requestTransportShipBuild(unlockKey, className, recipe, short);
     return;
   }
   consumeRecipe(recipe);
@@ -877,6 +876,119 @@ window.buildShip = function(unlockKey, className) {
   if (playerData.shipsOwned.indexOf(className) === -1) playerData.shipsOwned.push(className);
   window.showCorpNotification(className + ' built. Board it from the Shipyard or Hangar.');
   updateStationUI();
+  saveGameSession();
+};
+
+// Dispatch the free Transport Manager to collect missing ship materials.
+window.requestTransportShipBuild = async function(unlockKey, className, recipe, short) {
+  try {
+    if (!window.MINISPACE_MARKET || !botManager) throw new Error('Market or corporation logistics are not ready.');
+    await window.MINISPACE_MARKET.ready();
+    await window.MINISPACE_MARKET.refresh();
+    window.MINISPACE_MARKET.applyToGame(playerData);
+    const findManager = function() {
+      return botManager.bots.find(function(bot) {
+        const name = bot && bot.ship && bot.ship.className;
+        return name === 'Transport Capital' || name === 'Industrial Hauler' || name === 'Freighter';
+      });
+    };
+    if (!findManager()) window.buildTransportManager();
+    const transport = findManager();
+    if (!transport || !transport.ship) throw new Error('The free Transport Manager could not be deployed.');
+    if (transport.transportTask || !['loading', null].includes(transport.transportState) ||
+        (transport.ship.cargo || 0) > 0) throw new Error('Transport Manager is busy. Let it finish its current delivery first.');
+
+    const state = window.MINISPACE_MARKET.state();
+    const items = short.map(function(entry) {
+      const tradeRow = (state.hangars || []).find(function(row) {
+        return row.station_id === 'trade_hub' && row.item_key === entry.item;
+      });
+      const tradeQty = Math.max(0, Number(tradeRow && tradeRow.quantity) || 0);
+      const toBuy = Math.max(0, entry.need - entry.have - tradeQty);
+      const marketRow = (state.items || []).find(function(row) { return row.item_key === entry.item; });
+      const stock = marketRow ? Math.max(0, Number(marketRow.stock) ||
+        (Number(marketRow.player_stock || 0) + Number(marketRow.npc_stock || 0))) : 0;
+      if (stock < toBuy) throw new Error('Trade Hub is short of ' + itemLabel(entry.item) +
+        ' (needs ' + toBuy.toLocaleString() + ', market has ' + stock.toLocaleString() + ').');
+      return { key: entry.item, quantity: entry.need - entry.have };
+    });
+    const cost = items.reduce(function(total, item) {
+      const row = (state.items || []).find(function(candidate) { return candidate.item_key === item.key; });
+      const tradeRow = (state.hangars || []).find(function(candidate) {
+        return candidate.station_id === 'trade_hub' && candidate.item_key === item.key;
+      });
+      const alreadyThere = Math.max(0, Number(tradeRow && tradeRow.quantity) || 0);
+      return total + Math.max(0, item.quantity - alreadyThere) * Math.max(0, Number(row && row.unit_price) || 0);
+    }, 0);
+    const wallet = state.wallet ? Math.max(0, Number(state.wallet.isk) || 0) : 0;
+    if (wallet < cost) throw new Error('Not enough Scrap Metals. The required market purchases cost ' + cost.toLocaleString() + '.');
+
+    transport.transportTask = { type: 'ship_build', unlockKey: unlockKey, className: className,
+      items: items, status: 'outbound' };
+    transport.transportState = 'buy_to_trade_gate';
+    transport.transportMapId = 'private_highsec';
+    transport.ship.docked = false;
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    if (typeof window.updateCorpUI === 'function') window.updateCorpUI();
+    window.showCorpNotification('Transport Manager dispatched to collect materials for ' + className +
+      '. It will fly to the Trade Hub and return to finish the build.');
+  } catch (error) {
+    window.showCorpNotification('Could not dispatch materials: ' + (error.message || error));
+  }
+};
+
+// Called when the Transport Manager reaches the Trade Hub market.
+window.completeTransportMaterialPickup = async function(transport) {
+  const task = transport && transport.transportTask;
+  if (!task || task.type !== 'ship_build') return { success: false, message: 'No ship build request is queued.' };
+  try {
+    await window.MINISPACE_MARKET.ready();
+    for (const item of task.items || []) {
+      await window.MINISPACE_MARKET.refresh();
+      const state = window.MINISPACE_MARKET.state();
+      const privateRow = (state.hangars || []).find(function(row) {
+        return row.station_id === 'private_highsec' && row.item_key === item.key;
+      });
+      const privateQty = Math.max(0, Number(privateRow && privateRow.quantity) || 0);
+      const required = Math.max(0, item.quantity - privateQty);
+      if (!required) continue;
+      const tradeRow = (state.hangars || []).find(function(row) {
+        return row.station_id === 'trade_hub' && row.item_key === item.key;
+      });
+      const tradeQty = Math.max(0, Number(tradeRow && tradeRow.quantity) || 0);
+      if (tradeQty < required) await window.MINISPACE_MARKET.buy(item.key, required - tradeQty);
+      await window.MINISPACE_MARKET.transferToPrivate(item.key, required);
+    }
+    await window.MINISPACE_MARKET.refresh();
+    window.MINISPACE_MARKET.applyToGame(playerData);
+    updateStationUI();
+    saveGameSession();
+    return { success: true, message: 'All required materials collected and delivered.' };
+  } catch (error) {
+    await window.MINISPACE_MARKET.refresh().catch(function() {});
+    window.MINISPACE_MARKET.applyToGame(playerData);
+    updateStationUI();
+    saveGameSession();
+    return { success: false, message: error.message || String(error) };
+  }
+};
+
+window.finishTransportShipBuild = function(task, result) {
+  if (!task) return;
+  if (result && result.success && playerShip && playerShip.docked &&
+      !playerData.unlockedShips[task.unlockKey]) {
+    const remaining = recipeShortfall(recipeFor(task.unlockKey) || []);
+    if (!remaining.length) {
+      window.buildShip(task.unlockKey, task.className);
+      return;
+    }
+  }
+  if (result && result.success) {
+    window.showCorpNotification(task.className + ' materials delivered to Private High-Sec. Dock and press Build to finish.');
+  } else {
+    window.showCorpNotification('Transport Manager pickup incomplete: ' +
+      ((result && result.message) || 'Unknown market error') + '. Any purchased materials are safe in your hangar.');
+  }
   saveGameSession();
 };
 
@@ -914,22 +1026,9 @@ window.buildTransportManager = function() {
     return false;
   }
   if ((playerData.transportManagerPurchased || 0) > 0) return false;
-  const recipe = recipeFor('transportcapital');
-  if (!recipe) {
-    window.showCorpNotification('No recipe found for Transport Manager.');
-    return false;
-  }
-  const short = recipeShortfall(recipe);
-  if (short.length > 0) {
-    window.showCorpNotification(
-      'Transport Manager cannot be built. ' + missingMaterialsMessage(short) +
-      '. Buy real stock through the Trade Hub and move it into your Private High-Sec hangar first.'
-    );
-    return false;
-  }
-  consumeRecipe(recipe);
+  // Limited-time starter offer: the first Transport Manager is free.
   playerData.transportManagerPurchased = 1;
-  window.showCorpNotification('Transport Manager built. Logistics online.');
+  window.showCorpNotification('Free Transport Manager hired. Logistics online.');
   saveGameSession();
   updateStationUI();
   updateCorpUI();
@@ -1519,7 +1618,7 @@ function marketShipRows(group) {
       btn = '<button onclick="window.boardShip(\'' + sh.name + '\', ' + sh.cargo + ', ' + sh.speed + ')">Board</button>';
     } else {
       const canBuild = recipe && recipeShortfall(recipe).length === 0;
-      btn = '<button onclick="window.buildShip(\'' + sh.key + '\', \'' + sh.name + '\')" ' + (canBuild ? '' : 'style="opacity:0.6;"') + '>Build</button>';
+      btn = '<button onclick="window.buildShip(\'' + sh.key + '\', \'' + sh.name + '\')" ' + (canBuild ? '' : 'style="opacity:0.9;"') + '>' + (canBuild ? 'Build' : 'Fetch & Build') + '</button>';
     }
     h += '<tr><td>' + sh.name + (isCur ? ' (current)' : '') + '</td><td style="font-size:12px;">' + info + '</td><td>' + btn + '</td></tr>';
   }
@@ -1527,8 +1626,8 @@ function marketShipRows(group) {
   if (group === 'mining') {
     const owned = (playerData.transportManagerPurchased || 0) > 0;
     h += '<tr><td>Transport Manager (corp)</td><td style="font-size:12px;">' +
-      (owned ? 'Built' : recipeHtml(recipeFor('transportcapital'))) + '</td><td>' +
-      (owned ? '<button disabled>Built</button>' : '<button onclick="window.buildTransportManager()">Build</button>') +
+      (owned ? 'Free logistics active' : 'FREE — limited-time starter offer') + '</td><td>' +
+      (owned ? '<button disabled>Active</button>' : '<button onclick="window.buildTransportManager()">Hire Free</button>') +
       '</td></tr>';
   }
   return h;
@@ -2915,6 +3014,7 @@ if (
       saved.transportState = bot.transportState || null;
       saved.transportMapId = bot.transportMapId || null;
       saved.transportShipmentId = bot.transportShipmentId || null;
+      saved.transportTask = bot.transportTask ? JSON.parse(JSON.stringify(bot.transportTask)) : null;
     });
   };
 
@@ -2952,7 +3052,11 @@ if (
             to_trade_gate: 'FULL — Departing High-Sec',
             to_market: 'Trade Hub — Delivering shipment',
             to_return_gate: 'Trade Hub — Returning to gate',
-            returning: 'Returning to High-Sec'
+            returning: 'Returning to High-Sec',
+            buy_to_trade_gate: 'Shipyard order — outbound',
+            buy_to_market: 'Trade Hub — collecting ship materials',
+            buy_to_return_gate: 'Ship materials secured — returning',
+            buy_returning: 'Delivering materials to High-Sec'
           };
           const stateLabel =
             stateLabels[manager.transportState] || 'Transport Manager ready';
