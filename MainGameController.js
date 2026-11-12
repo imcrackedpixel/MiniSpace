@@ -2595,4 +2595,24 @@ if (
   };
 })();
 
+/* RECOVER DOCKED SAVE AND FIX CARRIER ARTWORK */
+(function () {
+  // Match the actual filename in the GitHub repository.
+  if (window.ShipArt && window.ShipArt.ART.Carrier) {
+    window.ShipArt.ART.Carrier.file = 'Carrier.png';
+  }
+
+  // Restore the station interface when loading a docked save.
+  if (playerShip && playerShip.docked) {
+    const stationUi = document.getElementById('station-ui');
+
+    if (stationUi) {
+      stationUi.style.display = 'flex';
+    }
+
+    updateStationUI();
+    updateCorpUI();
+  }
+})();
+
 
