@@ -2108,7 +2108,7 @@ function drawMinimap() {
   }
   if (inPublicSpace()) {
     if(mapManager&&String(mapManager.currentMapId).indexOf('frontier_')===0){if(mapManager.frontierReturnGate){m.fillStyle='#36b99a';m.fillRect(mapManager.frontierReturnGate.x*sc-2,mapManager.frontierReturnGate.y*sc-2,4,4);}(mapManager.frontierGates||[]).forEach(g=>{m.fillStyle='#fb923c';m.fillRect(g.x*sc-2,g.y*sc-2,4,4);});
-      if(publicNpcManager&&publicNpcManager.publicNpcMiners){const lv=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===mapManager.currentMapId)?.level||1;const skull=['#9ca3af','#3fb950','#58a6ff','#a371f7','#f85149'][Math.max(1,Math.min(5,lv))-1];m.fillStyle=skull;m.font='10px Arial';publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship)m.fillText('☠',n.ship.x*sc-4,n.ship.y*sc+4);});}}
+      if(publicNpcManager&&publicNpcManager.publicNpcMiners){const lv=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===mapManager.currentMapId)?.level||1;const skull=['#9ca3af','#3fb950','#58a6ff','#a371f7','#f85149'][Math.max(1,Math.min(5,lv))-1];m.fillStyle=skull;m.font='10px Arial';publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship&&n.combat)m.fillText('☠',n.ship.x*sc-4,n.ship.y*sc+4);});}}
     else if (mapManager && mapManager.playerGates) {
             for (const gate of mapManager.playerGates) {
         if (gate) {
