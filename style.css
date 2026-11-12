@@ -737,3 +737,17 @@ html:fullscreen body, html:-webkit-full-screen body {
 #cargo-text{display:inline-block;min-width:130px;font-weight:800;color:#9be7d4;transition:color .15s, text-shadow .15s}
 #cargo-text.cargo-changed{animation:cargo-counter-pulse .42s ease-out}
 @keyframes cargo-counter-pulse{0%{color:#fff;text-shadow:0 0 12px #58e6c0;transform:scale(1.05)}100%{color:#9be7d4;text-shadow:none;transform:scale(1)}}
+
+/* Item icons for the live cargo manifest: ore shards and recognizable electronic components. */
+#space-cargo-items .cargo-item-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:18px}
+#space-cargo-items .cargo-item-row>span{display:flex;align-items:center;gap:7px}
+.cargo-item-icon{display:inline-flex;width:17px;height:17px;align-items:center;justify-content:center;flex:0 0 17px;border:1px solid #526575;border-radius:4px;background:linear-gradient(145deg,#253746,#101820);color:#c9e8ef;font-size:12px;font-weight:900;line-height:1;text-shadow:0 0 5px currentColor}
+.cargo-icon-veldspar{color:#d28b56;border-color:#9c633f;background:linear-gradient(145deg,#59402e,#1d2428)}
+.cargo-icon-scordite{color:#b9c4ce;border-color:#778692;background:linear-gradient(145deg,#59636d,#202a32)}
+.cargo-icon-pyroxeres{color:#7ec8df;border-color:#3986a0;background:linear-gradient(145deg,#28566a,#142630)}
+.cargo-icon-omber{color:#f4d477;border-color:#c49b3d;background:linear-gradient(145deg,#6c5422,#28251c)}
+.cargo-icon-debris_t1{color:#e0a16b;border-color:#b97845}
+.cargo-icon-debris_t2{color:#78d7ee;border-color:#4197ad}
+.cargo-icon-debris_t3{color:#80d99b;border-color:#42965b}
+.cargo-icon-debris_t4{color:#eac66d;border-color:#b58a35}
+.cargo-icon-debris_t5{color:#e88b8b;border-color:#b84b55}
