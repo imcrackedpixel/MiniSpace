@@ -2922,41 +2922,92 @@ if (
     oldUpdateCorpUI();
 
     const table = document.getElementById('corp-list');
-    if (!table) return;
+    if (table) {
+      const row = Array.from(table.rows).find(function (r) {
+        return r.cells[0] &&
+          r.cells[0].innerText.includes('Transport Manager');
+      });
 
-    const row = Array.from(table.rows).find(function (r) {
-      return r.cells[0] &&
-        r.cells[0].innerText.includes('Transport Manager');
-    });
+      const manager = botManager.bots.find(isTransportManager);
 
-    if (!row || !row.cells[1]) return;
+      if (row && row.cells[1]) {
+        if (!manager || !manager.ship) {
+          row.cells[1].innerText =
+            playerData.transportManagerPurchased > 0
+              ? 'Transport ship preparing'
+              : 'Build it in the Shipyard';
+        } else {
+          const ship = manager.ship;
+          const maxCargo = Math.max(1, ship.maxCargo || 50000);
+          const percent = Math.min(
+            100,
+            Math.floor(((ship.cargo || 0) / maxCargo) * 100)
+          );
 
-    const manager = botManager.bots.find(isTransportManager);
-
-    if (!manager || !manager.ship) {
-      row.cells[1].innerText =
-        playerData.transportManagerPurchased > 0
-          ? 'Transport ship preparing'
-          : 'Build it in the Shipyard';
-      return;
+          if (percent >= 100) {
+            row.cells[1].innerText =
+              'FULL — Ready for Trade Hub (100%)';
+          } else if (manager.transportState === 'returning') {
+            row.cells[1].innerText =
+              'Returning to station (' + percent + '%)';
+          } else {
+            row.cells[1].innerText =
+              'Loading corporation goods (' + percent + '%)';
+          }
+        }
+      }
     }
 
-    const ship = manager.ship;
-    const maxCargo = Math.max(1, ship.maxCargo || 50000);
-    const percent = Math.min(
-      100,
-      Math.floor(((ship.cargo || 0) / maxCargo) * 100)
-    );
+    // Render corporation inventory separately from the pilot's personal hangar.
+    const hangarTable = document.getElementById('corp-hangar-list');
+    const totalLabel = document.getElementById('corp-hangar-total');
 
-    if (percent >= 100) {
-      row.cells[1].innerText =
-        'FULL — Ready for Trade Hub (100%)';
-    } else if (manager.transportState === 'returning') {
-      row.cells[1].innerText =
-        'Returning to station (' + percent + '%)';
-    } else {
-      row.cells[1].innerText =
-        'Loading corporation goods (' + percent + '%)';
+    if (hangarTable) {
+      while (hangarTable.firstChild) {
+        hangarTable.removeChild(hangarTable.firstChild);
+      }
+
+      const inventory = playerData.corpStationOre || {};
+      const items = Object.keys(inventory).filter(function (key) {
+        return Number(inventory[key]) > 0;
+      }).sort();
+
+      let totalValue = 0;
+
+      items.forEach(function (key) {
+        const quantity = Math.floor(Number(inventory[key]) || 0);
+        const unitPrice =
+          (typeof ITEM_PRICES !== 'undefined' && ITEM_PRICES[key]) || 0;
+        totalValue += quantity * unitPrice;
+
+        const row = document.createElement('tr');
+        const nameCell = document.createElement('td');
+        const quantityCell = document.createElement('td');
+        const priceCell = document.createElement('td');
+
+        nameCell.textContent = key.replace(/_/g, ' ').toUpperCase();
+        quantityCell.textContent = quantity.toLocaleString();
+        priceCell.textContent = unitPrice.toLocaleString() + ' ISK';
+
+        row.appendChild(nameCell);
+        row.appendChild(quantityCell);
+        row.appendChild(priceCell);
+        hangarTable.appendChild(row);
+      });
+
+      if (!items.length) {
+        const row = document.createElement('tr');
+        const cell = document.createElement('td');
+        cell.colSpan = 3;
+        cell.textContent = 'No corporation goods stored';
+        row.appendChild(cell);
+        hangarTable.appendChild(row);
+      }
+
+      if (totalLabel) {
+        totalLabel.textContent =
+          'CORP HANGAR VALUE: ' + totalValue.toLocaleString() + ' ISK';
+      }
     }
   };
 
