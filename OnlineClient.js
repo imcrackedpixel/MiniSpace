@@ -1,12 +1,15 @@
 
-/* MiniSpace Online: multiplayer presence, chat, friends and ship rendering */
+/* MiniSpace Online: multiplayer presence, rooms, chat, friends and ship rendering */
 (function(){
  const state={
   socket:null,
   id:null,
   players:new Map(),
   connected:false,
-  channel:'global'
+  channel:'global',
+  roomId:null,
+  roomType:null,
+  mapId:null
  };
 
  const $=id=>document.getElementById(id);
@@ -102,6 +105,11 @@
  function updatePlayer(p){
   if(!p||!p.id)return;
 
+  // Ignore updates from a different room.
+  if(state.roomId&&p.roomId&&p.roomId!==state.roomId){
+   return;
+  }
+
   const old=state.players.get(p.id)||{};
 
   state.players.set(p.id,{
@@ -145,7 +153,7 @@
   });
  }
 
- // Draw other players in the same system as your ship.
+ // Draw only other players assigned to the same room.
  function drawRemotePlayers(ctx){
   const local=window.playerShip;
   if(!local||local.docked||!window.ShipArt)return;
@@ -154,6 +162,7 @@
 
   for(const p of state.players.values()){
    if(!p.id||p.id===state.id)continue;
+   if(state.roomId&&p.roomId!==state.roomId)continue;
    if(!p.system||p.system!==localSystem)continue;
 
    p.renderX+=(p.x-p.renderX)*0.35;
@@ -181,7 +190,6 @@
     ctx.restore();
    }
 
-   // Pilot name above the other ship.
    ctx.save();
    ctx.font='bold 13px Arial';
    ctx.textAlign='center';
@@ -194,7 +202,6 @@
   }
  }
 
- // Hook into the existing ship artwork renderer.
  let originalShipDraw=null;
 
  function installShipRenderer(){
@@ -208,7 +215,6 @@
 
    const local=window.playerShip;
 
-   // Add remote ships immediately after drawing your own ship.
    if(local&&x===local.x&&y===local.y){
     drawRemotePlayers(ctx);
    }
@@ -252,6 +258,9 @@
   state.socket.onclose=()=>{
    $('online-status').textContent='DISCONNECTED';
    state.connected=false;
+   state.roomId=null;
+   state.players.clear();
+   render();
   };
 
   state.socket.onerror=()=>{
@@ -269,10 +278,20 @@
 
    if(message.type==='welcome'){
     state.id=message.id;
-
-    (message.players||[]).forEach(updatePlayer);
-
     render();
+   }
+
+   if(message.type==='room-joined'){
+    // The server has assigned this connection to a room.
+    state.roomId=message.roomId;
+    state.roomType=message.roomType;
+    state.mapId=message.mapId;
+
+    // Remove ships from the previous room.
+    state.players.clear();
+    render();
+
+    log('Entered '+message.mapId+' ('+message.roomType+' instance)');
    }
 
    if(message.type==='player'){
@@ -340,29 +359,33 @@
 })();
 
 // TEMPORARY MULTIPLAYER MOVEMENT TEST
-setInterval(function () {
-  const online = window.MinispaceOnline;
-  if (!online) return;
+setInterval(function(){
+ const online=window.MinispaceOnline;
+ if(!online)return;
 
-  const players = [...online.state.players.values()];
-  const other = players.find(p => p.id !== online.state.id);
-  const count = document.getElementById('online-count');
+ const players=[...online.state.players.values()];
+ const other=players.find(p=>p.id!==online.state.id);
+ const count=document.getElementById('online-count');
 
-  if (count && other) {
-    count.textContent =
-      'Other pilot: X ' + Math.round(other.x) +
-      ' · Y ' + Math.round(other.y);
-  }
-}, 500);
+ if(count&&other){
+  count.textContent=
+   'Other pilot: X '+Math.round(other.x)+
+   ' · Y '+Math.round(other.y);
+ }
+},500);
 
 // USE THE GAME'S REAL PILOT NAME
-setInterval(function () {
-  const name = document.getElementById('ui-pilot-name')?.textContent?.trim();
+setInterval(function(){
+ const name=document.getElementById('ui-pilot-name')?.textContent?.trim();
 
-  if (name && name !== 'Pilot' && window.MinispaceOnline?.state?.socket?.readyState === 1) {
-    window.MinispaceOnline.send({
-      type: 'hello',
-      name: name.slice(0, 16)
-    });
-  }
-}, 2000);
+ if(
+  name&&
+  name!=='Pilot'&&
+  window.MinispaceOnline?.state?.socket?.readyState===1
+ ){
+  window.MinispaceOnline.send({
+   type:'hello',
+   name:name.slice(0,16)
+  });
+ }
+},2000);
