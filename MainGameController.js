@@ -2421,7 +2421,7 @@ function updateGame() {
 function drawSpaceDepthBackground(context, camX, camY, width, height, ship) {
   const t=Date.now()*0.001,vx=Number(ship&&ship.vx)||0,vy=Number(ship&&ship.vy)||0,speed=Math.hypot(vx,vy);
   const layers=[{count:75,depth:.12,size:.7,alpha:.35},{count:58,depth:.28,size:1.05,alpha:.55},{count:34,depth:.52,size:1.5,alpha:.78}];
-  context.save();context.fillStyle='#07101a';context.fillRect(0,0,width,height);
+  context.save();
   const glow=context.createRadialGradient(width*.52,height*.48,0,width*.52,height*.48,Math.max(width,height)*.72);glow.addColorStop(0,'rgba(20,48,68,.22)');glow.addColorStop(1,'rgba(2,6,13,0)');context.fillStyle=glow;context.fillRect(0,0,width,height);
   layers.forEach((layer,li)=>{for(let i=0;i<layer.count;i++){const seed=(i*92821+li*12731+17)>>>0,rx=((seed*16807)%2147483647)/2147483647,ry=((seed*48271+97)%2147483647)/2147483647,x=((rx*width-camX*layer.depth*.035)%width+width)%width,y=((ry*height-camY*layer.depth*.035)%height+height)%height,tw=.72+.28*Math.sin(t*(1+li*.35)+i);context.globalAlpha=layer.alpha*tw;context.fillStyle=li===2?'#d9f5ff':'#a8c8dc';context.beginPath();context.arc(x,y,layer.size,0,Math.PI*2);context.fill();}});
   if(speed>.65){const len=Math.min(42,speed*2.8);context.globalAlpha=Math.min(.42,speed*.035);context.strokeStyle='#9bd9f5';context.lineWidth=1;for(let i=0;i<18;i++){const x=((i*73+t*vx*1.4)%width+width)%width,y=((i*131+t*vy*1.4)%height+height)%height;context.beginPath();context.moveTo(x,y);context.lineTo(x-vx/Math.max(1,speed)*len,y-vy/Math.max(1,speed)*len);context.stroke();}}
