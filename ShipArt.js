@@ -1,7 +1,7 @@
 // ShipArt.js - Shared ship artwork loader.
 (function () {
     const ART = {
-        'Siege Capital': { file: 'siege_capital.png', length: 460, rot: Math.PI / 2, size: [300, 560] },
+        'Siege Capital': { file: 'siege_battleship.png', length: 460, rot: Math.PI / 2, size: [300, 560] },
         'Siege Battleship': { file: 'siege_battleship.png', length: 460, rot: Math.PI / 2, size: [300, 560] },
         'Carrier': { file: 'carrier.png', length: 460, size: [170, 460] },
         'Mining Capital': { file: 'mining_capital.png', length: 460, size: [420, 180] },
