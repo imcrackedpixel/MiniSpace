@@ -1880,7 +1880,7 @@ function updateStationUI() {
   const hasHangarGoods = Object.keys(GAME_ITEM_LABELS).some(function(key) {
     return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
   });
-  hangarHtml = '<tr><td colspan="3" style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" 
+  hangarHtml = '<tr><td colspan="3" style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" ' +
     (!canSellAllHangar || !hasHangarGoods || !playerShip || !playerShip.docked || inTradeHub ? 'disabled' : '') +
     ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></td></tr>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
