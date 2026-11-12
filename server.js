@@ -6,12 +6,16 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const MAX_PUBLIC_PLAYERS = 20;
 
-// These are the new shared public worlds.
-// The game maps themselves will be added separately.
 const PUBLIC_MAPS = new Set([
   'public_trade_hub',
   'public_lowsec',
   'public_nullsec'
+]);
+
+// Existing 3v3 Station Loot map.
+// Keep it shared, but separate from the new public worlds.
+const MATCH_MAPS = new Set([
+  'public_space'
 ]);
 
 const server = http.createServer((req, res) => {
@@ -154,9 +158,15 @@ function joinRoom(p,mapId) {
     room.players.add(p.id);
     p.roomId=room.id;
     p.roomType='public';
+
+  } else if(MATCH_MAPS.has(mapId)) {
+    // All players in the existing Station Loot map
+    // share this match room.
+    p.roomId='match:station-loot';
+    p.roomType='match';
+
   } else {
-    // Private maps get a room belonging only to this connection.
-    // The 3v3 station-loot map is deliberately not shared here.
+    // Private High-Sec and mission instances.
     p.roomId='private:'+p.id;
     p.roomType='private';
   }
@@ -168,7 +178,7 @@ function joinRoom(p,mapId) {
     roomType:p.roomType,
     capacity:p.roomType==='public'
       ? MAX_PUBLIC_PLAYERS
-      : 1
+      : (p.roomType==='match' ? 6 : 1)
   });
 
   // Send existing occupants to the player who just joined.
@@ -264,14 +274,16 @@ wss.on('connection',ws=>{
     if(m.type==='state') {
       const requestedMap=safeText(m.mapId,48);
 
-      const mapId=PUBLIC_MAPS.has(requestedMap)
-        ? requestedMap
-        : (
-          requestedMap &&
-          requestedMap!=='public_space'
-            ? requestedMap
-            : 'private_highsec'
-        );
+      const mapId=
+        PUBLIC_MAPS.has(requestedMap) ||
+        MATCH_MAPS.has(requestedMap)
+          ? requestedMap
+          : (
+            requestedMap &&
+            requestedMap!=='public_space'
+              ? requestedMap
+              : 'private_highsec'
+          );
 
       joinRoom(p,mapId);
 
@@ -353,7 +365,7 @@ wss.on('connection',ws=>{
         }
 
       } else {
-        // Global chat remains available across all rooms.
+        // Global chat works across every room.
         broadcastAll({
           type:'chat',
           from:p.name,
