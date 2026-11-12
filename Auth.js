@@ -368,11 +368,36 @@
         method: 'POST',
         body: JSON.stringify({ p_item_key: itemKey, p_quantity: Math.floor(Number(quantity)) })
       });
+    },
+    inspectPilot: async function (pilotName) {
+      return api('/rest/v1/rpc/gm_admin_inspect', { method:'POST', body:JSON.stringify({p_pilot_name:String(pilotName||'').trim()}) });
+    },
+    banPilot: async function (pilotName, reason) {
+      return api('/rest/v1/rpc/gm_admin_ban', { method:'POST', body:JSON.stringify({p_pilot_name:String(pilotName||'').trim(),p_reason:String(reason||'Banned by a Game Master')}) });
+    },
+    unbanPilot: async function (pilotName) {
+      return api('/rest/v1/rpc/gm_admin_unban', { method:'POST', body:JSON.stringify({p_pilot_name:String(pilotName||'').trim()}) });
+    },
+    adjustPilotWallet: async function (pilotName, amount) {
+      return api('/rest/v1/rpc/gm_admin_adjust_wallet', { method:'POST', body:JSON.stringify({p_pilot_name:String(pilotName||'').trim(),p_amount:Math.trunc(Number(amount))}) });
+    },
+    adjustPilotItem: async function (pilotName, itemKey, quantity, stationId) {
+      return api('/rest/v1/rpc/gm_admin_adjust_item', { method:'POST', body:JSON.stringify({p_pilot_name:String(pilotName||'').trim(),p_item_key:itemKey,p_quantity:Math.trunc(Number(quantity)),p_station_id:stationId||'private_highsec'}) });
     }
   };
 
   async function loadCloudSave() {
     if (!session || !session.user || !session.user.id) return;
+    try {
+      const accountStatus = await api('/rest/v1/rpc/gm_admin_account_status', { method:'POST', body:'{}' });
+      if (accountStatus && accountStatus.banned) throw new Error('This pilot account is banned. Reason: ' + (accountStatus.reason || 'No reason supplied.'));
+    } catch (statusError) {
+      if (/gm_admin_account_status|schema cache|function .* does not exist/i.test(statusError.message || '')) {
+        console.warn('GM ban checks will activate after supabase/gm_admin_commands.sql is installed.');
+      } else {
+        throw statusError;
+      }
+    }
     const rows = await api('/rest/v1/pilot_saves?select=save_data&pilot_id=eq.' + encodeURIComponent(session.user.id), {
       method: 'GET'
     });
