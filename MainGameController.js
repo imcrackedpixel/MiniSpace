@@ -2463,8 +2463,19 @@ function updateHUD() {
   if (dockedWalletDisplay) dockedWalletDisplay.textContent = walletText;
   let sys = document.getElementById('system-text');
   if (sys) {
-    sys.innerText = inPublicSpace() ? 'SYSTEM: PUBLIC PVP SPACE' : (inMissionSpace() && missionManager.activeMission ? 'SYSTEM: ' + missionManager.activeMission.systemName.toUpperCase() : 'SYSTEM: High-Sec 1.0');
-    sys.style.color = inPublicSpace() ? '#f85149' : '#3fb950';
+    const frontierSystem = isFrontierSpace()
+      ? (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(system => system.id === mapManager.currentMapId)
+      : null;
+    if (frontierSystem) {
+      const protectedZone = frontierSystem.lossMode === 'no-loss';
+      sys.innerText = 'SYSTEM: ' + frontierSystem.name.toUpperCase() + ' · RING ' + frontierSystem.ring +
+        (protectedZone ? ' · NO-LOSS PvP' : ' · FULL-LOOT PvP');
+      sys.style.color = protectedZone ? '#38bdf8' : '#f85149';
+    } else {
+      sys.innerText = inPublicSpace() ? 'SYSTEM: PUBLIC PVP SPACE' :
+        (inMissionSpace() && missionManager.activeMission ? 'SYSTEM: ' + missionManager.activeMission.systemName.toUpperCase() : 'SYSTEM: High-Sec 1.0');
+      sys.style.color = inPublicSpace() ? '#f85149' : '#3fb950';
+    }
   }
   setBar('shield-fill', s.shield, s.maxShield);
   setBar('armor-fill', s.armor, s.maxArmor);
