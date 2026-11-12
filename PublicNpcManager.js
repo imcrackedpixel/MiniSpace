@@ -731,13 +731,22 @@ class PublicNpcManager {
         this.engagePlayer(npc, npcTarget.ship);
         const wr = Number(ship.weaponRange) > 0 ? Number(ship.weaponRange) : RING_DEFAULT_RANGE;
         if (npcTargetDistance <= Math.max(wr, this.ringRadius(npc) * 1.1)) {
-          const damage = 0.85 * (npc.dpsScale || 1);
+          // NPC damage tuning is player-combat-scaled; raise it for frontier-vs-frontier fights.
+          const damage = Math.max(1.2, 0.85 * (npc.dpsScale || 1) * 20);
           const previousDamageSource = window.__MINISPACE_NPC_ATTACK_SOURCE;
           window.__MINISPACE_NPC_ATTACK_SOURCE = npc.id;
           npcTarget.ship._minispaceNpcDamageAt = Date.now();
           try {
             if (typeof npcTarget.ship.takeDamage === 'function') npcTarget.ship.takeDamage(damage);
-            else if (typeof npcTarget.ship.structure === 'number') npcTarget.ship.structure -= damage;
+            else {
+              let remaining = damage;
+              for (const layer of ['shield', 'armor', 'structure']) {
+                const hp = Math.max(0, Number(npcTarget.ship[layer]) || 0);
+                const hit = Math.min(hp, remaining);
+                npcTarget.ship[layer] = hp - hit; remaining -= hit;
+                if (remaining <= 0) break;
+              }
+            }
           } finally {
             window.__MINISPACE_NPC_ATTACK_SOURCE = previousDamageSource;
           }
