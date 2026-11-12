@@ -1950,7 +1950,7 @@ window.sellHangarItemViaTransport = async function(itemKey, requestedQty) {
   const saleStates = ['sell_to_trade_gate', 'sell_to_market', 'sell_to_return_gate', 'sell_returning', 'to_trade_gate', 'to_market', 'to_return_gate', 'returning'];
   const canReceiveWhileTravelling = !!(manager && saleStates.includes(manager.transportState));
   const canReceiveAtStation = !!(manager && manager.transportState === 'loading' && !manager.transportTask);
-  if (!playerShip || !playerShip.docked || (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
+  if (!playerShip || !playerShip.docked || (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() !== 'private_highsec')) {
     window.showCorpNotification('Dock at your Private High-Sec station to deposit goods with the Transport Manager.');
     return;
   }
@@ -2019,7 +2019,7 @@ window.sellAllHangarViaTransport = async function() {
   window._miniSpaceSellAllRunning = true;
   try {
     if (!playerShip || !playerShip.docked ||
-        (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() === 'public_trade_hub')) {
+        (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() !== 'private_highsec')) {
       window.showCorpNotification('Dock at your Private High-Sec station to sell your hangar through the Transport Manager.');
       return;
     }
