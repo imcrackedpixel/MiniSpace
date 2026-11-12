@@ -1334,9 +1334,13 @@ function tradeEsc(value) {
 function renderTradeMarket() {
   const state = tradeMarketState();
   const wallet = document.getElementById('trade-market-wallet');
-  if (wallet) wallet.textContent = 'Market wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  if (wallet) wallet.textContent = (state.gameStateSynced ? 'Pilot wallet: ' : 'Wallet sync required: ') + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
   const body = document.getElementById('trade-market-list');
   if (!body) return;
+  if (!state.gameStateSynced) {
+    body.innerHTML = '<tr><td colspan="4">Install supabase/market_game_sync.sql in Supabase to connect the game wallet and hangar before trading.</td></tr>';
+    return;
+  }
   const rows = (state.items || []).map(function(item) {
     const key = item.item_key;
     const label = TRADE_ITEM_LABELS[key] || key;
@@ -1353,7 +1357,7 @@ function renderTradeMarket() {
 function renderTradeHangars() {
   const state = tradeMarketState();
   const wallet = document.getElementById('trade-hangar-wallet');
-  if (wallet) wallet.textContent = 'Market wallet: ' + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
+  if (wallet) wallet.textContent = (state.gameStateSynced ? 'Pilot wallet: ' : 'Wallet sync required: ') + fmtISK(Number(state.wallet && state.wallet.isk) || 0) + ' ISK';
   ['private_highsec','trade_hub'].forEach(function(station) {
     const id = station === 'private_highsec' ? 'private-hangar-list' : 'trade-hangar-list';
     const body = document.getElementById(id);
@@ -1362,8 +1366,8 @@ function renderTradeHangars() {
     body.innerHTML = items.map(function(key) {
       const qty = tradeQuantity(station,key,state);
       const action = station === 'private_highsec'
-        ? '<button onclick="window.transferTradeGoods(\'' + key + '\',' + qty + ')" ' + (qty < 1 ? 'disabled' : '') + '>Move all to Trade Hub</button>'
-        : '<button onclick="window.tradeMarketSellAll(\'' + key + '\')" ' + (qty < 1 ? 'disabled' : '') + '>Sell all</button>';
+        ? '<button onclick="window.transferTradeGoods(\'' + key + '\',' + qty + ')" ' + (!state.gameStateSynced || qty < 1 ? 'disabled' : '') + '>Move all to Trade Hub</button>'
+        : '<button onclick="window.tradeMarketSellAll(\'' + key + '\')" ' + (!state.gameStateSynced || qty < 1 ? 'disabled' : '') + '>Sell all</button>';
       return '<tr><td>' + TRADE_ITEM_LABELS[key] + '</td><td>' + qty.toLocaleString() + '</td><td>' + action + '</td></tr>';
     }).join('');
   });
@@ -1392,6 +1396,10 @@ window.refreshTradeHangars = async function() {
 window.tradeMarketBuy = async function(key, qty) {
   try {
     await window.MINISPACE_MARKET.buy(key,qty);
+    if (window.MINISPACE_MARKET.applyToGame(playerData)) {
+      updateStationUI();
+      saveGameSession();
+    }
     renderTradeMarket(); renderTradeHangars();
     window.showCorpNotification('Purchased ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' into your Trade Hub hangar.');
   } catch(error) { window.showCorpNotification('Market buy failed: ' + (error.message || error)); }
@@ -1401,6 +1409,10 @@ window.tradeMarketSellAll = async function(key) {
   if (qty < 1) return;
   try {
     await window.MINISPACE_MARKET.sell(key,qty);
+    if (window.MINISPACE_MARKET.applyToGame(playerData)) {
+      updateStationUI();
+      saveGameSession();
+    }
     renderTradeMarket(); renderTradeHangars();
     window.showCorpNotification('Sold ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' from your Trade Hub hangar.');
   } catch(error) { window.showCorpNotification('Market sale failed: ' + (error.message || error)); }
@@ -1409,6 +1421,10 @@ window.transferTradeGoods = async function(key,qty) {
   if (qty < 1) return;
   try {
     await window.MINISPACE_MARKET.transfer(key,qty);
+    if (window.MINISPACE_MARKET.applyToGame(playerData)) {
+      updateStationUI();
+      saveGameSession();
+    }
     renderTradeHangars();
     window.showCorpNotification('Transferred ' + qty + ' ' + (TRADE_ITEM_LABELS[key] || key) + ' to the Trade Hub hangar.');
   } catch(error) { window.showCorpNotification('Transfer failed: ' + (error.message || error)); }
@@ -2082,8 +2098,21 @@ function gameLoop() {
 }
 
 // Do not load or start a pilot until the email/password account has been verified.
-Promise.resolve(window.MINISPACE_AUTH_READY).then(function () {
+Promise.resolve(window.MINISPACE_AUTH_READY).then(async function () {
   loadGameSession();
+
+  // Once the latest cloud save is loaded, hydrate the game wallet and private
+  // hangar from the shared economy (only after its one-time bootstrap succeeds).
+  try {
+    if (window.MINISPACE_MARKET) {
+      await window.MINISPACE_MARKET.ready();
+      if (window.MINISPACE_MARKET.applyToGame(playerData)) {
+        saveGameSession();
+      }
+    }
+  } catch (marketError) {
+    console.warn('Shared economy is not ready yet; keeping the local pilot save:', marketError.message || marketError);
+  }
 
   const _setupModal = document.getElementById('setup-modal');
   if (_setupModal && playerData.pilotName && playerData.race) _setupModal.style.display = 'none';
