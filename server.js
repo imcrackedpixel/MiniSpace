@@ -179,7 +179,7 @@ function joinRoom(p,mapId) {
     if(
       other.id!==p.id &&
       other.roomId===p.roomId &&
-      other.ws
+      other.ws && (!other.invisible || p.isGM)
     ) {
       send(p.ws,{
         type:'player',
@@ -206,7 +206,7 @@ function sendRoomSnapshot(p) {
     if(
       other.id!==p.id &&
       other.roomId===p.roomId &&
-      other.ws
+      other.ws && (!other.invisible || p.isGM)
     ) {
       send(p.ws,{
         type:'player',
@@ -235,6 +235,8 @@ function publicPlayer(p) {
 function broadcastRoom(roomId,obj,except) {
   for(const p of players.values()) {
     if(p.roomId===roomId && p.ws && p.ws!==except) {
+      const source=obj && obj.player ? players.get(obj.player.id) : null;
+      if(source && source.invisible && !p.isGM) continue;
       send(p.ws,obj);
     }
   }
@@ -264,7 +266,11 @@ wss.on('connection',ws=>{
     zone:'high-sec',
     last:Date.now(),
     resumeToken:null,
-    graceTimer:null
+    graceTimer:null,
+    invisible:false,
+    authenticated:false,
+    isGM:false,
+    accountId:null
   };
 
   players.set(p.id,p);
@@ -334,6 +340,30 @@ wss.on('connection',ws=>{
       send(ws,{type:'welcome',id:p.id,players:[],zones,resumed:!!p.roomId,authenticated:p.authenticated,isGM:p.isGM});
       send(ws,{type:'auth-status',authenticated:p.authenticated,isGM:p.isGM});
       if(p.roomId)sendRoomSnapshot(p);
+      return;
+    }
+
+    if(m.type==='gm-list-online') {
+      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      const online=[...players.values()].filter(q=>q.ws&&q.ws.readyState===WebSocket.OPEN).map(q=>({
+        id:q.id,accountId:q.accountId||null,name:q.name,ship:q.ship,mapId:q.mapId,
+        system:q.system,x:q.x,y:q.y,invisible:!!q.invisible
+      }));
+      send(ws,{type:'gm-online-list',players:online});
+      return;
+    }
+
+    if(m.type==='gm-toggle-invisible') {
+      if(!p.isGM){send(ws,{type:'gm-error',message:'GM access required'});return;}
+      p.invisible=!p.invisible;
+      if(p.roomId){
+        if(p.invisible){
+          for(const other of players.values()) if(other.id!==p.id&&other.roomId===p.roomId&&!other.isGM) send(other.ws,{type:'player-left',id:p.id});
+        } else {
+          broadcastRoom(p.roomId,{type:'player',player:publicPlayer(p)},ws);
+        }
+      }
+      send(ws,{type:'gm-invisibility',enabled:p.invisible});
       return;
     }
 
@@ -517,15 +547,11 @@ setInterval(()=>{
 
 // GLOBAL ONLINE PLAYER COUNT
 setInterval(()=>{
-  const onlineCount=[...players.values()]
-    .filter(p=>p.ws && p.ws.readyState===WebSocket.OPEN)
-    .length;
-
-  for(const p of players.values()) {
-    send(p.ws,{
-      type:'online-count',
-      count:onlineCount
-    });
+  for(const viewer of players.values()) {
+    const onlineCount=[...players.values()].filter(target=>
+      target.ws && target.ws.readyState===WebSocket.OPEN && (!target.invisible || viewer.isGM || target.id===viewer.id)
+    ).length;
+    send(viewer.ws,{type:'online-count',count:onlineCount});
   }
 },2000);
 
@@ -537,18 +563,10 @@ server.listen(PORT,()=>{
 
 // GLOBAL PILOT DIRECTORY
 setInterval(()=>{
-  const directory=[...players.values()]
-    .filter(p=>p.ws && p.ws.readyState===WebSocket.OPEN)
-    .map(p=>({
-      id:p.id,
-      name:p.name,
-      ship:p.ship
-    }));
-
-  for(const p of players.values()) {
-    send(p.ws,{
-      type:'online-directory',
-      players:directory
-    });
+  for(const viewer of players.values()) {
+    const directory=[...players.values()]
+      .filter(target=>target.ws && target.ws.readyState===WebSocket.OPEN && (!target.invisible || viewer.isGM || target.id===viewer.id))
+      .map(target=>({id:target.id,name:target.name,ship:target.ship}));
+    send(viewer.ws,{type:'online-directory',players:directory});
   }
 },3000);
