@@ -388,7 +388,9 @@ class Carrier {
       }
     }
 
-    if (activePrey) {
+    // A manual waypoint always takes priority over combat positioning.
+    // The drones continue fighting while the Carrier follows the tapped destination.
+    if (activePrey && !targetPos) {
       let distToTarget = Math.hypot(activePrey.x - this.x, activePrey.y - this.y);
       let idealStandoff = 350;
       let angleToTarget = Math.atan2(activePrey.y - this.y, activePrey.x - this.x);
