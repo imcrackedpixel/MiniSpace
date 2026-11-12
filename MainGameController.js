@@ -2310,9 +2310,9 @@ function updateNearbySpacePanel() {
       return;
     }
     if(item.kind==='rock'||item.kind==='salvage'){
-      lockedTarget=item.ref;
-      targetMovePos=null;
-      window.showCorpNotification('Destination selected: '+item.name);
+      lockedTarget=item.kind==='rock'?item.ref:null;
+      targetMovePos={x:item.x,y:item.y};
+      window.showCorpNotification('Auto-flight engaged: '+item.name);
       return;
     }
     if(item.kind==='gate'&&item.extra&&item.extra.destinationId&&typeof window.flyToFrontierGate==='function'){
@@ -2320,9 +2320,8 @@ function updateNearbySpacePanel() {
       return;
     }
     if(item.kind==='gate'&&item.extra&&item.extra.return){
-      if(String(mapManager.currentMapId).indexOf('frontier_')===0)window.jumpToPrivateSec();
-      else if(inMissionSpace()&&typeof window.returnFromMission==='function')window.returnFromMission();
-      else if(typeof window.jumpToPrivateSec==='function')window.jumpToPrivateSec();
+      targetMovePos={x:item.x,y:item.y};
+      window.showCorpNotification('Auto-flight engaged: '+item.name);
       return;
     }
     targetMovePos={x:item.x,y:item.y};
