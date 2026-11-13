@@ -6,6 +6,7 @@ const PIRATE_TYPES = {
   command: { makeShip: function (x, y) { return new CommandShip(x, y); }, name: 'Command Ship', marketVal: 2500000, hp: 6000 },
   carrier: { makeShip: function (x, y) { return new NpcCarrier(x, y); }, name: 'Carrier', marketVal: 20000000, hp: 25000 },
   capital: { makeShip: function (x, y) { return new CapitalShip(x, y); }, name: 'Capital', marketVal: 12000000, hp: 35000 },
+  miningCapital: { makeShip: function (x, y) { return new CapitalShip(x, y); }, name: 'Mining Capital', marketVal: 18000000, hp: 50000 },
   combatFrigate: { makeShip: function (x, y) { return new CombatFrigate(x, y); }, name: 'Combat Frigate', marketVal: 400000, hp: 1500 },
   explorationFrigate: { makeShip: function (x, y) { return new ExplorationFrigate(x, y); }, name: 'Exploration Frigate', marketVal: 100000, hp: 600 },
   siegeCruiser: { makeShip: function (x, y) { return new SiegeCruiserShip(x, y); }, name: 'Siege Cruiser', marketVal: 1500000, hp: 0 }, // hp 0 = use the player's hull HP
@@ -158,12 +159,70 @@ class PublicNpcManager {
     this._mapAggroTargets = Object.create(null);
     this.destructionEffects = [];
     this._playedDestructionIds = Object.create(null);
+    this.explorerFleetSightings = [];
+    this._lastExplorerFleetPing = 0;
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('minispace-frontier-npc-state', e => this.applyFrontierNpcState(e && e.detail));
       window.addEventListener('minispace-frontier-npc-killed', e => this.applyFrontierNpcKilled(e && e.detail));
       window.addEventListener('minispace-frontier-npc-respawn', e => this.applyFrontierNpcRespawn(e && e.detail));
       window.addEventListener('minispace-frontier-station-state', e => this.applyFrontierStationState(e && e.detail));
     }
+  }
+
+  getExplorerFleetSightings(explorerActive) {
+    if (!explorerActive) return [];
+    const now = Date.now();
+    this.explorerFleetSightings = this.explorerFleetSightings.filter(s => s && s.expiresAt > now);
+    if (!this.explorerFleetSightings.length && now - this._lastExplorerFleetPing > 45000) {
+      const systems = (window.MINISPACE_UNIVERSE_SYSTEMS || []).slice();
+      for (let i = systems.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [systems[i], systems[j]] = [systems[j], systems[i]];
+      }
+      const count = 2 + Math.floor(Math.random() * 3);
+      this.explorerFleetSightings = systems.slice(0, count).map((system, i) => ({
+        id: 'explorer-scan-' + now + '-' + i,
+        systemId: system.id,
+        x: 1500 + Math.random() * 6000,
+        y: 1500 + Math.random() * 6000,
+        ships: 3 + Math.floor(Math.random() * 3),
+        expiresAt: now + 240000,
+        spawned: false
+      }));
+      this._lastExplorerFleetPing = now;
+    }
+    return this.explorerFleetSightings.slice();
+  }
+
+  spawnExplorerMiningFleet(system, sighting) {
+    if (!system || !sighting || sighting.spawned) return false;
+    const count = Math.max(3, Math.min(5, Number(sighting.ships) || 3));
+    const pool = ['frigate', 'frigate', 'barge', 'command'];
+    if (system.ring >= 5 && Math.random() < 0.12) pool.push('miningCapital');
+    for (let i = 0; i < count; i++) {
+      const type = i === 0 && pool.includes('miningCapital') && Math.random() < 0.25
+        ? 'miningCapital' : pool[Math.floor(Math.random() * pool.length)];
+      const cfg = PIRATE_TYPES[type] || PIRATE_TYPES.frigate;
+      const angle = Math.PI * 2 * i / count + Math.random() * 0.35;
+      const radius = 180 + Math.random() * 260;
+      const id = sighting.id + '-miner-' + i;
+      if (this.publicNpcMiners.some(n => n && n.id === id)) continue;
+      this.addPirate(cfg, sighting.x + Math.cos(angle) * radius, sighting.y + Math.sin(angle) * radius, id, {
+        mapId: system.id, role: 'miner', hpScale: 0.85, dmg: 0, rarity: 'common'
+      });
+      const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
+      if (npc) {
+        npc.role = 'miner';
+        npc.explorerFleetId = sighting.id;
+        npc.autoAggro = false;
+        npc.isAgro = false;
+        npc.isAggro = false;
+        npc.ship.className = cfg.name;
+        npc.ship.isPirate = true;
+      }
+    }
+    sighting.spawned = true;
+    return true;
   }
 
   // playerSlot is the belt the player spawned in (0-2). Every pirate spawns in that belt only.
