@@ -4511,20 +4511,29 @@ if (
     // Draw the station using the same world-to-screen transform as the camera.
     const dpr = window.devicePixelRatio || 1;
     const z = cameraZoom * dpr;
+    // Match the exact camera origin used by render(), including manual panning.
+    // Previously this used the ship position alone, which could draw the station
+    // away from its true screen position after the camera had been moved.
+    const cameraX = playerShip.x + (Number(cameraOffsetX) || 0);
+    const cameraY = playerShip.y + (Number(cameraOffsetY) || 0);
+    ctx.save();
     ctx.setTransform(
       z, 0, 0, z,
-      canvas.width / 2 - playerShip.x * z,
-      canvas.height / 2 - playerShip.y * z
+      canvas.width / 2 - cameraX * z,
+      canvas.height / 2 - cameraY * z
     );
 
-    station.draw(ctx);
+    try {
+      station.draw(ctx);
 
-    // Keep the player's ship in front of the station artwork.
-    if (!playerShip.docked && typeof playerShip.draw === 'function') {
-      playerShip.draw(ctx, null);
+      // Keep the player's ship in front of the station artwork.
+      if (!playerShip.docked && typeof playerShip.draw === 'function') {
+        playerShip.draw(ctx, null);
+      }
+    } finally {
+      ctx.restore();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
     }
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
 })();
 
