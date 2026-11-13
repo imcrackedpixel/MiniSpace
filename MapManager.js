@@ -489,6 +489,7 @@ class MapManager {
   
  if (window.centralStationBoss && typeof window.centralStationBoss.respawn === 'function') {  
  window.centralStationBoss.respawn(M.cx, M.cy);  
+ window.centralStationBoss._minispaceExplosionPlayed = false;
  }  
   
  return { asteroidBelt: newAsteroidBelt, debrisField: newDebrisField };  
