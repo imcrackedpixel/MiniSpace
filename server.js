@@ -12,16 +12,17 @@ const SUPABASE_URL = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
 
 async function verifyPilotToken(accessToken) {
-  if (typeof accessToken !== 'string' || accessToken.length < 40 || accessToken.length > 5000) return null;
+  if (typeof accessToken !== 'string' || accessToken.length < 40 || accessToken.length > 5000) {
+    console.warn('Pilot authentication rejected: access token missing or malformed.');
+    return null;
+  }
 
-  // Render environment values can be stale or copied from another Supabase project.
-  // Try the configured pair first, then the exact public project credentials used
-  // by Auth.js. Never log or expose the pilot's access token.
   const urls = [...new Set([SUPABASE_URL, DEFAULT_SUPABASE_URL])];
   const keys = [...new Set([SUPABASE_KEY, DEFAULT_SUPABASE_KEY])];
   let user = null;
   let verifiedUrl = null;
   let verifiedKey = null;
+  let lastFailure = 'No Supabase response';
 
   for (const url of urls) {
     for (const key of keys) {
@@ -30,7 +31,11 @@ async function verifyPilotToken(accessToken) {
           method: 'GET',
           headers: { apikey: key, Authorization: 'Bearer ' + accessToken }
         });
-        if (!response.ok) continue;
+        if (!response.ok) {
+          const detail = (await response.text().catch(() => '')).replace(/[\r\n]+/g, ' ').slice(0, 220);
+          lastFailure = 'HTTP ' + response.status + (detail ? ': ' + detail : '');
+          continue;
+        }
         const candidate = await response.json();
         if (candidate && typeof candidate.id === 'string') {
           user = candidate;
@@ -38,15 +43,16 @@ async function verifyPilotToken(accessToken) {
           verifiedKey = key;
           break;
         }
+        lastFailure = 'Supabase returned an unexpected user response';
       } catch (error) {
-        console.warn('Pilot authentication endpoint unavailable:', error.message || error);
+        lastFailure = 'Network error: ' + String(error.message || error).slice(0, 180);
       }
     }
     if (user) break;
   }
 
   if (!user) {
-    console.warn('Pilot authentication failed: no configured or built-in Supabase credential pair accepted the session.');
+    console.warn('Pilot authentication failed:', lastFailure);
     return null;
   }
 
