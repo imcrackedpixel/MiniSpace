@@ -1448,7 +1448,16 @@ function applyPilotTalents(){
 }
 window.getMissionRewardTalentMultiplier=function(){return 1+talentRank('combat','reward')*0.03;};
 window.getBuildCostTalentMultiplier=function(){return Math.max(0.8,1-talentRank('mining','costs')*0.02);};
-function updatePilotPanel(){const p=progressionData();const el=document.getElementById('pilot-level-text');if(el)el.innerText='LEVEL '+p.level+' · '+p.skillPoints+' TALENT POINTS';}
+function updatePilotPanel(){
+ const p=progressionData();
+ // Some older saves kept the pilot level outside the progression object.
+ const legacyLevel=Math.floor(Number(playerData.pilotLevel||playerData.level)||0);
+ if(legacyLevel>Math.floor(Number(p.level)||1))p.level=legacyLevel;
+ p.level=Math.max(1,Math.floor(Number(p.level)||1));
+ p.skillPoints=Math.max(0,Math.floor(Number(p.skillPoints)||0));
+ const el=document.getElementById('pilot-level-text');
+ if(el)el.innerText='LEVEL '+p.level+' · '+p.skillPoints+' TALENT POINTS';
+}
 function openSkillsUI(){let modal=document.getElementById('skills-modal');if(!modal){modal=document.createElement('div');modal.id='skills-modal';modal.style.cssText='position:fixed;inset:0;z-index:9000;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;padding:12px;';modal.innerHTML='<div style="width:min(760px,100%);max-height:92vh;overflow:auto;background:#101820;border:1px solid #4b6c78;border-radius:8px;padding:16px;color:#dce7eb;font-family:system-ui"><div style="display:flex;justify-content:space-between;align-items:center"><h2 style="margin:0;color:#8fd4c2">PILOT TALENTS</h2><button onclick="window.closeSkillsUI()">CLOSE</button></div><div id="skills-content"></div></div>';document.body.appendChild(modal);}modal.style.display='flex';renderSkillsUI();}
 function renderSkillsUI(){const host=document.getElementById('skills-content');if(!host)return;const p=progressionData(),next=xpForNextLevel(p.level);let html='<p>LEVEL '+p.level+' · '+Math.floor(p.xp)+' / '+next+' XP · '+p.skillPoints+' unspent talent points</p><div style="height:8px;background:#26323a;border-radius:8px;overflow:hidden"><div style="height:100%;width:'+Math.min(100,p.xp/next*100)+'%;background:#36b99a"></div></div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px">';
  for(const path of ['combat','mining']){html+='<section style="border:1px solid #334650;padding:10px;border-radius:6px"><h3 style="color:'+(path==='combat'?'#f08b72':'#8fd4c2')+'">'+path.toUpperCase()+' TALENTS</h3>';for(const t of TALENT_DEFS[path]){const rank=talentRank(path,t.id);html+='<div style="padding:9px;margin:7px 0;background:#18232b;border-radius:5px"><strong>'+t.name+'</strong><div style="font-size:12px;color:#9eafb6">'+t.desc+'</div><div style="display:flex;justify-content:space-between;align-items:center;margin-top:7px"><span>RANK '+rank+'/'+t.max+'</span><button onclick="window.spendTalent(\''+path+'\',\''+t.id+'\')" '+(p.skillPoints<=0||rank>=t.max?'disabled':'')+'>UPGRADE</button></div></div>'; }html+='</section>';}
@@ -3151,6 +3160,13 @@ function updateHUD() {
     b.style.borderColor = playerData.offensiveMode ? '#b94a48' : '#39434b';
     s.ignoreStationBoss = !playerData.offensiveMode;
   }
+}
+
+// Keep every pilot HUD field synchronized even while docked or the game is paused.
+if (!window._miniSpaceHudRefreshTimer) {
+  window._miniSpaceHudRefreshTimer = setInterval(function () {
+    try { updateHUD(); } catch (error) { console.warn('HUD refresh:', error); }
+  }, 250);
 }
 
 function refreshCargoCounter(changed){
