@@ -1064,7 +1064,9 @@ function fittedModuleUpgradeRequirements(slot, rank) {
 window.upgradeFittedModule = function(slot) {
   if(!playerShip||!playerShip.docked)return;
   const slots=ensureFittedModules(playerShip),mod=slots[slot];if(!mod)return;
-  const rank=Math.max(1,Number(mod.rank)||1);if(rank>=10){window.showCorpNotification('This module is already Rank 10.');return;}
+  const rank=Math.max(1,Number(mod.rank)||1),rankCap=getCap(slot,playerShip.className);
+  if(rank>=10){window.showCorpNotification('This module is already Rank 10.');return;}
+  if(rank>=rankCap){window.showCorpNotification('This module is locked at Rank '+rank+'. Defeat elite pirates to earn an Item Level Chip and unlock the next rank.');return;}
   const req=fittedModuleUpgradeRequirements(slot,rank);
   const scrap=Math.max(0,Number(playerData.isk)||0);
   if(scrap<req.scrap){window.showCorpNotification('Need '+fmtISK(req.scrap)+' Scrap Metals to upgrade.');return;}
@@ -2330,9 +2332,10 @@ function updateStationUI() {
       for(const mod of (MODULE_KEYS[playerShip.className]||[])){
         const installed=slots[mod];
         if(installed){
-          const rank=Math.max(1,Number(installed.rank)||1),next=rank<10,req=next?fittedModuleUpgradeRequirements(mod,rank):null;
-          const costLabel=next?fmtISK(req.scrap)+' Scrap Metals'+(req.ore?' + '+req.ore.qty.toLocaleString()+' '+itemLabel(req.ore.key)+' + '+req.component.qty.toLocaleString()+' '+itemLabel(req.component.key):''):'MAX RANK';
-          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/10</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+costLabel:'MAX RANK')+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
+          const rank=Math.max(1,Number(installed.rank)||1),rankCap=getCap(mod,playerShip.className),next=rank<10&&rank<rankCap,req=next?fittedModuleUpgradeRequirements(mod,rank):null;
+          const costLabel=next?fmtISK(req.scrap)+' Scrap Metals'+(req.ore?' + '+req.ore.qty.toLocaleString()+' '+itemLabel(req.ore.key)+' + '+req.component.qty.toLocaleString()+' '+itemLabel(req.component.key):''):'';
+          const rankStatus=rank>=10?'MAX RANK':rank>=rankCap?'LOCKED · ITEM LEVEL CHIP REQUIRED':'';
+          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/'+rankCap+'</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+costLabel:rankStatus)+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
         } else {
           fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>EMPTY</strong><small>Find a compatible frontier drop</small></div>';
         }
