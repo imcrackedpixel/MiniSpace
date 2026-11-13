@@ -734,6 +734,7 @@ class PublicNpcManager {
       const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
       if (npc && npc.id === idPrefix + '-' + index) {
         npc.autoAggro = true;
+        npc.noReward = true;
         npc.isAgro = true;
         npc.isAggro = true;
       }
@@ -1053,6 +1054,8 @@ class PublicNpcManager {
         }
         npc.isAlive = false;
         if (npc.stationGuard) this.scheduleFrontierGuardRespawn(npc);
+        // Counter-drop ships are a danger check, never a repeatable bounty / XP / module farm.
+        if (npc.noReward) return;
         // Arena pirates can be damaged by other NPCs as well as the player.
         // Still grant the local pilot combat XP for a 3v3 arena kill, even if an
         // NPC delivered the final blow; keep bounty and module drops player-tagged.
