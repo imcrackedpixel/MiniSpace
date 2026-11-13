@@ -1245,3 +1245,34 @@ html:fullscreen body, html:-webkit-full-screen body {
 @media(min-width:701px) {
   #online-panel { width:310px !important; max-height:62vh !important; }
 }
+
+
+/* Trade Hub chat recovery: keep the online/chat panel visible and readable on phones. */
+#online-panel {
+  display: block !important;
+  position: fixed !important;
+  left: 10px !important;
+  right: auto !important;
+  top: auto !important;
+  bottom: max(10px, env(safe-area-inset-bottom)) !important;
+  width: min(300px, calc(100vw - 20px)) !important;
+  max-width: calc(100vw - 20px) !important;
+  max-height: 46vh !important;
+  min-height: 150px !important;
+  height: auto !important;
+  overflow: auto !important;
+  z-index: 15000 !important;
+  box-sizing: border-box !important;
+  transform: none !important;
+}
+#online-content { display: block; max-height: 40vh; overflow-y: auto; }
+#online-chat-content { display: block !important; }
+#online-chat-log { height: 72px !important; min-height: 48px !important; }
+@media (min-width: 701px) {
+  #online-panel { left: 12px !important; bottom: 12px !important; width: 310px !important; max-height: 62vh !important; }
+  #online-content { max-height: 56vh; }
+}
+/* The online panel remains available even when the main HUD is hidden. */
+body.ui-hidden #online-panel,
+body.ui-minimal #online-panel,
+body.ui-blank #online-panel { display: block !important; }
