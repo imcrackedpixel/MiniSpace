@@ -189,7 +189,12 @@ window.showCorpNotification = function(msg) {
 
 function isFrontierSpace() { return !!(mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0); }
 function inPublicSpace() { return !!(mapManager && (mapManager.currentMapId === 'public_space' || isFrontierSpace())); }
-function inMissionSpace() { return !!(mapManager && String(mapManager.currentMapId).indexOf('mission_') === 0); }
+function inMissionSpace() {
+  if (!mapManager) return false;
+  const id = String(mapManager.currentMapId || '');
+  const mission = missionManager && missionManager.activeMission;
+  return id.indexOf('mission_') === 0 || !!(mission && mission.frontierSystemId && id === mission.frontierSystemId && !mission.returned);
+}
 function autoplayIsOn() { return !!(autoplayManager && autoplayManager.isAutoplay); }
 
 window.addEventListener('minispace-pvp-hit', function(event) {
@@ -985,10 +990,10 @@ window.openUniverse = function() {
     const branch = Number(system.mapBranch) || 0;
     const pocketDepth = Number(system.mapPocketDepth) || 0;
     let x, y;
-    if (region === 0) { x = 105 + depth * 82 + (branch ? 8 : 0); y = 92 + (branch ? 34 + pocketDepth * 15 : 0); }
-    else if (region === 1) { x = 425 + depth * 58; y = 210 + (branch ? 38 + pocketDepth * 16 : 0); }
-    else if (region === 2) { x = 655 - depth * 82 - (branch ? 8 : 0); y = 385 - (branch ? 34 + pocketDepth * 15 : 0); }
-    else { x = 335 - depth * 58; y = 210 - (branch ? 38 + pocketDepth * 16 : 0); }
+    if (region === 0) { x = 105 + depth * 82 + (branch ? 8 : 0); y = branch ? 130 + (branch - 1) * 80 + pocketDepth * 42 : 72; }
+    else if (region === 1) { x = 425 + depth * 58 + (branch ? 8 : 0); y = branch ? 135 + (branch - 1) * 90 + pocketDepth * 44 : 210; }
+    else if (region === 2) { x = 655 - depth * 82 - (branch ? 8 : 0); y = branch ? 350 - (branch - 1) * 80 - pocketDepth * 42 : 408; }
+    else { x = 335 - depth * 58 - (branch ? 8 : 0); y = branch ? 370 - (branch - 1) * 90 - pocketDepth * 44 : 210; }
     systemPositions.set(system.id, [x, y]);
   }));
   const xy = id => id === 'private_highsec' ? [380, 240] : (systemPositions.get(id) || [380, 240]);
@@ -1042,7 +1047,7 @@ window.openUniverse = function() {
     const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
     const here = current === s.id, targeted = window._universeTargetSystemId === s.id;
     return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (targeted ? 'targeted ' : '') + (here ? '' : 'reachable') +
-      '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
+      '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (s.ring <= 2 ? 'SAFE FRINGE · LOW THREAT · NO-LOSS' : (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP')) +
       '" aria-label="' + (here ? 'Your current system: ' : 'Fly to ') + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
       '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (targeted ? '0 0 0 5px rgba(251,191,36,.2),0 0 20px #fbbf24' : '0 0 9px ' + color)) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★' : s.ring) + '<span style="position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(2,8,16,.96);border:1px solid ' + (targeted ? '#fbbf24' : 'rgba(120,150,165,.45)') + ';color:' + (targeted ? '#fde68a' : '#d5e2e8') + ';font-size:9px;font-weight:' + (targeted ? '900' : '700') + ';text-shadow:0 1px 4px #000;pointer-events:none">' + s.name + '</span>' + (here ? '<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   }).join('');
