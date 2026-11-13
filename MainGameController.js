@@ -4287,21 +4287,11 @@ if (
     y: 3500,
     radius: 100,
     draw(ctx) {
-      // Use a compact cyan return marker here; the emerald halo made it look
-      // like a large green ring around the Trade Hub station artwork.
+      // Restore the animated space-tear portal at the Trade Hub return point.
+      // It is positioned well away from the station artwork.
+      drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 25);
+
       const zoom = Math.max(0.45, Number(cameraZoom) || 1);
-      ctx.save();
-      ctx.globalCompositeOperation = 'screen';
-      ctx.fillStyle = 'rgba(50, 190, 235, 0.16)';
-      ctx.beginPath();
-      ctx.ellipse(this.x, this.y, 24 / zoom, 38 / zoom, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = 'rgba(150, 235, 255, 0.9)';
-      ctx.lineWidth = 2.2 / zoom;
-      ctx.beginPath();
-      ctx.ellipse(this.x, this.y, 13 / zoom, 29 / zoom, 0, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.restore();
       const fontSize = 18 / zoom;
       const labelY = this.y - this.radius - (34 / zoom);
       ctx.save();
