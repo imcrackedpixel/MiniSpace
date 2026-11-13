@@ -300,19 +300,52 @@ function cleanModules(ship) {
   }
 }
 
+function applyFittedModuleBonuses(ship) {
+  const fitted = ship && ship.fittedModules || {};
+  Object.keys(fitted).forEach(function(slot) {
+    const mod = fitted[slot]; if (!mod) return;
+    const rank = Math.max(1, Math.min(10, Number(mod.rank) || 1));
+    const rarity = String(mod.rarity || 'white').toLowerCase();
+    const scale = ({white:1,green:1.2,blue:1.45,purple:1.8})[rarity] || 1;
+    const bonus = 1 + (rank - 1) * 0.04 * scale;
+    if (['laser','guns','missiles'].includes(slot)) {
+      ['miningPower','missileDamage','weaponDamage','gunDamage'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
+      ['laserRange','weaponRange','scramblerRange'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=1+(bonus-1)*0.5;});
+    } else if (['shield','shieldPlating','shieldExtender','shieldRecharge','resistance'].includes(slot)) {
+      ['maxShield','maxArmor','damageResistance','shieldRechargeRate'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
+      if (Number.isFinite(Number(ship.shield))) ship.shield=Math.min(ship.maxShield||ship.shield,ship.shield*bonus);
+    } else if (slot==='cargo') {
+      if(Number.isFinite(Number(ship.maxCargo)))ship.maxCargo*=bonus;
+    } else if (slot==='propulsion') {
+      if(Number.isFinite(Number(ship.maxSpeed)))ship.maxSpeed*=1+(bonus-1)*0.65;
+    } else if (['droneTether','dronesTether'].includes(slot)) {
+      ['droneRange','droneTetherRange','tetherRange'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
+    } else if (slot==='scrambler') {
+      if(Number.isFinite(Number(ship.scramblerRange)))ship.scramblerRange*=bonus;
+      if(Number.isFinite(Number(ship.slowFactor)))ship.slowFactor=Math.min(0.98,ship.slowFactor+(bonus-1)*0.1);
+    } else if (slot==='hacking') {
+      if(Number.isFinite(Number(ship.hackSpeed)))ship.hackSpeed*=bonus;
+      if(Number.isFinite(Number(ship.scanPower)))ship.scanPower*=bonus;
+    } else if (slot==='cloaking') {
+      if(Number.isFinite(Number(ship.cloakDuration)))ship.cloakDuration*=bonus;
+    }
+  });
+}
 function applyDesign(ship) {
   if (!ship) return;
   if (window.Races) window.Races.tag(ship);
   if (typeof ship.applyStats === 'function') ship.applyStats();
   const key = playerData.hullDesigns ? playerData.hullDesigns[ship.className] : null;
   const d = key ? DESIGNS[key] : null;
-  if (!d || ship.className !== d.hull) return;
-  if (d.bonus.cargo) ship.maxCargo = (ship.maxCargo || 0) * d.bonus.cargo;
-  if (d.bonus.speed) ship.maxSpeed = (ship.maxSpeed || 0) * d.bonus.speed;
-  if (d.bonus.shield) {
-    ship.maxShield = (ship.maxShield || 0) * d.bonus.shield;
-    ship.shield = ship.maxShield;
+  if (d && ship.className === d.hull) {
+    if (d.bonus.cargo) ship.maxCargo = (ship.maxCargo || 0) * d.bonus.cargo;
+    if (d.bonus.speed) ship.maxSpeed = (ship.maxSpeed || 0) * d.bonus.speed;
+    if (d.bonus.shield) {
+      ship.maxShield = (ship.maxShield || 0) * d.bonus.shield;
+      ship.shield = ship.maxShield;
+    }
   }
+  applyFittedModuleBonuses(ship);
 }
 
 function normalizeWrecks() {
@@ -418,6 +451,7 @@ function loadGameSession() {
   if (!playerData.hullDesigns) playerData.hullDesigns = {};
   if (!playerData.builtHulls) playerData.builtHulls = {};
   if (!playerData.moduleBonusCap) playerData.moduleBonusCap = {};
+  if (!playerData.fittedModules || typeof playerData.fittedModules !== 'object') playerData.fittedModules = {};
   if (typeof playerData.transportManagerPurchased !== 'number') playerData.transportManagerPurchased = 0;
   if (botManager && Array.isArray(playerData.corpBots) && playerData.corpBots.length === botManager.bots.length) {
     botManager.bots.forEach(function(b, i) {
@@ -443,8 +477,9 @@ function loadGameSession() {
     if (saved && playerShip.moduleLevels) {
       Object.assign(playerShip.moduleLevels, saved);
     }
-    cleanModules(playerShip);
+    playerShip.fittedModules = Object.assign({}, playerData.fittedModules[playerShip.className] || playerShip.fittedModules || {});
     applyDesign(playerShip);
+    cleanModules(playerShip);
     applyPilotTalents();
     playerShip.docked = false;
   }
@@ -982,23 +1017,50 @@ function moduleDropSaleValue(drop) {
   const values = { white: 250000, green: 600000, blue: 1500000, purple: 4000000 };
   return values[String(drop && drop.rarity || 'white').toLowerCase()] || values.white;
 }
+function ensureFittedModules(ship) {
+  if (!ship) return {};
+  if (!ship.fittedModules || typeof ship.fittedModules !== 'object') ship.fittedModules = {};
+  if (!playerData.fittedModules) playerData.fittedModules = {};
+  const saved = playerData.fittedModules[ship.className];
+  if (saved && typeof saved === 'object') ship.fittedModules = Object.assign({}, saved, ship.fittedModules);
+  return ship.fittedModules;
+}
 window.fitFrontierModuleDrop = function(id) {
   if (!playerShip || !playerShip.docked) { window.showCorpNotification('Dock at a station to fit a module drop.'); return; }
   const drops = Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops : [];
   const index = drops.findIndex(d => d && d.id === id), drop = drops[index];
   if (!drop) return;
   if (playerShip.className !== drop.hull) { window.showCorpNotification('This module is designed for ' + drop.hull + '. Board that ship first.'); return; }
-  if (!MODULE_KEYS[drop.hull] || !MODULE_KEYS[drop.hull].includes(drop.module)) { window.showCorpNotification('This drop does not match a valid fitting slot.'); return; }
-  cleanModules(playerShip);
-  const cap = getCap(drop.module, drop.hull);
-  const level = Number(playerShip.moduleLevels[drop.module]) || 1;
-  if (level >= cap) { window.showCorpNotification('That module is already at its maximum level.'); return; }
-  playerShip.moduleLevels[drop.module] = Math.min(cap, level + Math.max(1, Number(drop.level) || 1));
-  drops.splice(index, 1);
-  playerData.moduleDrops = drops;
-  applyDesign(playerShip); applyPilotTalents();
-  saveGameSession(); updateStationUI();
-  window.showCorpNotification(drop.name + ' fitted · ' + drop.module + ' is now level ' + playerShip.moduleLevels[drop.module] + '.');
+  if (!MODULE_KEYS[drop.hull] || !MODULE_KEYS[drop.hull].includes(drop.module)) { window.showCorpNotification('This module does not fit this ship.'); return; }
+  const slots = ensureFittedModules(playerShip);
+  if (slots[drop.module]) { window.showCorpNotification('That slot is occupied. Remove its module first.'); return; }
+  slots[drop.module] = { id:drop.id, name:drop.name, module:drop.module, hull:drop.hull, rarity:drop.rarity||'white', rank:1 };
+  drops.splice(index,1); playerData.moduleDrops=drops;
+  if(!playerData.fittedModules)playerData.fittedModules={};
+  playerData.fittedModules[playerShip.className]=Object.assign({},slots);
+  applyDesign(playerShip); applyPilotTalents(); saveGameSession(); updateStationUI();
+  window.showCorpNotification(drop.name+' installed in '+drop.module+' slot · Rank 1. Use + to improve it.');
+};
+window.removeFittedModule = function(slot) {
+  if(!playerShip||!playerShip.docked)return;
+  const slots=ensureFittedModules(playerShip),mod=slots[slot];if(!mod)return;
+  if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
+  playerData.moduleDrops.push({id:mod.id||('returned_'+Date.now()),name:mod.name||slot,hull:playerShip.className,module:slot,rarity:mod.rarity||'white',level:1});
+  delete slots[slot];playerData.fittedModules[playerShip.className]=Object.assign({},slots);
+  applyDesign(playerShip);saveGameSession();updateStationUI();
+};
+window.upgradeFittedModule = function(slot) {
+  if(!playerShip||!playerShip.docked)return;
+  const slots=ensureFittedModules(playerShip),mod=slots[slot];if(!mod)return;
+  const rank=Math.max(1,Number(mod.rank)||1);if(rank>=10){window.showCorpNotification('This module is already Rank 10.');return;}
+  const cost=upgradeCostAt(rank),ore=upgradeOreRequirement(slot,rank);
+  const have=Math.max(0,Math.floor(Number(playerData.stationOre&&playerData.stationOre[ore.key])||0));
+  if(have<ore.qty){window.showCorpNotification('Need '+ore.qty.toLocaleString()+' '+itemLabel(ore.key)+' in your hangar to upgrade.');return;}
+  if((Number(playerData.isk)||0)<cost){window.showCorpNotification('Need '+fmtISK(cost)+' Scrap Metals to upgrade.');return;}
+  playerData.isk-=cost;playerData.stationOre[ore.key]=have-ore.qty;mod.rank=rank+1;
+  playerData.fittedModules[playerShip.className]=Object.assign({},slots);
+  applyDesign(playerShip);saveGameSession();updateStationUI();
+  window.showCorpNotification(mod.name+' upgraded to Rank '+mod.rank+'.');
 };
 window.sellFrontierModuleDrop = function(id) {
   if (!playerShip || !playerShip.docked || mapManager.currentMapId !== 'public_trade_hub') {
@@ -1066,12 +1128,15 @@ window.boardShip = function(className, cargo, speed) {
   if (!playerShip.docked) { window.showCorpNotification('Dock at the station to change ships.'); return; }
   if (playerShip.className === className) return;
   if (!playerData.upgrades) playerData.upgrades = {};
+  if (!playerData.fittedModules) playerData.fittedModules = {};
+  if (playerShip.fittedModules) playerData.fittedModules[playerShip.className] = Object.assign({}, playerShip.fittedModules);
   cleanModules(playerShip);
   playerData.upgrades[playerShip.className] = Object.assign({}, playerShip.moduleLevels);
   playerShip.moduleLevels = {};
   let s = sessionManager.setShipClass(playerShip, className, cargo, speed);
   let saved = playerData.upgrades[className];
   if (saved && s.moduleLevels) Object.assign(s.moduleLevels, saved);
+  s.fittedModules = Object.assign({}, playerData.fittedModules[className] || {});
   cleanModules(s);
   s.cargo = 0;
   s.docked = true;
@@ -2241,13 +2306,17 @@ function updateStationUI() {
   const fittingEl=document.getElementById('hangar-fitting-panel');
   if(fittingEl){
     let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div>';
-    if(playerShip&&playerShip.moduleLevels){
+    if(playerShip){
+      const slots=ensureFittedModules(playerShip);
       fit+='<div class="fitting-module-grid">';
-      for(const mod of Object.keys(playerShip.moduleLevels)){
-        const level=Number(playerShip.moduleLevels[mod])||1,cap=getCap(mod,playerShip.className);
-        const nextCost=level>=cap?null:upgradeCostAt(level);
-        const oreNeed=nextCost?upgradeOreRequirement(mod,level):null;
-        fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+'</span><strong>LV '+level+' / '+cap+'</strong><small>'+(cap>5?'Chip-extended maximum':'Standard maximum')+'</small><button onclick="window.upgradeFrigateModule(\''+mod+'\')" '+(!nextCost?'disabled':'')+'>'+(nextCost?'UPGRADE · '+fmtISK(nextCost)+' + '+fmtISK(oreNeed.qty)+' '+itemLabel(oreNeed.key):'MAX LEVEL')+'</button></div>';
+      for(const mod of (MODULE_KEYS[playerShip.className]||[])){
+        const installed=slots[mod];
+        if(installed){
+          const rank=Math.max(1,Number(installed.rank)||1),next=rank<10, cost=next?upgradeCostAt(rank):0,ore=next?upgradeOreRequirement(mod,rank):null;
+          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/10</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\\''+mod+'\\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+fmtISK(cost)+' + '+fmtISK(ore.qty)+' '+itemLabel(ore.key):'MAX RANK')+'</button><button onclick="window.removeFittedModule(\\''+mod+'\\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
+        } else {
+          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>EMPTY</strong><small>Find a compatible frontier drop</small></div>';
+        }
       }
       fit+='</div>';
     }else fit+='<p>Board a ship to view its module slots.</p>';
@@ -2255,7 +2324,7 @@ function updateStationUI() {
     const drops=Array.isArray(playerData.moduleDrops)?playerData.moduleDrops:[];
     fit+='<div class="fitting-heading"><strong>FRONTIER MODULE DROPS</strong><span>'+drops.length+' stored</span></div>';
     if(drops.length)fit+='<div class="fitting-chip-list">'+drops.map(d=>{
-      const compatible=!!(playerShip&&playerShip.docked&&playerShip.className===d.hull&&MODULE_KEYS[d.hull]&&MODULE_KEYS[d.hull].includes(d.module)&&getCap(d.module,d.hull)<MAX_MODULE_LEVEL);
+      const compatible=!!(playerShip&&playerShip.docked&&playerShip.className===d.hull&&MODULE_KEYS[d.hull]&&MODULE_KEYS[d.hull].includes(d.module)&&!ensureFittedModules(playerShip)[d.module]);
       const sale=moduleDropSaleValue(d);
       return '<div class="fitting-chip rarity-'+d.rarity+'"><span class="chip-glyph">⬡</span><div><strong>'+d.name+'</strong><small>'+d.hull+' · '+d.module+' · '+d.rarity.toUpperCase()+'</small></div><button onclick="window.fitFrontierModuleDrop(\''+d.id+'\')" '+(!compatible?'disabled':'')+'>FIT</button><button onclick="window.sellFrontierModuleDrop(\''+d.id+'\')" '+(!inTradeHub||!playerShip||!playerShip.docked?'disabled':'')+'>SELL '+fmtISK(sale)+'</button></div>';
     }).join('')+'</div>';
