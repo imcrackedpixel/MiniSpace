@@ -67,9 +67,9 @@ try {
 <div><span id="cargo-text">CARGO: 0 / 200</span></div>
 <div><span id="isk-text">Scrap Metals: 1,000,000</span></div>
 <div><span id="system-text" style="color: #7fa88a; font-weight: bold;">SYSTEM: High-Sec 1.0</span></div>
-<div class="health-bar-container"><span style="width: 45px; color: #8aa8b3;">SHIELD:</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="shield-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#8aa8b3;"></div></div></div>
-<div class="health-bar-container"><span style="width: 45px; color: #b8955a;">ARMOR:</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="armor-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#b8955a;"></div></div></div>
-<div class="health-bar-container"><span style="width: 45px; color: #b5605a;">STRUCT:</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="structure-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#b5605a;"></div></div></div>
+<div class="health-bar-container"><span style="width: 45px; color: #8aa8b3;">SHIELD:</span><span id="shield-value" style="min-width:76px;text-align:right;font-size:9px;color:#c8d4dc;font-variant-numeric:tabular-nums;">0 / 0</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="shield-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#8aa8b3;"></div></div></div>
+<div class="health-bar-container"><span style="width: 45px; color: #b8955a;">ARMOR:</span><span id="armor-value" style="min-width:76px;text-align:right;font-size:9px;color:#c8d4dc;font-variant-numeric:tabular-nums;">0 / 0</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="armor-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#b8955a;"></div></div></div>
+<div class="health-bar-container"><span style="width: 45px; color: #b5605a;">STRUCT:</span><span id="structure-value" style="min-width:76px;text-align:right;font-size:9px;color:#c8d4dc;font-variant-numeric:tabular-nums;">0 / 0</span><div class="health-bar-bg" style="flex:1; height:4px; background:#1a1f25;"><div id="structure-fill" class="health-bar-fill" style="width: 100%; height:100%; background:#b5605a;"></div></div></div>
 </div>
 
 <div class="panel" id="flight-controls" style="display: flex; flex-direction: column; gap: 3px; background: rgba(22, 27, 34, 0.95); border: 1px solid #8aa8b3; max-width: 230px;">
@@ -83,7 +83,7 @@ try {
 <button id="siege-btn" onclick="window.toggleSiegeGuns()" style="background: #2a434b; color: #dfe7ea; border: 1px solid #262d34; padding: 5px 8px; font-weight: bold; font-size: 9px; cursor: pointer; width: 100%; display: none;">SIEGE GUNS: ON</button>
 
 </div>
-<div id="space-cargo-readout" class="panel" style="display:none;max-width:230px;background:rgba(7,17,27,.94);border:1px solid #36b99a;"><div style="display:flex;justify-content:space-between;color:#9be7d4;font-size:9px;font-weight:bold;">SPACE CARGO <span>HOLD</span></div><div id="space-cargo-items" style="display:grid;grid-template-columns:1fr auto;gap:4px 10px;margin-top:6px;font-size:10px;color:#b9cbd3;"></div></div>
+
 </div>
 
 <div style="display: flex; gap: 4px;">
