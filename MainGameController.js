@@ -773,21 +773,39 @@ window.findFrontierRoute = function(from, to) {
 try {
   window._universeTargetSystemId = window._universeTargetSystemId || localStorage.getItem('minispace_universe_target') || window._universeRouteDestination || null;
 } catch (_) {}
+window.refreshUniverseTargetRoute = function() {
+  const target = window._universeTargetSystemId;
+  if (!target || !mapManager) {
+    window._universeTargetNextHop = null;
+    return null;
+  }
+  const current = mapManager.currentMapId === 'private_highsec' ? 'private_highsec' : mapManager.currentMapId;
+  const path = window.findFrontierRoute(current, target);
+  window._universeTargetNextHop = path && path.length > 1 ? path[1] : null;
+  return path;
+};
 window.setUniverseTargetSystem = function(destinationId) {
   const valid = destinationId === 'private_highsec' || (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === destinationId);
   if (!valid) return;
   if (window._universeTargetSystemId === destinationId) {
-    window._universeTargetSystemId = null; window._universeRouteDestination = null; targetMovePos = null; window._universeTargetNextHop = null;
+    window._universeTargetSystemId = null;
+    window._universeRouteDestination = null;
+    window._universeTargetNextHop = null;
     try { localStorage.removeItem('minispace_universe_target'); } catch (_) {}
     if (typeof window.showCorpNotification === 'function') window.showCorpNotification('SYSTEM TARGET CLEARED');
-    if (typeof window.openUniverse === 'function') window.openUniverse();
-    updateNearbySpacePanel(); return;
+  } else {
+    window._universeTargetSystemId = destinationId;
+    window._universeRouteDestination = destinationId;
+    try { localStorage.setItem('minispace_universe_target', destinationId); } catch (_) {}
+    const path = window.refreshUniverseTargetRoute();
+    const target = destinationId === 'private_highsec' ? null : (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === destinationId);
+    if (typeof window.showCorpNotification === 'function') {
+      window.showCorpNotification('SYSTEM TARGET SET · ' + (target ? target.name : 'HIGH-SEC 1.0') +
+        (path && path.length > 1 ? ' · next tear highlighted' : ' · you are there'));
+    }
   }
-  window._universeTargetSystemId = destinationId; window._universeRouteDestination = destinationId;
-  try { localStorage.setItem('minispace_universe_target', destinationId); } catch (_) {}
-  const routePath = window.findFrontierRoute(mapManager.currentMapId === 'private_highsec' ? 'private_highsec' : mapManager.currentMapId, destinationId);
-  window._universeTargetNextHop = routePath && routePath.length > 1 ? routePath[1] : null;
-  window.flyToFrontierGate(destinationId);
+  if (typeof window.openUniverse === 'function') window.openUniverse();
+  if (typeof updateNearbySpacePanel === 'function') updateNearbySpacePanel();
 };
 window.flyToFrontierGate = function(destinationId) {
   if (!playerShip || !mapManager) return;
@@ -888,10 +906,8 @@ window.openUniverse = function() {
   if (!modal || !host) return;
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [], current = mapManager.currentMapId;
   try { if (!window._universeTargetSystemId) window._universeTargetSystemId = localStorage.getItem('minispace_universe_target') || null; } catch (_) {}
-  if (window._universeTargetSystemId) {
-    const targetPath = window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, window._universeTargetSystemId);
-    window._universeTargetNextHop = targetPath && targetPath.length > 1 ? targetPath[1] : null;
-  }
+  if (window._universeTargetSystemId) window.refreshUniverseTargetRoute();
+  else window._universeTargetNextHop = null;
   const fleetSightings = publicNpcManager && typeof publicNpcManager.getExplorerFleetSightings === 'function'
     ? publicNpcManager.getExplorerFleetSightings((Number(playerData.explorationCorpPurchased) || 0) > 0) : [];
   const xy = id => {
@@ -903,11 +919,16 @@ window.openUniverse = function() {
     return [(50 + Math.cos(angle) * radius) * 7.6, (50 + Math.sin(angle) * radius) * 4.8];
   };
   const edges = new Set(), routes = [];
+  const plottedPath = window._universeTargetSystemId
+    ? window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, window._universeTargetSystemId)
+    : null;
+  const plottedEdges = new Set();
+  if (plottedPath) for (let i = 1; i < plottedPath.length; i++) plottedEdges.add([plottedPath[i - 1], plottedPath[i]].sort().join('|'));
   systems.forEach(s => s.links.forEach(id => {
     if (id === 'private_highsec' && s.id !== (mapManager && mapManager.frontierHomeGateSystemId)) return;
     const key = [s.id,id].sort().join('|'); if (edges.has(key)) return; edges.add(key);
-    const a = xy(s.id), b = xy(id);
-    routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="universe-route-line"/>');
+    const a = xy(s.id), b = xy(id), active = plottedEdges.has(key);
+    routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="' + (active ? 'universe-route-line universe-route-active' : 'universe-route-line') + '"/>');
   }));
   const fleetMarkers = fleetSightings.map(sighting => {
     const p = xy(sighting.systemId);
@@ -936,7 +957,7 @@ window.openUniverse = function() {
     return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (targeted ? 'targeted ' : '') + (here ? '' : 'reachable') +
       '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
       '" aria-label="' + (here ? 'Your current system: ' : 'Fly to ') + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
-      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 9px ' + color) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : s.ring) + '</button>';
+      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (targeted ? '0 0 0 5px rgba(251,191,36,.2),0 0 20px #fbbf24' : '0 0 9px ' + color)) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★' : s.ring) + '<span style="position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);white-space:nowrap;padding:2px 4px;border-radius:4px;background:rgba(3,12,20,.88);border:1px solid ' + (targeted ? '#fbbf24' : 'rgba(120,150,165,.45)') + ';color:' + (targeted ? '#fde68a' : '#d5e2e8') + ';font-size:8px;font-weight:' + (targeted ? '900' : '600') + ';text-shadow:0 1px 3px #000;pointer-events:none">' + s.name + '</span>' + (here ? '<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   }).join('');
   const list = systems.map(s => {
     const targeted = window._universeTargetSystemId === s.id;
@@ -949,7 +970,7 @@ window.openUniverse = function() {
     routes.join('') + '</svg>' + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
     '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; 🚀 TEAL · CORP EXPLORER &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
-    '<p class="universe-map-note">Tap a system to plot a physical gate route. Gold ⛏ markers are mining fleet pings. The teal 🚀 marker shows the Corp Explorer live system and mission status.</p>';
+    '<p class="universe-map-note">Tap a system to set or clear your saved destination. The amber route and highlighted tear show your next gate; fly there to continue. Gold ⛏ markers are mining fleet pings. The teal 🚀 marker shows the Corp Explorer live system and mission status.</p>';
   if (!host.dataset.navigationBound) {
     host.addEventListener('click', function(event) {
       const fleet = event.target.closest('button[data-fleet-system]');
