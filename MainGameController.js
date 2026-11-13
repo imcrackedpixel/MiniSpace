@@ -3376,8 +3376,8 @@ function updateNearbySpacePanel(){
  else if(id.indexOf('mission_')===0&&mapManager.missionReturnGate)add('tears','High-Sec Station · return tear',mapManager.missionReturnGate,'station','return');
  /* 3v3 High-Sec exit gates are hidden from Nearby. */
  else if(mainStation)add('tears','High-Sec Station',mainStation,'station','home');
- if(id==='private_highsec'&&window.MINISPACE_MARKET_GATE)gate(window.MINISPACE_MARKET_GATE,'MARKET SYSTEM · Trade Hub',{trade:true});
  const gate=(o,n,x)=>add('tears',n,o,'gate',x);
+ if(id==='private_highsec'&&window.MINISPACE_MARKET_GATE)gate(window.MINISPACE_MARKET_GATE,'MARKET SYSTEM · Trade Hub',{trade:true});
  if(inMissionSpace())gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
  else if(id.indexOf('frontier_')===0){gate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});(Array.isArray(mapManager.frontierGates)?mapManager.frontierGates:[]).forEach(o=>{const d=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===o.destinationId);gate(o,(d?d.name:'Frontier')+' Tear',{destinationId:o.destinationId});});}
  else if(id.indexOf('mission_')===0)gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
