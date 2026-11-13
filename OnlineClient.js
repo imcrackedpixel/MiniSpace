@@ -15,6 +15,9 @@
   reconnectTimer:null,
   reconnectAttempts:0,
   requests:[],
+  teamRequests:[],
+  teamId:null,
+  teamMembers:[],
   directory:[],
   remotePlayers:{},
   gmPlayers:[],
@@ -65,18 +68,13 @@
     <div class="online-actions" style="margin-top:8px;">
      <button id="online-friends-button" style="width:100%;">FRIENDS</button>
     </div>
-    <div id="online-friends-window" style="
-     display:none;
-     padding:8px;
-     margin:5px 0;
-     background:#101923;
-     color:#e6edf3;
-     border:1px solid #36b99a;
-     border-radius:7px;
-     max-height:150px;
-     overflow-y:auto;
-     font-size:13px;
-    "></div>
+    <div id="online-friends-window" style="display:none;padding:8px;margin:5px 0;background:#101923;color:#e6edf3;border:1px solid #36b99a;border-radius:7px;max-height:150px;overflow-y:auto;font-size:13px"></div>
+    <div class="online-actions" style="margin-top:5px"><button id="online-team-button" style="width:100%">TEAM · <span id="online-team-status">NO TEAM</span></button></div>
+    <div id="online-team-window" style="display:none;padding:8px;margin:5px 0;background:#101923;color:#e6edf3;border:1px solid #38bdf8;border-radius:7px;max-height:150px;overflow-y:auto;font-size:12px">
+     <div id="online-team-roster">You are not in a team.</div>
+     <div class="online-actions"><input id="online-team-name" maxlength="16" placeholder="Online pilot callsign"><button id="online-team-invite">INVITE</button></div>
+     <button id="online-team-leave" style="width:100%;margin-top:5px;display:none">LEAVE TEAM</button>
+    </div>
     <div class="online-actions">
      <input id="online-friend-name" maxlength="16" placeholder="Pilot callsign">
      <button id="online-add-friend">ADD FRIEND</button>
@@ -113,11 +111,19 @@
   };
 
   $('online-friends-button').onclick=()=>{
-   const box=$('online-friends-window');
-   const opening=box.style.display==='none';
-   box.style.display=opening?'block':'none';
-   if(opening)renderFriends();
+   const box=$('online-friends-window');const opening=box.style.display==='none';
+   box.style.display=opening?'block':'none';if(opening)renderFriends();
   };
+  $('online-team-button').onclick=()=>{
+   const box=$('online-team-window');const opening=box.style.display==='none';
+   box.style.display=opening?'block':'none';if(opening)renderTeam();
+  };
+  $('online-team-invite').onclick=()=>{
+   const name=$('online-team-name').value.trim();
+   if(name){send({type:'team-invite',name});$('online-team-name').value='';}
+  };
+  $('online-team-name').addEventListener('keydown',e=>{if(e.key==='Enter')$('online-team-invite').click();});
+  $('online-team-leave').onclick=()=>send({type:'team-leave'});
 
   $('online-add-friend').onclick=()=>{
    const name=$('online-friend-name').value.trim();
@@ -163,6 +169,23 @@
 
    box.appendChild(row);
   });
+ }
+
+ function renderTeam(){
+  const box=$('online-team-window');if(!box)return;
+  const status=$('online-team-status'),roster=$('online-team-roster'),leave=$('online-team-leave');
+  const members=Array.isArray(state.teamMembers)?state.teamMembers:[];
+  if(status)status.textContent=state.teamId?'TEAM OF '+members.length:'NO TEAM';
+  if(roster){
+   roster.replaceChildren();
+   if(!state.teamId)roster.textContent='No team yet. Invite an online pilot by callsign.';
+   else members.forEach(member=>{
+    const row=document.createElement('div');row.style.padding='3px 0';
+    row.textContent=(member.id===state.id?'★ ':'• ')+String(member.name||'Pilot')+(member.id===state.id?' (YOU)':'');
+    row.style.color='#9cebd7';roster.appendChild(row);
+   });
+  }
+  if(leave)leave.style.display=state.teamId?'block':'none';
  }
 
  function requestWindow(){
@@ -221,17 +244,9 @@
   if(!box)return;
   box.replaceChildren();
 
-  if(!state.requests.length){
-   box.style.display='none';
-   return;
-  }
-
+  if(!state.requests.length&&!state.teamRequests.length){box.style.display='none';return;}
   box.style.display='block';
-
-  const heading=document.createElement('strong');
-  heading.textContent='FRIEND REQUESTS';
-  box.appendChild(heading);
-
+  if(state.requests.length){const heading=document.createElement('strong');heading.textContent='FRIEND REQUESTS';box.appendChild(heading);}
   state.requests.forEach((name,index)=>{
    const row=document.createElement('div');
    row.className='request-row';
@@ -257,8 +272,19 @@
     renderRequests();
    };
 
-   row.append(accept,deny);
-   box.appendChild(row);
+   row.append(accept,deny);box.appendChild(row);
+  });
+  if(state.teamRequests.length){
+   const heading=document.createElement('strong');heading.textContent='TEAM INVITATIONS';heading.style.display='block';heading.style.marginTop='8px';box.appendChild(heading);
+  }
+  state.teamRequests.forEach((name,index)=>{
+   const row=document.createElement('div');row.className='request-row';
+   const label=document.createElement('div');label.textContent=name+' invited you to join their team.';row.appendChild(label);
+   const accept=document.createElement('button');accept.className='accept-request';accept.textContent='JOIN TEAM';
+   accept.onclick=()=>{send({type:'team-accept',name});state.teamRequests.splice(index,1);renderRequests();};
+   const deny=document.createElement('button');deny.className='deny-request';deny.textContent='DECLINE';
+   deny.onclick=()=>{send({type:'team-decline',name});state.teamRequests.splice(index,1);renderRequests();};
+   row.append(accept,deny);box.appendChild(row);
   });
  }
 
@@ -369,7 +395,7 @@
 
    if(message.type==='online-directory'){
     state.directory=Array.isArray(message.players)?message.players:[];
-    renderFriends();
+    renderFriends();renderTeam();
    }
 
    if(message.type==='welcome'){
@@ -408,6 +434,18 @@
     log('Entered '+message.mapId+' ('+message.roomType+' instance)');
    }
    if(message.type==='player'&&message.player&&message.player.id)state.remotePlayers[message.player.id]=message.player;
+   if(message.type==='team-invite'){
+    const name=String(message.from||'Pilot').slice(0,16);
+    if(!state.teamRequests.includes(name)){state.teamRequests.push(name);renderRequests();}
+   }
+   if(message.type==='team-state'){
+    state.teamId=message.teamId||null;state.teamMembers=Array.isArray(message.members)?message.members:[];
+    Object.values(state.remotePlayers).forEach(p=>{if(p)p.teamId=state.teamMembers.some(m=>m.id===p.id)?state.teamId:null;});
+    renderTeam();window.dispatchEvent(new CustomEvent('minispace-team-state',{detail:{teamId:state.teamId,members:state.teamMembers}}));
+    log(state.teamId?'Team updated · '+state.teamMembers.length+' pilots.':'You are no longer in a team.');
+   }
+   if(message.type==='team-error')log(String(message.message||'Team action unavailable.'));
+   if(message.type==='team-invite-declined')log(String(message.name||'Pilot')+' declined your team invitation.');
    if(message.type==='player-left'&&message.id)delete state.remotePlayers[message.id];
    if(message.type==='frontier-npc-state'||message.type==='frontier-npc-killed'||message.type==='frontier-npc-respawn'){
     window.dispatchEvent(new CustomEvent('minispace-'+message.type,{detail:message}));
