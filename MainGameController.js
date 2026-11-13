@@ -741,7 +741,7 @@ window.jumpToFrontierSystem = function(id) {
   if (publicNpcManager) publicNpcManager.initFrontierSystem(r.system, mainStation);
   const destination = window._universeRouteDestination;
   if (destination) {
-    if (destination === id) { window._universeRouteDestination = null; window.showCorpNotification('Arrived at destination: ' + r.system.name + '.'); }
+    if (destination === id) { window._universeRouteDestination = null; window._universeTargetNextHop = null; window.showCorpNotification('Arrived at destination: ' + r.system.name + '.'); }
     else {
       const path = window.findFrontierRoute(id, destination), next = path && path[1];
       window._universeTargetNextHop = next || null;
@@ -887,6 +887,11 @@ window.openUniverse = function() {
   const modal = document.getElementById('universe-modal'), host = document.getElementById('universe-systems');
   if (!modal || !host) return;
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [], current = mapManager.currentMapId;
+  try { if (!window._universeTargetSystemId) window._universeTargetSystemId = localStorage.getItem('minispace_universe_target') || null; } catch (_) {}
+  if (window._universeTargetSystemId) {
+    const targetPath = window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, window._universeTargetSystemId);
+    window._universeTargetNextHop = targetPath && targetPath.length > 1 ? targetPath[1] : null;
+  }
   const fleetSightings = publicNpcManager && typeof publicNpcManager.getExplorerFleetSightings === 'function'
     ? publicNpcManager.getExplorerFleetSightings((Number(playerData.explorationCorpPurchased) || 0) > 0) : [];
   const xy = id => {
