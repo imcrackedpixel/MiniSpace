@@ -496,7 +496,6 @@ class MapManager {
   
  jumpToPrivateSec(playerShip, mainStation) {  
  this.currentMapId = 'private_highsec';
- this.frontierHomeGateSystemId = null;
  this.frontierReturnGate = null;
  this.frontierGates = [];  
  this.missionReturnGate = null;
