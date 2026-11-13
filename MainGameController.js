@@ -2985,12 +2985,12 @@ function updateGame() {
   if (window.Balance) window.Balance.applyAll(balancedShips());
   if (!inMissionSpace() && botManager) {
     if (!pub) {
-      botManager.update(playerShip, asteroidBelt, debrisField);
+      botManager.update(playerShip, asteroidBelt, debrisField, mapManager.currentMapId);
     } else if (
       mapManager.currentMapId === 'public_trade_hub' &&
       typeof botManager.updateTransportOnly === 'function'
     ) {
-      botManager.updateTransportOnly(playerShip, asteroidBelt, debrisField);
+      botManager.updateTransportOnly(playerShip, asteroidBelt, debrisField, mapManager.currentMapId);
     }
   }
   if (asteroidBelt) asteroidBelt.update();
