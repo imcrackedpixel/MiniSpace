@@ -1157,7 +1157,9 @@ class PublicNpcManager {
           const system = npc.mapId && (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === npc.mapId);
           // Rarer spawns improve both the chance of a module and its minimum quality.
           const spawnPower = npc.rarityPower || PIRATE_RARITY_POWER.common;
-          const baseDropChance = npc.elite ? 0.75 : (system ? Math.min(0.52, 0.16 + system.ring * 0.036) : 1);
+          // NPCs outside the generated frontier map use the same modest baseline
+          // as a ring-0 system; a missing map lookup must never mean a guaranteed drop.
+          const baseDropChance = npc.elite ? 0.75 : (system ? Math.min(0.52, 0.16 + system.ring * 0.036) : 0.16);
           const dropChance = Math.min(0.98, baseDropChance + spawnPower.loot);
           const lootRank = { white: 0, green: 1, blue: 2, purple: 3 };
           const spawnLootRank = spawnPower.rank || 0;
