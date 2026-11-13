@@ -417,7 +417,7 @@ class MapManager {
       const targeted = drawUniverseTargetTear(ctx, this);
       drawSpaceRift(ctx,this.x,this.y,this.radius,isHome?RIFT_PALETTES.ret:RIFT_PALETTES.pvp,40+i);
       const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);
-      drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':(isHome?'RETURN RIFT':'FRONTIER ROUTE'),isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),targeted?'#fbbf24':(isHome?'#34d399':'#fb923c'));
+      drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET TEAR':(isHome?'RETURN RIFT':'FRONTIER ROUTE'),isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),targeted?'#fbbf24':(isHome?'#34d399':'#fb923c'));
     };
     return g;
   });
