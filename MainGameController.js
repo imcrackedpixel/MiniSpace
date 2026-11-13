@@ -1517,7 +1517,7 @@ function updateMissionsUI() {
     let action = active.completed && active.returned
       ? (playerShip && playerShip.docked ? '<button onclick="window.claimMissionReward()">CLAIM ' + fmtISK(active.rewardIsk) + ' REWARD</button>' : '<button disabled>FLY TO STATION AND DOCK TO CLAIM</button>')
       : (active.returned ? '' : (inMissionSpace()
-        ? '<button disabled>MISSION ACTIVE — ' + missionManager.getLivingEnemies().length + ' PIRATES REMAIN</button>'
+        ? '<button disabled>MISSION ACTIVE — ' + (active.type==='salvage' ? 'RECOVERING WRECKS' : active.type==='recon' ? 'SCANNING BEACONS' : missionManager.getLivingEnemies().length + ' PIRATES REMAIN') + '</button>'
         : '<button disabled>UNLOCKED: FLY TO THE GREEN MISSION TEAR</button>'));
     const targetLabel=active.type==='salvage'?'Caches':active.type==='recon'?'Beacons':'Pirates';
     const remaining=active.type==='salvage'||active.type==='recon'?(active.completed?0:(active.spawnedFleet?active.objectives.length-(active.objectiveIndex||0):active.targetCount)):(active.completed?0:(active.spawnedFleet?missionManager.getLivingEnemies().length:active.targetCount));
