@@ -156,6 +156,8 @@ class PublicNpcManager {
     this._dbgFrame = 0;
     this._frontierStates = Object.create(null);
     this._mapAggroTargets = Object.create(null);
+    this.destructionEffects = [];
+    this._playedDestructionIds = Object.create(null);
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('minispace-frontier-npc-state', e => this.applyFrontierNpcState(e && e.detail));
       window.addEventListener('minispace-frontier-npc-killed', e => this.applyFrontierNpcKilled(e && e.detail));
@@ -222,12 +224,18 @@ class PublicNpcManager {
   applyFrontierStationState(message) {
     if (!message || !String(message.mapId || '').startsWith('frontier_')) return;
     const state = this.frontierState(message.mapId);
+    const wasDestroyed = !!state.stationDestroyed;
     const maxHp = Math.max(1, Number(message.maxHp) || state.stationMaxHp || 1);
     const hp = Number(message.hp);
     if (!Number.isFinite(hp)) return;
     state.stationMaxHp = maxHp;
     state.stationHp = state.stationHp == null ? Math.max(0, Math.min(maxHp, hp)) : Math.min(state.stationHp, Math.max(0, Math.min(maxHp, hp)));
     state.stationDestroyed = state.stationHp <= 0;
+    if (!wasDestroyed && state.stationDestroyed) this.addDestructionExplosion(
+      (window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.x) || 4500,
+      (window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.y) || 4500,
+      4.5, 'station', 'epic', 'station-' + message.mapId
+    );
     if (Array.isArray(message.wavesSpawned)) message.wavesSpawned.forEach(w => {
       const n = Number(w);
       if (Number.isInteger(n) && n >= 0 && n < 3 && !state.wavesSpawned.includes(n)) state.wavesSpawned.push(n);
@@ -246,9 +254,11 @@ class PublicNpcManager {
 
   onFrontierStationDamaged(systemId, station) {
     const state = this.frontierState(systemId);
+    const wasDestroyed = !!state.stationDestroyed;
     state.stationMaxHp = Math.max(1, Number(station.maxStructure) || state.stationMaxHp || 1);
     state.stationHp = Math.max(0, Math.min(state.stationMaxHp, Number(station.structure) || 0));
     state.stationDestroyed = state.stationHp <= 0;
+    if (!wasDestroyed && state.stationDestroyed) this.addDestructionExplosion(station.x, station.y, 4.5, 'station', 'epic', 'station-' + systemId);
     this.checkFrontierStationWaves(systemId, station);
     if (window.MinispaceOnline && typeof window.MinispaceOnline.send === 'function') {
       window.MinispaceOnline.send({type:'frontier-station-state',mapId:systemId,hp:state.stationHp,maxHp:state.stationMaxHp,wavesSpawned:state.wavesSpawned.slice()});
@@ -319,7 +329,10 @@ class PublicNpcManager {
     const at = Number(message.respawnAt) || Date.now() + 240000;
     state.guardRespawns[message.npcId] = at;
     const npc = this.publicNpcMiners.find(n => n && n.id === message.npcId && n.mapId === message.mapId);
-    if (npc) npc.isAlive = false;
+    if (npc) {
+      if (!npc._explosionPlayed) { npc._explosionPlayed = true; this.addDestructionExplosion(npc.ship && npc.ship.x, npc.ship && npc.ship.y, this.pirateExplosionSize(npc), 'ship', npc.rarity, 'pirate-' + message.mapId + '-' + npc.id); }
+      npc.isAlive = false;
+    }
     this.publicNpcMiners = this.publicNpcMiners.filter(n => n && n.isAlive);
   }
 
@@ -365,6 +378,94 @@ class PublicNpcManager {
     };
     state.spawned = true;
     this.checkFrontierStationWaves(id, station);
+  }
+
+  addDestructionExplosion(x, y, size, kind, rarity, key) {
+    if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return;
+    if (key && this._playedDestructionIds[key]) return;
+    if (key) this._playedDestructionIds[key] = Date.now();
+    const scale = Math.max(0.65, Math.min(5, Number(size) || 1));
+    const colors = rarity === 'epic' ? ['#d8b4fe','#a855f7','#6d28d9','#fff7ff']
+      : rarity === 'rare' ? ['#bfdbfe','#3b82f6','#1d4ed8','#eff6ff']
+      : rarity === 'uncommon' ? ['#bbf7d0','#22c55e','#15803d','#f0fdf4']
+      : ['#ffedd5','#fb923c','#dc2626','#fff7ed'];
+    const count = kind === 'station' ? 90 : Math.round(22 + scale * 9);
+    const particles = [];
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = (0.7 + Math.random() * 3.8) * scale;
+      particles.push({ angle, speed, size: (1.5 + Math.random() * 4.5) * Math.min(2.2, scale), spin: (Math.random() - 0.5) * 0.12 });
+    }
+    this.destructionEffects.push({
+      x: Number(x), y: Number(y), scale, kind: kind || 'ship', rarity: rarity || 'common',
+      colors, particles, start: Date.now(),
+      duration: kind === 'station' ? 4400 : Math.round(1500 + scale * 360)
+    });
+    if (this.destructionEffects.length > 36) this.destructionEffects.splice(0, this.destructionEffects.length - 36);
+  }
+
+  pirateExplosionSize(npc) {
+    const sizes = {
+      'Exploration Frigate': 0.8, 'Combat Frigate': 1, 'Mining Frigate': 0.9,
+      'Mining Barge': 1.35, 'Command Ship': 1.6, 'Siege Cruiser': 2.15,
+      'Siege Battleship': 2.9, 'Carrier': 3.5, 'Capital': 4.2, 'Mining Capital': 4
+    };
+    return sizes[npc && npc.className] || 1;
+  }
+
+  drawDestructionEffects(ctx, currentMapId) {
+    const now = Date.now();
+    this.destructionEffects = this.destructionEffects.filter(effect => now - effect.start < effect.duration);
+    for (const effect of this.destructionEffects) {
+      const age = now - effect.start;
+      const p = Math.max(0, Math.min(1, age / effect.duration));
+      const fade = Math.pow(1 - p, 1.25);
+      const s = effect.scale;
+      const [hot, mid, deep, white] = effect.colors;
+      ctx.save();
+      ctx.translate(effect.x, effect.y);
+      ctx.globalCompositeOperation = 'lighter';
+      // Two expanding shock rings make larger hulls feel heavier.
+      for (let ring = 0; ring < (effect.kind === 'station' ? 3 : 2); ring++) {
+        const delay = ring * (effect.kind === 'station' ? 260 : 120);
+        const rp = Math.max(0, Math.min(1, (age - delay) / Math.max(1, effect.duration - delay)));
+        if (rp <= 0) continue;
+        ctx.globalAlpha = Math.max(0, (1 - rp) * (ring === 0 ? 0.9 : 0.48));
+        ctx.strokeStyle = ring === 0 ? white : (ring === 1 ? hot : mid);
+        ctx.lineWidth = Math.max(1, (effect.kind === 'station' ? 9 : 4) * s * (1 - rp * 0.65));
+        ctx.beginPath();
+        ctx.arc(0, 0, (18 + rp * (effect.kind === 'station' ? 310 : 88)) * s, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Core flash and rolling fireball.
+      const flash = Math.max(0, 1 - age / (effect.kind === 'station' ? 520 : 260));
+      const coreRadius = (effect.kind === 'station' ? 120 : 25) * s * (0.7 + p * 0.9);
+      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, coreRadius * 2.4);
+      glow.addColorStop(0, 'rgba(255,255,255,' + (0.9 * fade + flash * 0.8) + ')');
+      glow.addColorStop(0.18, hot);
+      glow.addColorStop(0.48, mid);
+      glow.addColorStop(0.76, deep);
+      glow.addColorStop(1, 'rgba(20,10,20,0)');
+      ctx.globalAlpha = fade;
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(0, 0, coreRadius * 2.4, 0, Math.PI * 2);
+      ctx.fill();
+      // Fast-moving sparks and slower, heavier debris fragments.
+      for (const particle of effect.particles) {
+        const travel = particle.speed * (age * 0.055) + particle.speed * age * age / (effect.duration * 900);
+        const px = Math.cos(particle.angle) * travel * 3.2;
+        const py = Math.sin(particle.angle) * travel * 3.2 + (age * age / 170000) * s;
+        ctx.globalAlpha = fade * (0.45 + (particle.speed / (5 * s)) * 0.5);
+        ctx.fillStyle = particle.speed > 3 * s ? white : (particle.speed > 2 * s ? hot : mid);
+        ctx.shadowColor = hot;
+        ctx.shadowBlur = 8 * s * fade;
+        ctx.beginPath();
+        ctx.arc(px, py, Math.max(0.7, particle.size * fade), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   scheduleFrontierGuardRespawn(npc) {
@@ -744,6 +845,10 @@ class PublicNpcManager {
     const mapWideAggro = !!this._mapAggroTargets[currentMapId];
 
     // Check if player is shooting the station boss
+    if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure <= 0 && !window.centralStationBoss._minispaceExplosionPlayed) {
+      window.centralStationBoss._minispaceExplosionPlayed = true;
+      this.addDestructionExplosion(window.centralStationBoss.x, window.centralStationBoss.y, 5, 'station', 'epic', 'central-station-boss');
+    }
     if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure > 0 && playerShip && !playerShip.docked) {
       let dist = Math.hypot(playerShip.x - window.centralStationBoss.x, playerShip.y - window.centralStationBoss.y);
       if (dist < 500) {
@@ -765,6 +870,10 @@ class PublicNpcManager {
       // Check if NPC was killed
       if (this.totalHp(ship) <= 0 && !npc.rewarded) {
         npc.rewarded = true;
+        if (!npc._explosionPlayed) {
+          npc._explosionPlayed = true;
+          this.addDestructionExplosion(ship.x, ship.y, this.pirateExplosionSize(npc), 'ship', npc.rarity, 'pirate-' + currentMapId + '-' + npc.id);
+        }
         npc.isAlive = false;
         if (npc.stationGuard) this.scheduleFrontierGuardRespawn(npc);
         // Arena pirates can be damaged by other NPCs as well as the player.
@@ -1016,5 +1125,6 @@ class PublicNpcManager {
         this.reportError(npc, 'draw', err);
       }
     });
+    this.drawDestructionEffects(ctx, currentMapId);
   }
 }
