@@ -1268,31 +1268,50 @@ class PublicNpcManager {
     if (isFrontier) this.updateFrontierRespawn(currentMapId);
   }
 
-  // Shield, armor and hull bars, each showing the ship's real current / max values
+  // Larger, high-contrast NPC health bars. They stay readable at different camera zoom levels.
   drawBars(ctx, npc) {
     const s = npc.ship;
-    const bw = 70, bh = 6;
-    const bx = s.x - 35;
+    const zoom = Math.max(0.45, Math.min(1.8, Number(window.cameraZoom) || 1));
+    const bw = 112 / zoom, bh = 9 / zoom, gap = 3.5 / zoom;
+    const bx = s.x - bw / 2;
+    const by = s.y + (Math.max(18, Number(s.radius) || 20)) + 8 / zoom;
     const rows = [
-      { label: 'SH', val: s.shield, max: s.maxShield, color: '#38bdf8', y: s.y - 40 },
-      { label: 'AR', val: s.armor, max: s.maxArmor, color: '#d29922', y: s.y - 32 },
-      { label: 'HL', val: s.structure, max: s.maxStructure, color: '#3fb950', y: s.y - 24 }
+      { label: 'SHIELD', val: s.shield, max: s.maxShield, color: '#38bdf8' },
+      { label: 'ARMOUR', val: s.armor, max: s.maxArmor, color: '#f0b84b' },
+      { label: 'HULL', val: s.structure, max: s.maxStructure, color: '#54d68b' }
     ];
     ctx.save();
-    ctx.textAlign = 'center';
-    for (const r of rows) {
-      if (!(r.max > 0)) continue;   // this hull has no such layer
-      const v = Math.max(0, r.val || 0);
-      const frac = Math.max(0, Math.min(1, v / r.max));
-      ctx.fillStyle = '#0d1117';
-      ctx.fillRect(bx - 1, r.y - 1, bw + 2, bh + 2);
-      ctx.fillStyle = '#21262d';
-      ctx.fillRect(bx, r.y, bw, bh);
-      ctx.fillStyle = r.color;
-      ctx.fillRect(bx, r.y, bw * frac, bh);
+    ctx.textBaseline = 'middle';
+    ctx.font = '900 ' + (8.5 / zoom) + 'px system-ui, sans-serif';
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (!(Number(r.max) > 0)) continue;
+      const v = Math.max(0, Number(r.val) || 0);
+      const max = Number(r.max);
+      const frac = Math.max(0, Math.min(1, v / max));
+      const y = by + i * (bh + gap);
+      ctx.fillStyle = 'rgba(2, 8, 15, 0.96)';
+      ctx.fillRect(bx - 2 / zoom, y - 2 / zoom, bw + 4 / zoom, bh + 4 / zoom);
+      ctx.fillStyle = '#17212b';
+      ctx.fillRect(bx, y, bw, bh);
+      if (frac > 0) {
+        ctx.fillStyle = r.color;
+        ctx.shadowColor = r.color;
+        ctx.shadowBlur = 5 / zoom;
+        ctx.fillRect(bx, y, bw * frac, bh);
+        ctx.shadowBlur = 0;
+      }
+      ctx.strokeStyle = frac <= 0.25 ? '#ff7777' : 'rgba(225,245,255,0.9)';
+      ctx.lineWidth = 1.15 / zoom;
+      ctx.strokeRect(bx, y, bw, bh);
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 6px "Courier New"';
-      ctx.fillText(r.label + ' ' + Math.ceil(v).toLocaleString() + ' / ' + Math.ceil(r.max).toLocaleString(), s.x, r.y + bh - 1);
+      ctx.textAlign = 'left';
+      ctx.shadowColor = '#000000';
+      ctx.shadowBlur = 3 / zoom;
+      ctx.fillText(r.label, bx + 4 / zoom, y + bh / 2);
+      ctx.textAlign = 'right';
+      ctx.fillText(Math.ceil(frac * 100) + '%', bx + bw - 4 / zoom, y + bh / 2);
+      ctx.shadowBlur = 0;
     }
     ctx.restore();
   }
