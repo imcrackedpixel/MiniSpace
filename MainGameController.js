@@ -418,6 +418,10 @@ function applyDesign(ship) {
     }
   }
   applyFittedModuleBonuses(ship);
+  // applyStats/design rebuilds the hull baseline; talents must be reapplied once
+  // against that baseline rather than repeatedly scaling already-scaled values.
+  ship._pilotTalentPath = null;
+  ship._pilotTalentMult = null;
 }
 
 function normalizeWrecks() {
@@ -1438,14 +1442,21 @@ window.spendTalent=spendTalent;
 function applyPilotTalents(){
  const s=playerShip;if(!s)return;const combat=['Combat Frigate','Carrier','Siege Cruiser','Siege Battleship','Siege Capital'].includes(s.className);const mining=['Mining Frigate','Mining Barge','Command Ship','Mining Capital'].includes(s.className);const path=combat?'combat':(mining?'mining':null);if(!path)return;
  const ranks=progressionData().spent[path]||{};const mult=(id,per)=>1+(Number(ranks[id])||0)*per;
- const prev=(s._pilotTalentPath===path&&s._pilotTalentMult)?s._pilotTalentMult:{speed:1,cargo:1,tank:1,dps:1};
+ const nextMult={speed:mult('speed',0.02),cargo:mult('cargo',0.05),tank:mult('tank',0.04),dps:mult('dps',0.03)};
+ const applied=s._pilotTalentMult;
+ // This function runs every game frame. Do not divide/multiply the same stats
+ // every frame: floating-point drift can make max HP flicker by one point.
+ if(s._pilotTalentPath===path&&applied&&
+   applied.speed===nextMult.speed&&applied.cargo===nextMult.cargo&&
+   applied.tank===nextMult.tank&&applied.dps===nextMult.dps)return;
+ const prev=(s._pilotTalentPath===path&&applied)?applied:{speed:1,cargo:1,tank:1,dps:1};
  if(s.maxSpeed)s.maxSpeed=s.maxSpeed/prev.speed*mult('speed',0.02);
  if(s.maxCargo)s.maxCargo=s.maxCargo/prev.cargo*mult('cargo',0.05);
  if(s.maxShield)s.maxShield=s.maxShield/prev.tank*mult('tank',0.04);
  if(s.maxArmor)s.maxArmor=s.maxArmor/prev.tank*mult('tank',0.04);
  if(s.missileDamage)s.missileDamage=s.missileDamage/prev.dps*mult('dps',0.03);
  if(Array.isArray(s.drones))s.drones.forEach(entry=>{const drone=entry&&(entry.ship||entry);if(drone&&drone.missileDamage){const old=drone._carrierTalentDps||1;drone.missileDamage=drone.missileDamage/old*mult('dps',0.03);drone._carrierTalentDps=mult('dps',0.03);}});
- s._pilotTalentPath=path;s._pilotTalentMult={speed:mult('speed',0.02),cargo:mult('cargo',0.05),tank:mult('tank',0.04),dps:mult('dps',0.03)};
+ s._pilotTalentPath=path;s._pilotTalentMult=nextMult;
 }
 window.getMissionRewardTalentMultiplier=function(){return 1+talentRank('combat','reward')*0.03;};
 window.getBuildCostTalentMultiplier=function(){return Math.max(0.8,1-talentRank('mining','costs')*0.02);};
