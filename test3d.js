@@ -62,12 +62,12 @@ const ship=new THREE.Group();world.add(ship);
 const hullMat=mat(0x8aaab6,.8,.28,0x123e46,.45),darkMat=mat(0x203b4b,.72,.3),glassMat=new THREE.MeshStandardMaterial({color:0x55d9e8,metalness:.6,roughness:.12,emissive:0x1aa8bd,emissiveIntensity:1.4});
 const hullShape=new THREE.Shape();hullShape.moveTo(0,150);hullShape.lineTo(52,-70);hullShape.lineTo(30,-118);hullShape.lineTo(0,-92);hullShape.lineTo(-30,-118);hullShape.lineTo(-52,-70);hullShape.closePath();
 const hullGeo=new THREE.ExtrudeGeometry(hullShape,{depth:24,bevelEnabled:true,bevelSegments:2,steps:1,bevelSize:8,bevelThickness:8});
-hullGeo.rotateX(Math.PI/2);hullGeo.translate(0,18,0);
+hullGeo.rotateX(Math.PI/2);hullGeo.rotateY(Math.PI);hullGeo.translate(0,18,0);
 const hull=new THREE.Mesh(hullGeo,hullMat);hull.castShadow=true;ship.add(hull);
-const cockpit=new THREE.Mesh(new THREE.SphereGeometry(24,16,12),glassMat);cockpit.scale.set(.75,.5,1.5);cockpit.position.set(0,38,45);ship.add(cockpit);
-for(const side of [-1,1]){const wing=new THREE.Mesh(new THREE.BoxGeometry(20,12,110),darkMat);wing.position.set(side*48,6,-10);wing.rotation.y=side*.12;wing.castShadow=true;ship.add(wing);const engine=new THREE.Mesh(new THREE.CylinderGeometry(10,14,55,12),mat(0x385b68,.6,.35,0x18a8bd,1.2));engine.rotation.x=Math.PI/2;engine.position.set(side*28,12,-90);ship.add(engine);const flame=new THREE.Mesh(new THREE.ConeGeometry(10,65,12),new THREE.MeshBasicMaterial({color:0x36d9ff,transparent:true,opacity:.75}));flame.rotation.x=-Math.PI/2;flame.position.set(side*28,12,-148);flame.name='engineFlame';ship.add(flame)}
+const cockpit=new THREE.Mesh(new THREE.SphereGeometry(24,16,12),glassMat);cockpit.scale.set(.75,.5,1.5);cockpit.position.set(0,38,-45);ship.add(cockpit);
+for(const side of [-1,1]){const wing=new THREE.Mesh(new THREE.BoxGeometry(20,12,110),darkMat);wing.position.set(side*48,6,10);wing.rotation.y=side*.12;wing.castShadow=true;ship.add(wing);const engine=new THREE.Mesh(new THREE.CylinderGeometry(10,14,55,12),mat(0x385b68,.6,.35,0x18a8bd,1.2));engine.rotation.x=Math.PI/2;engine.position.set(side*28,12,90);ship.add(engine);const flame=new THREE.Mesh(new THREE.ConeGeometry(10,65,12),new THREE.MeshBasicMaterial({color:0x36d9ff,transparent:true,opacity:.75}));flame.rotation.x=-Math.PI/2;flame.position.set(side*28,12,148);flame.name='engineFlame';ship.add(flame)}
 ship.position.set(0,35,350);
-const shipLight=new THREE.PointLight(0x37d9ff,32,360);shipLight.position.set(0,30,-90);ship.add(shipLight);
+const shipLight=new THREE.PointLight(0x37d9ff,32,360);shipLight.position.set(0,30,90);ship.add(shipLight);
 
 const target=new THREE.Vector3(0,0,0);let yaw=0, pitch=.48, zoom=1200, boost=false;
 let keys={},touch={x:0,y:0};let velocity=new THREE.Vector3();
