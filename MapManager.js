@@ -402,7 +402,7 @@ class MapManager {
   for(let attempt=0;attempt<80&&!spawnOk;attempt++){
     const x=1200+Math.random()*6600,y=1200+Math.random()*6600;
     const clearOfStation=Math.hypot(x-cx,y-cy)>1050;
-    const clearOfReturn=Math.hypot(x-this.frontierReturnGate.x,y-this.frontierReturnGate.y)>750;
+    const clearOfReturn=!this.frontierReturnGate||Math.hypot(x-this.frontierReturnGate.x,y-this.frontierReturnGate.y)>750;
     const clearOfGates=this.frontierGates.every(g=>Math.hypot(x-g.x,y-g.y)>700);
     if(clearOfStation&&clearOfReturn&&clearOfGates){spawnX=x;spawnY=y;spawnOk=true;}
   }
