@@ -4317,7 +4317,7 @@ if (
     asteroidBelt = world.asteroidBelt;
     debrisField = world.debrisField;
 
-    playerShip.x = hubReturnGate.x + 1080;
+    playerShip.x = hubReturnGate.x + 180;
     playerShip.y = hubReturnGate.y;
     playerShip.vx = 0;
     playerShip.vy = 0;
