@@ -4316,6 +4316,8 @@ if (
   };
 
   window.jumpToTradeHub = function () {
+    // Play the same jump tunnel as other tears when entering the Trade Hub.
+    if (typeof window.startMiniSpaceJumpEffect === 'function') window.startMiniSpaceJumpEffect();
     const hub = window.MINISPACE_TRADE_HUB;
     mapManager.currentMapId = hub.id;
 
