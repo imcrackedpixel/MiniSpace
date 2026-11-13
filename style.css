@@ -814,13 +814,13 @@ html:fullscreen body, html:-webkit-full-screen body {
 .universe-region{position:absolute;z-index:1;pointer-events:none;display:flex;align-items:flex-start;padding:5px 8px;border:1px solid rgba(104,157,183,.38);border-radius:9px;background:rgba(10,27,40,.35);color:#a9c9d8;font-size:10px;font-weight:900;letter-spacing:1.5px;text-shadow:0 1px 4px #000}
 .universe-region-top{left:4%;top:3%;width:92%;height:35%;border-top:2px solid #39758a}
 .universe-region-bottom{left:4%;bottom:3%;width:92%;height:35%;border-bottom:2px solid #39758a}
-.universe-region-left{left:2%;top:39%;width:32%;height:23%;border-left:2px solid #39758a}
-.universe-region-right{right:2%;top:39%;width:32%;height:23%;border-right:2px solid #39758a}
+.universe-region-left{left:1%;top:24%;width:47%;height:52%;border-left:2px solid #39758a}
+.universe-region-right{right:1%;top:24%;width:47%;height:52%;border-right:2px solid #39758a}
 .universe-chart-title{background:rgba(3,10,18,.82);padding:4px 7px;border-radius:5px}
 .universe-chart-key{background:rgba(3,10,18,.82);padding:4px 7px;border-radius:5px}
 @media(max-width:520px){.universe-chart-scroll{padding-bottom:5px}.universe-starchart{min-width:760px;min-height:480px;aspect-ratio:1.58}.universe-region{font-size:10px}.universe-node span{font-size:10px!important}}
 
-@media(min-width:521px){.universe-region-left,.universe-region-right{top:30%;height:40%}}
+@media(min-width:521px){.universe-region-left,.universe-region-right{top:22%;height:56%}}
 
 
 /* Interactive universe chart: drag to pan, pinch or wheel to zoom. */
