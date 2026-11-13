@@ -869,3 +869,9 @@ html:fullscreen body, html:-webkit-full-screen body {
 @media(max-width:520px){
   .universe-chart-scroll{height:54vh;min-height:280px}
 }
+
+#online-content{max-height:calc(48vh - 38px);overflow-y:auto;overscroll-behavior:contain}
+#online-team-window .online-actions{display:flex;gap:4px;margin-top:6px}
+#online-team-window input{min-width:0;flex:1}
+#online-team-window button{flex-shrink:0}
+@media(max-width:700px){#online-content{max-height:calc(35vh - 38px)}}
