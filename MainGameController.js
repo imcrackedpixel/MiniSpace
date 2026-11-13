@@ -1347,10 +1347,15 @@ window.jumpToPrivateSec = function() {
 function emptyCargoIntoStation() {
   if (!playerShip) return;
   const cargoMap = ensureOreCargo(playerShip), oreKeys = Object.keys(cargoMap);
+  const sellLoot=!!(autoplayManager&&autoplayManager.isAutoplay&&playerData.autoplaySettings&&playerData.autoplaySettings.loot==='sell');
+  let soldValue=0;
   for (const key of oreKeys) {
     const amount = Math.floor(Number(cargoMap[key]) || 0);
-    if (amount > 0 && Object.prototype.hasOwnProperty.call(playerData.stationOre, key)) playerData.stationOre[key] = (playerData.stationOre[key] || 0) + amount;
+    if(amount<=0)continue;
+    if(sellLoot){soldValue+=amount*(itemPrices[key]||0);}
+    else if(Object.prototype.hasOwnProperty.call(playerData.stationOre,key))playerData.stationOre[key]=(playerData.stationOre[key]||0)+amount;
   }
+  if(soldValue>0){playerData.isk=(Number(playerData.isk)||0)+soldValue;window.showCorpNotification('Autoplay sold ore for '+fmtISK(soldValue)+' Scrap Metals.');}
   const modules = ensureModuleCargo(playerShip), moduleCount = modules.length;
   if (!Array.isArray(playerData.moduleDrops)) playerData.moduleDrops = [];
   if (moduleCount) playerData.moduleDrops.push.apply(playerData.moduleDrops, modules.splice(0));
@@ -1444,7 +1449,7 @@ window.toggleOffensiveMode = function() {
 };
 window.toggleAutoplay = function() {
   if (!autoplayManager) return;
-  if(mapManager&&String(mapManager.currentMapId).indexOf('frontier_')===0&&!autoplayManager.isAutoplay){window.showCorpNotification('Autoplay is disabled in frontier systems. Manual flight only.');return;}
+  autoplayManager.settings=playerData.autoplaySettings||{};
   autoplayManager.toggle();
   syncAutoplayButton();
 };
@@ -3302,18 +3307,46 @@ function syncAutoplayButton() {
 
 function ensureAutoplayButton() {
   if (document.getElementById('autoplay-btn')) return;
-  const btn = document.createElement('button');
-  btn.id = 'autoplay-btn';
-  btn.innerText = 'AUTO: OFF';
-  btn.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:5000;display:none;' +
-    'background:#21262d;color:#d3dade;border:1px solid #3a525c;border-radius:4px;' +
-    'padding:10px 14px;font-family:"Courier New", monospace;font-weight:bold;cursor:pointer;';
-  btn.addEventListener('click', function (e) {
-    e.stopPropagation();
-    window.toggleAutoplay();
-  });
+  const btn=document.createElement('button');
+  btn.id='autoplay-btn';btn.innerText='AUTOPLAY: OFF';
+  btn.style.cssText='position:fixed;right:12px;bottom:12px;z-index:5000;display:none;background:#21262d;color:#d3dade;border:1px solid #3a525c;border-radius:6px;padding:10px 14px;font-family:"Courier New",monospace;font-weight:bold;cursor:pointer;';
+  btn.addEventListener('click',function(e){e.stopPropagation();if(autoplayManager&&autoplayManager.isAutoplay){window.toggleAutoplay();return;}window.openAutoplaySettings();});
   document.body.appendChild(btn);
+  const stationBtn=document.getElementById('station-autoplay-btn');
+  if(stationBtn)stationBtn.addEventListener('click',function(e){e.stopPropagation();if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();else window.openAutoplaySettings();});
 }
+window.openAutoplaySettings=function(){
+  if(!autoplayManager)return;
+  let settings=playerData.autoplaySettings||(playerData.autoplaySettings={});
+  if(!settings.frontier)settings.frontier={mining:'home',exploration:'home',missions:'home'};
+  const modalId='minispace-autoplay-modal';
+  let modal=document.getElementById(modalId);
+  if(!modal){modal=document.createElement('div');modal.id=modalId;modal.style.cssText='position:fixed;inset:0;z-index:12000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:14px;';document.body.appendChild(modal);}
+  const selectStyle='width:100%;padding:9px;background:#111820;color:#e6edf3;border:1px solid #40515d;border-radius:6px;margin:5px 0 10px;';
+  const field=(label,id,value,options)=>'<label style="display:block;color:#c9d1d9;font-size:12px;font-weight:bold;">'+label+'</label><select id="'+id+'" style="'+selectStyle+'">'+options.map(o=>'<option value="'+o[0]+'" '+(value===o[0]?'selected':'')+'>'+o[1]+'</option>').join('')+'</select>';
+  modal.innerHTML='<div style="width:min(440px,100%);max-height:90vh;overflow:auto;background:#151c24;border:1px solid #40515d;border-radius:12px;padding:18px;color:#e6edf3;font-family:Arial,sans-serif;box-shadow:0 18px 60px #000;">'+
+  '<div style="display:flex;justify-content:space-between;align-items:center;"><b style="font-size:19px;">AUTOPLAY SETTINGS</b><button id="autoplay-close" style="background:#303b46;color:#fff;border:0;border-radius:6px;padding:7px 10px;">✕</button></div>'+
+  '<p style="color:#93a4b2;font-size:12px;margin:7px 0 14px;">Choose what your pilot does automatically. The active ship must match the selected activity.</p>'+
+  field('ACTIVITY','ap-activity',settings.activity||'auto',[['auto','Auto — use current ship'],['mining','Mining'],['missions','Missions'],['exploration','Exploration']])+
+  '<div style="border-top:1px solid #34414c;padding-top:10px;margin-top:2px;"><b>FRONTIER SPACE FILTERS</b><p style="color:#93a4b2;font-size:11px;margin:4px 0 10px;">Choose where each activity is allowed. Frontier-only requires you to travel there through a gate.</p>'+
+  field('MINING','ap-frontier-mining',settings.frontier.mining,[['home','Home only'],['frontier','Frontier only'],['both','Home + Frontier']])+
+  field('EXPLORATION / SCANNING','ap-frontier-exploration',settings.frontier.exploration,[['home','Home only'],['frontier','Frontier only'],['both','Home + Frontier']])+
+  field('MISSIONS','ap-frontier-missions',settings.frontier.missions,[['home','Home only'],['frontier','Frontier only'],['both','Home + Frontier']])+'</div>'+
+  '<div style="border-top:1px solid #34414c;padding-top:10px;"><b>AFTER DEATH</b><label style="display:flex;gap:8px;align-items:center;margin:10px 0;color:#c9d1d9;font-size:13px;"><input id="ap-rebuild" type="checkbox" '+(settings.autoRebuild?'checked':'')+'> Automatically rebuild the lost ship if materials are available and refit best stored modules</label></div>'+
+  field('LOOT','ap-loot',settings.loot||'keep',[['keep','Keep loot in station hangar'],['sell','Sell ore automatically for Scrap Metals']])+
+  '<p style="font-size:10px;color:#81909d;margin-top:-5px;">Selling converts ore cargo at current item prices. Module drops are kept in your hangar.</p>'+
+  '<div style="display:flex;gap:8px;margin-top:12px;"><button id="autoplay-save" style="flex:1;background:#16834a;color:white;border:0;border-radius:7px;padding:11px;font-weight:bold;">SAVE & START</button><button id="autoplay-cancel" style="background:#303b46;color:white;border:0;border-radius:7px;padding:11px;">CANCEL</button></div></div>';
+  const close=()=>{modal.style.display='none';};
+  modal.querySelector('#autoplay-close').onclick=close;modal.querySelector('#autoplay-cancel').onclick=close;
+  modal.querySelector('#autoplay-save').onclick=function(){
+    settings.activity=modal.querySelector('#ap-activity').value;
+    settings.frontier={mining:modal.querySelector('#ap-frontier-mining').value,exploration:modal.querySelector('#ap-frontier-exploration').value,missions:modal.querySelector('#ap-frontier-missions').value};
+    settings.autoRebuild=modal.querySelector('#ap-rebuild').checked;
+    settings.loot=modal.querySelector('#ap-loot').value;
+    playerData.autoplaySettings=settings;saveGameSession();close();window.toggleAutoplay();
+  };
+  modal.style.display='flex';
+};
 
 function updateHUD() {
   const s = playerShip;
@@ -4075,7 +4108,20 @@ window.handlePlayerDeath = function() {
 
   if (playerShip) playerShip.moduleLevels = {};
 
-  playerShip = sessionManager.setShipClass(playerShip, 'Mining Frigate', 200, 3.4);
+  let autoRebuilt=false;
+  const autoSettings=playerData.autoplaySettings||{};
+  if(autoSettings.autoRebuild&&destroyedUnlockKey){
+    const recipe=recipeFor(destroyedUnlockKey);
+    if(recipe&&recipeShortfall(recipe).length===0){
+      consumeRecipe(recipe);
+      if(!playerData.unlockedShips)playerData.unlockedShips={};
+      playerData.unlockedShips[destroyedUnlockKey]=true;
+      if(!Array.isArray(playerData.shipsOwned))playerData.shipsOwned=[];
+      if(!playerData.shipsOwned.includes(destroyed))playerData.shipsOwned.push(destroyed);
+      autoRebuilt=true;
+    }
+  }
+  playerShip = sessionManager.setShipClass(playerShip, autoRebuilt?destroyed:'Mining Frigate', 200, 3.4);
   applyDesign(playerShip);
   playerShip.cargo = 0;
   playerShip.cargoByOre = {};
@@ -4086,6 +4132,7 @@ window.handlePlayerDeath = function() {
 
   window.jumpToPrivateSec();
   performDock();
+  if(autoRebuilt){if(typeof window.quickEquipBestShips==='function')window.quickEquipBestShips();window.showCorpNotification('Autoplay rebuilt '+destroyed+' and refitted the best stored modules.');}
 
   updateMissionsUI();
   saveGameSession();
