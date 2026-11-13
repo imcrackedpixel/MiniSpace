@@ -177,7 +177,7 @@
       // The station boss is the last target: only when nothing else is in range.
       // NPC pirates never shoot it (it is their own base).
       const boss = window.centralStationBoss;
-      if (!best && boss && boss.structure > 0 && !this.ignoreStationBoss && !this.isPirate) {
+      if (!best && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && boss && boss.structure > 0 && !this.ignoreStationBoss && !this.isPirate) {
         if (Math.hypot(boss.x - this.x, boss.y - this.y) <= range) best = boss;
       }
       return best;
