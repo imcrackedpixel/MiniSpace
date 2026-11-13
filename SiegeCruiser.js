@@ -135,7 +135,7 @@
     // Used by ShieldRegen.js: fraction of the out-of-combat recharge rate applied while in combat.
     combatRegenFactor() {
       const f = RECHARGE_START + RECHARGE_STEP * (this.level('shieldRecharge') - 1);
-      return Math.min(RECHARGE_CAP, f);
+      return Math.min(RECHARGE_CAP, f * (this._fittedShieldRechargeMultiplier || 1));
     }
 
     upgradeModule(modKey) {
@@ -147,7 +147,8 @@
 
     // Shield, then armor, then structure. Resistance applies to every hit.
     takeDamage(raw) {
-      let remaining = raw * (1 - this.resist);
+      const fittedResist = Math.min(0.75, this.resist * (this._fittedResistanceMultiplier || 1));
+      let remaining = raw * (1 - fittedResist);
       if (this.shield > 0) {
         const a = Math.min(this.shield, remaining);
         this.shield -= a;
