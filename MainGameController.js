@@ -788,7 +788,7 @@ function emptyCargoIntoStation() {
 var autoUndockTimer = 0;
 function performDock(silent) {
   if (!playerShip) return;
-  if (isFrontierSpace() && publicNpcManager && publicNpcManager.hasLivingStationGuards(mapManager.currentMapId)) { isDockingRequested = false; targetMovePos = null; window.showCorpNotification('Station locked down · destroy all station guards before docking.'); return; }
+  if (isFrontierSpace()) { isDockingRequested = false; targetMovePos = null; window.showCorpNotification(window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.structure <= 0 ? 'Station destroyed · docking unavailable. Use a Universe Tear to leave.' : 'Hostile stronghold · destroy the station before leaving it behind.'); return; }
   playerShip.docked = true;
   playerShip.vx = 0;
   playerShip.vy = 0;
@@ -833,7 +833,7 @@ window.toggleDock = function() {
 window.requestDock = function() {
   if (!playerShip || playerShip.docked) return;
   if (inPublicSpace() && !isFrontierSpace()) { window.showCorpNotification('No station in Public Space - use your sector gate to return.'); return; }
-  if (isFrontierSpace() && publicNpcManager && publicNpcManager.hasLivingStationGuards(mapManager.currentMapId)) { window.showCorpNotification('Station locked down · destroy all station guards before docking.'); return; }
+  if (isFrontierSpace()) { window.showCorpNotification(window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.structure <= 0 ? 'Station destroyed · docking unavailable. Use a Universe Tear to leave.' : 'Hostile stronghold · destroy the station before leaving it behind.'); return; }
   if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
   isDockingRequested = true;
 };
@@ -2713,7 +2713,7 @@ function manualControl() {
   }
 
   if (isDockingRequested && (!pub || isFrontierSpace()) && mainStation) {
-    if (isFrontierSpace() && publicNpcManager && publicNpcManager.hasLivingStationGuards(mapManager.currentMapId)) { isDockingRequested = false; targetMovePos = null; window.showCorpNotification('Station locked down · destroy all station guards before docking.'); return; }
+    if (isFrontierSpace()) { isDockingRequested = false; targetMovePos = null; window.showCorpNotification(window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.structure <= 0 ? 'Station destroyed · docking unavailable. Use a Universe Tear to leave.' : 'Hostile stronghold · destroy the station before leaving it behind.'); return; }
     targetMovePos = { x: mainStation.x, y: mainStation.y };
     if (Math.hypot(ship.x - mainStation.x, ship.y - mainStation.y) < 150) {
       performDock();
@@ -2740,12 +2740,14 @@ function manualControl() {
     const list = isExplorerClass(cls) ? (debrisField ? debrisField.getEntities() : []) : (asteroidBelt ? asteroidBelt.entities : []);
     tgt = isExplorerClass(cls) ? lockedTarget : (lockedTarget || nearestIn(list, ship.x, ship.y, 3000));
   }
-  const enemies = playerData.offensiveMode && pub
+  const enemies = playerData.offensiveMode && (pub || isFrontierSpace())
     ? (publicNpcManager && publicNpcManager.publicNpcMiners
       ? publicNpcManager.publicNpcMiners.filter(function(n) {
           return n && n.isAlive && n.ship && (n.mapId ? n.mapId === mapManager.currentMapId : mapManager.currentMapId === 'public_space');
         }).map(function(n) { return n.ship; })
-      : []).concat(getRemotePvpTargets())
+      : []).concat(getRemotePvpTargets(),
+        isFrontierSpace() && window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.structure > 0
+          ? [window.MINISPACE_FRONTIER_STATION] : [])
     : [];
   if (playerData.offensiveMode && inMissionSpace() && missionManager) enemies.push.apply(enemies, missionManager.getLivingEnemies());
   ship.ignoreStationBoss = !playerData.offensiveMode;
