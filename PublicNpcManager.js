@@ -259,7 +259,7 @@ class PublicNpcManager {
     if (!cfg) return false;
     this.addPirate(cfg, def.x, def.y, def.id, {
       mapId: system.id, stationGuard: true, role: 'patrol',
-      hpScale: def.hpScale, dmg: def.dmg, elite: def.elite
+      hpScale: def.hpScale, dmg: def.dmg, elite: def.elite, rarity: def.rarity
     });
     return true;
   }
