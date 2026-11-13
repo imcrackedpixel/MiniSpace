@@ -6,44 +6,80 @@ const crypto = require('crypto');
 const PORT = Number(process.env.PORT || 8080);
 const MAX_PUBLIC_PLAYERS = 20;
 const RECONNECT_GRACE_MS = 60000;
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://fatejbbzgfeeebzkgcao.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || 'sb_publishable_zfoeW5SNimEZynC-bobT4g_5sGyOtfX';
+const DEFAULT_SUPABASE_URL = 'https://fatejbbzgfeeebzkgcao.supabase.co';
+const DEFAULT_SUPABASE_KEY = 'sb_publishable_zfoeW5SNimEZynC-bobT4g_5sGyOtfX';
+const SUPABASE_URL = process.env.SUPABASE_URL || DEFAULT_SUPABASE_URL;
+const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
 
 async function verifyPilotToken(accessToken) {
   if (typeof accessToken !== 'string' || accessToken.length < 40 || accessToken.length > 5000) return null;
-  try {
-    const response = await fetch(SUPABASE_URL + '/auth/v1/user', {
-      method: 'GET', headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + accessToken }
-    });
-    if (!response.ok) return null;
-    const user = await response.json();
-    if (!user || typeof user.id !== 'string') return null;
-    let isGM = false;
-    try {
-      const gmResponse = await fetch(SUPABASE_URL + '/rest/v1/rpc/gm_is_authorized', {
-        method: 'POST',
-        headers: { apikey: SUPABASE_KEY, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
-        body: '{}'
-      });
-      if (gmResponse.ok) isGM = (await gmResponse.json()) === true;
-    } catch (error) {
-      console.warn('GM permission check unavailable:', error.message || error);
+
+  // Render environment values can be stale or copied from another Supabase project.
+  // Try the configured pair first, then the exact public project credentials used
+  // by Auth.js. Never log or expose the pilot's access token.
+  const urls = [...new Set([SUPABASE_URL, DEFAULT_SUPABASE_URL])];
+  const keys = [...new Set([SUPABASE_KEY, DEFAULT_SUPABASE_KEY])];
+  let user = null;
+  let verifiedUrl = null;
+  let verifiedKey = null;
+
+  for (const url of urls) {
+    for (const key of keys) {
+      try {
+        const response = await fetch(url + '/auth/v1/user', {
+          method: 'GET',
+          headers: { apikey: key, Authorization: 'Bearer ' + accessToken }
+        });
+        if (!response.ok) continue;
+        const candidate = await response.json();
+        if (candidate && typeof candidate.id === 'string') {
+          user = candidate;
+          verifiedUrl = url;
+          verifiedKey = key;
+          break;
+        }
+      } catch (error) {
+        console.warn('Pilot authentication endpoint unavailable:', error.message || error);
+      }
     }
-    let banned = false;
-    let banReason = '';
-    try {
-      const statusResponse = await fetch(SUPABASE_URL + '/rest/v1/rpc/gm_admin_account_status', {
-        method:'POST',headers:{apikey:SUPABASE_KEY,Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:'{}'
-      });
-      if(statusResponse.ok){const status=await statusResponse.json();banned=!!(status&&status.banned);banReason=String(status&&status.reason||'');}
-    } catch (error) {
-      console.warn('Ban status check unavailable:',error.message||error);
-    }
-    return { accountId: user.id, isGM, banned, banReason };
-  } catch (error) {
-    console.warn('Pilot authentication check failed:', error.message || error);
+    if (user) break;
+  }
+
+  if (!user) {
+    console.warn('Pilot authentication failed: no configured or built-in Supabase credential pair accepted the session.');
     return null;
   }
+
+  let isGM = false;
+  try {
+    const gmResponse = await fetch(verifiedUrl + '/rest/v1/rpc/gm_is_authorized', {
+      method: 'POST',
+      headers: { apikey: verifiedKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    if (gmResponse.ok) isGM = (await gmResponse.json()) === true;
+  } catch (error) {
+    console.warn('GM permission check unavailable:', error.message || error);
+  }
+
+  let banned = false;
+  let banReason = '';
+  try {
+    const statusResponse = await fetch(verifiedUrl + '/rest/v1/rpc/gm_admin_account_status', {
+      method: 'POST',
+      headers: { apikey: verifiedKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+      body: '{}'
+    });
+    if (statusResponse.ok) {
+      const status = await statusResponse.json();
+      banned = !!(status && status.banned);
+      banReason = String(status && status.reason || '');
+    }
+  } catch (error) {
+    console.warn('Ban status check unavailable:', error.message || error);
+  }
+
+  return { accountId: user.id, isGM, banned, banReason };
 }
 
 async function hasCurrentGM(player) {
