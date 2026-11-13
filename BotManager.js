@@ -126,6 +126,142 @@ class BotManager {
     return this.addBot('Exploration Frigate');
   }
 
+  dispatchExplorerToFleet(sighting, system) {
+    const bot = this.bots.find(entry => isExplorerBot(entry) && entry.ship);
+    if (!bot) return { success: false, message: 'Your Corp Explorer is unavailable.' };
+    if (bot.explorerMission) return { success: false, message: 'Your Corp Explorer is already on a hot-drop mission.' };
+    const route = typeof window.findFrontierRoute === 'function'
+      ? window.findFrontierRoute('private_highsec', system && system.id)
+      : null;
+    if (!system || !route || route.length < 2) return { success: false, message: 'No safe gate route to that mining fleet.' };
+    const ship = bot.ship;
+    if (ship.isPanicButtonActive && typeof ship.togglePanicButton === 'function') ship.togglePanicButton();
+    if (!ship.isCloaked && typeof ship.toggleCloak === 'function') ship.toggleCloak();
+    ship.docked = false;
+    ship.vx = 0; ship.vy = 0;
+    bot.target = null;
+    bot.mineTimer = 0;
+    bot.explorerMapId = 'private_highsec';
+    bot.explorerMission = {
+      sightingId: sighting.id,
+      targetSystemId: system.id,
+      targetX: Number(sighting.x) || 4500,
+      targetY: Number(sighting.y) || 4500,
+      route: route.slice(),
+      routeIndex: 0,
+      phase: 'outbound',
+      panicUntil: 0,
+      startedAt: Date.now()
+    };
+    if (typeof window.showCorpNotification === 'function') {
+      window.showCorpNotification('CORP EXPLORER DISPATCHED · cloaked gate transit to ' + system.name + '.');
+    }
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    return { success: true, bot: bot };
+  }
+
+  frontierGatePosition(systemId, destinationId) {
+    if (systemId === 'private_highsec') return destinationId === ((window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.links.includes('private_highsec')) || {}).id
+      ? { x: 500, y: 500 } : null;
+    const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
+    if (!system) return null;
+    let seed = 0;
+    for (let k = 0; k < system.id.length; k++) seed = (seed * 33 + system.id.charCodeAt(k)) >>> 0;
+    let rng = seed || 1;
+    const random = () => { rng = (rng * 1664525 + 1013904223) >>> 0; return rng / 4294967296; };
+    const hasHomeExit = system.id === ((window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.links.includes('private_highsec')) || {}).id;
+    const destinations = system.links.filter(id => id !== 'private_highsec' || hasHomeExit);
+    const rotation = random() * Math.PI * 2;
+    const gateRadius = 2750 + random() * 550;
+    for (let i = 0; i < destinations.length; i++) {
+      const id = destinations[i];
+      const angle = rotation + (2 * Math.PI * (i + 1) / (destinations.length + 1)) + (random() - 0.5) * 0.16;
+      const distance = gateRadius + (random() - 0.5) * 420;
+      if (id === destinationId) return { x: 4500 + Math.cos(angle) * distance, y: 4500 + Math.sin(angle) * distance };
+    }
+    return null;
+  }
+
+  updateExplorerDispatches() {
+    const moveTo = (ship, point) => {
+      ship.docked = false;
+      ship.update(point, null, false);
+    };
+    this.bots.forEach(bot => {
+      const mission = bot && bot.explorerMission;
+      const ship = bot && bot.ship;
+      if (!mission || !ship || !isExplorerBot(bot)) return;
+      const route = Array.isArray(mission.route) ? mission.route : [];
+      const currentId = bot.explorerMapId || 'private_highsec';
+      const phase = mission.phase;
+      if (phase === 'panic') {
+        ship.vx = 0; ship.vy = 0;
+        if (typeof ship.toggleCloak === 'function' && ship.isCloaked) ship.toggleCloak();
+        if (!ship.isPanicButtonActive && typeof ship.togglePanicButton === 'function') ship.togglePanicButton();
+        if (Date.now() >= mission.panicUntil) {
+          if (ship.isPanicButtonActive && typeof ship.togglePanicButton === 'function') ship.togglePanicButton();
+          mission.phase = 'return';
+          mission.route = route.slice().reverse();
+          mission.routeIndex = 0;
+          if (typeof ship.toggleCloak === 'function' && !ship.isCloaked) ship.toggleCloak();
+          if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER · Panic Button complete · cloaking for return transit.');
+          if (typeof window.saveGameSession === 'function') window.saveGameSession();
+        }
+        return;
+      }
+      if (phase === 'outbound' && currentId === mission.targetSystemId) {
+        const target = { x: mission.targetX, y: mission.targetY };
+        const distance = Math.hypot(target.x - ship.x, target.y - ship.y);
+        if (distance > 95) { moveTo(ship, target); return; }
+        ship.x = target.x; ship.y = target.y; ship.vx = 0; ship.vy = 0;
+        if (typeof ship.toggleCloak === 'function' && ship.isCloaked) ship.toggleCloak();
+        if (typeof ship.togglePanicButton === 'function' && !ship.isPanicButtonActive) ship.togglePanicButton();
+        mission.phase = 'panic';
+        mission.panicUntil = Date.now() + 10000;
+        if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER ON STATION · Panic Button active for 10 seconds.');
+        return;
+      }
+      const nextIndex = Number(mission.routeIndex) + 1;
+      const nextId = route[nextIndex];
+      if (!nextId) {
+        if (currentId === 'private_highsec') {
+          if (ship.isPanicButtonActive && typeof ship.togglePanicButton === 'function') ship.togglePanicButton();
+          if (ship.isCloaked && typeof ship.toggleCloak === 'function') ship.toggleCloak();
+          const distanceHome = Math.hypot(this.station.x - ship.x, this.station.y - ship.y);
+          if (distanceHome > 85) { moveTo(ship, this.station); return; }
+          ship.x = this.station.x; ship.y = this.station.y; ship.vx = 0; ship.vy = 0; ship.docked = true;
+          bot.explorerMission = null;
+          bot.explorerMapId = 'private_highsec';
+          bot.target = null;
+          if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER RETURNED HOME · hot-drop mission complete.');
+          if (typeof window.saveGameSession === 'function') window.saveGameSession();
+        }
+        return;
+      }
+      const gate = this.frontierGatePosition(currentId, nextId);
+      if (!gate) {
+        if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER route interrupted · returning home on the next available route.');
+        mission.phase = 'return';
+        mission.route = route.slice(0, Number(mission.routeIndex) + 1).reverse();
+        mission.routeIndex = 0;
+        return;
+      }
+      const distance = Math.hypot(gate.x - ship.x, gate.y - ship.y);
+      if (distance > 82) { moveTo(ship, gate); return; }
+      const previousId = currentId;
+      bot.explorerMapId = nextId;
+      mission.routeIndex = nextIndex;
+      if (nextId === 'private_highsec') {
+        ship.x = 500; ship.y = 500;
+      } else {
+        const arrival = this.frontierGatePosition(nextId, previousId) || { x: 4500, y: 4500 };
+        ship.x = arrival.x; ship.y = arrival.y;
+      }
+      ship.vx = 0; ship.vy = 0;
+      if (typeof ship.toggleCloak === 'function' && !ship.isCloaked) ship.toggleCloak();
+    });
+  }
+
   addTransportBot() {
     return this.addBot('Transport Capital');
   }
@@ -197,7 +333,10 @@ class BotManager {
         playerSaleQueue: Array.isArray(b.playerSaleQueue) ? JSON.parse(JSON.stringify(b.playerSaleQueue)) : [],
         playerSaleIdleSince: Number(b.playerSaleIdleSince) || 0,
         transportLevel: b.transportLevel || null,
-        transportBuildQueue: Array.isArray(b.transportBuildQueue) ? JSON.parse(JSON.stringify(b.transportBuildQueue)) : []
+        transportBuildQueue: Array.isArray(b.transportBuildQueue) ? JSON.parse(JSON.stringify(b.transportBuildQueue)) : [],
+        x: Number(ship.x) || 0, y: Number(ship.y) || 0, angle: Number(ship.angle) || 0,
+        isCloaked: !!ship.isCloaked, explorerMapId: b.explorerMapId || null,
+        explorerMission: b.explorerMission ? JSON.parse(JSON.stringify(b.explorerMission)) : null
       };
     });
   }
@@ -234,6 +373,8 @@ class BotManager {
       bot.playerSaleIdleSince = Number(s.playerSaleIdleSince) || 0;
       bot.transportLevel = String(s.className).toLowerCase().includes('transport') ? Math.max(1, Math.floor(Number(s.transportLevel) || 1)) : null;
       bot.transportBuildQueue = Array.isArray(s.transportBuildQueue) ? JSON.parse(JSON.stringify(s.transportBuildQueue)) : [];
+      bot.explorerMapId = s.explorerMapId || null;
+      bot.explorerMission = s.explorerMission ? JSON.parse(JSON.stringify(s.explorerMission)) : null;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
@@ -245,6 +386,10 @@ class BotManager {
       if (ship) {
         if (ship.className === 'Transport Capital') ship.maxCargo = 10000 + (10000 * (bot.transportLevel || 1));
         ship.cargo = s.cargo || 0;
+        if (Number.isFinite(Number(s.x))) ship.x = Number(s.x);
+        if (Number.isFinite(Number(s.y))) ship.y = Number(s.y);
+        if (Number.isFinite(Number(s.angle))) ship.angle = Number(s.angle);
+        if (s.isCloaked && typeof ship.toggleCloak === 'function' && !ship.isCloaked) ship.toggleCloak();
         if (s.oreType) ship.oreType = s.oreType;
         ship.cargoByOre = s.cargoByOre && typeof s.cargoByOre === 'object' ? Object.assign({}, s.cargoByOre) : null;
 
@@ -896,6 +1041,7 @@ class BotManager {
     this.bots.forEach((bot) => {
       const ship = bot.ship;
       if (!ship) return;
+      if (bot.explorerMission) return;
 
       if (
         ship.className === 'Transport Capital' ||
@@ -1407,10 +1553,11 @@ class BotManager {
     });
   }
 
-  draw(ctx, asteroidBelt, debrisField) {
+  draw(ctx, asteroidBelt, debrisField, currentMapId) {
     this.bots.forEach(function(bot) {
       const ship = bot.ship;
       if (!ship) return;
+      if (bot.explorerMission && bot.explorerMapId !== currentMapId) return;
       if (typeof ship.draw === 'function') {
         ship.draw(ctx, asteroidBelt, debrisField);
       } else {
