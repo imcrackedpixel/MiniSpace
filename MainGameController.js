@@ -2313,7 +2313,7 @@ function updateStationUI() {
         const installed=slots[mod];
         if(installed){
           const rank=Math.max(1,Number(installed.rank)||1),next=rank<10, cost=next?upgradeCostAt(rank):0,ore=next?upgradeOreRequirement(mod,rank):null;
-          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/10</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\\''+mod+'\\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+fmtISK(cost)+' + '+fmtISK(ore.qty)+' '+itemLabel(ore.key):'MAX RANK')+'</button><button onclick="window.removeFittedModule(\\''+mod+'\\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
+          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/10</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+fmtISK(cost)+' + '+fmtISK(ore.qty)+' '+itemLabel(ore.key):'MAX RANK')+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
         } else {
           fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>EMPTY</strong><small>Find a compatible frontier drop</small></div>';
         }
