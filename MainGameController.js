@@ -1295,8 +1295,9 @@ window.jumpToMissionSystem = function() {
   lockedTarget = null;
   isDockingRequested = false;
   gateCooldown = 180;
-  window.showCorpNotification('Arrived in ' + mission.systemName + '. Destroy ' +
-    missionManager.getLivingEnemies().length + ' pirate raiders, then return through the green tear.');
+  window.showCorpNotification('Arrived in ' + mission.systemName + '. ' +
+    (mission.type==='salvage'?'Recover the marked wreck caches.':mission.type==='recon'?'Scan the marked signal beacons.':'Destroy the pirate raiders.') +
+    ' Then return through the green tear.');
   updateMissionsUI();
   saveGameSession();
 };
@@ -1509,20 +1510,23 @@ function updateMissionsUI() {
   if (!host || !missionManager) return;
   const active = missionManager.activeMission;
   if (active) {
+    const objectiveProgress=(active.objectiveIndex||0)+'/'+((active.objectives||[]).length||active.targetCount);
     let status = active.returned ? ((playerShip && playerShip.docked) ? 'Docked - reward ready to claim' : 'Returned to High-Sec - fly to station and dock') :
-      (active.completed ? 'All targets destroyed - return through the green tear' :
-      (inMissionSpace() ? 'In mission system - destroy the pirate raiders' : 'Accepted - undock and fly to the marked mission tear'));
+      (active.completed ? 'Objective complete - return through the green tear' :
+      (inMissionSpace() ? (active.type==='salvage'?'Recover wreck caches '+objectiveProgress:active.type==='recon'?'Scan signal beacons '+objectiveProgress:'In mission system - destroy the pirate raiders') : 'Accepted - undock and fly to the marked mission tear'));
     let action = active.completed && active.returned
       ? (playerShip && playerShip.docked ? '<button onclick="window.claimMissionReward()">CLAIM ' + fmtISK(active.rewardIsk) + ' REWARD</button>' : '<button disabled>FLY TO STATION AND DOCK TO CLAIM</button>')
       : (active.returned ? '' : (inMissionSpace()
         ? '<button disabled>MISSION ACTIVE — ' + missionManager.getLivingEnemies().length + ' PIRATES REMAIN</button>'
         : '<button disabled>UNLOCKED: FLY TO THE GREEN MISSION TEAR</button>'));
-    host.innerHTML = '<div class="mission-card ' + active.id + '"><h3>' + active.difficulty.toUpperCase() + ' — ' + active.title + '</h3><p>' + active.description + '</p><div class="mission-meta"><span>Destination: ' + active.systemName + '</span><span>Targets: ' + (active.completed ? '0' : (active.spawnedFleet ? missionManager.getLivingEnemies().length : active.targetCount)) + '</span><span>Reward: ' + fmtISK(active.rewardIsk) + '</span></div><p>Status: ' + status + '</p>' + action + '</div>';
+    const targetLabel=active.type==='salvage'?'Caches':active.type==='recon'?'Beacons':'Pirates';
+    const remaining=active.type==='salvage'||active.type==='recon'?(active.completed?0:(active.spawnedFleet?active.objectives.length-(active.objectiveIndex||0):active.targetCount)):(active.completed?0:(active.spawnedFleet?missionManager.getLivingEnemies().length:active.targetCount));
+    host.innerHTML = '<div class="mission-card ' + active.id + '"><h3>' + active.difficulty.toUpperCase() + ' — ' + active.title + '</h3><p>' + active.description + '</p><div class="mission-meta"><span>Destination: ' + active.systemName + '</span><span>'+targetLabel+': ' + remaining + '</span><span>Reward: ' + fmtISK(active.rewardIsk) + '</span></div><p>Status: ' + status + '</p>' + action + '</div>';
     return;
   }
   const combatReady = playerShip && (playerShip.className === 'Combat Frigate' || playerShip.className === 'Carrier' || playerShip.className === 'Siege Cruiser' || playerShip.className === 'Siege Battleship' || playerShip.className === 'Siege Capital' || playerShip.className === 'Explorer Cruiser');
   let warning = combatReady ? '' : '<div class="mission-warning">A stock Combat Frigate is recommended. Mining ships cannot damage pirate ships. No upgrades are required for the Easy contract.</div>';
-  host.innerHTML = warning + missionManager.availableMissions.map(m => '<div class="mission-card ' + m.id + '"><h3>' + m.difficulty.toUpperCase() + ' — ' + m.title + '</h3><p>' + m.description + '</p><div class="mission-meta"><span>Destination: ' + m.systemName + '</span><span>Pirates: ' + m.targetCount + '</span><span>Reward: ' + fmtISK(m.rewardIsk) + '</span></div><button onclick="window.acceptStationMission(\'' + m.id + '\')" ' + (!combatReady ? 'disabled' : '') + '>ACCEPT MISSION</button></div>').join('');
+  host.innerHTML = warning + missionManager.availableMissions.map(m => '<div class="mission-card ' + m.id + '"><h3>' + m.difficulty.toUpperCase() + ' — ' + m.title + '</h3><p>' + m.description + '</p><div class="mission-meta"><span>Destination: ' + m.systemName + '</span><span>' + (m.type==='salvage'?'Wreck caches':m.type==='recon'?'Scan beacons':'Pirates') + ': ' + m.targetCount + '</span><span>Reward: ' + fmtISK(m.rewardIsk) + '</span></div><button onclick="window.acceptStationMission(\'' + m.id + '\')" ' + (!combatReady ? 'disabled' : '') + '>ACCEPT MISSION</button></div>').join('');
 }
 window.acceptStationMission = function(id) {
   if (!playerShip || !playerShip.docked) { window.showCorpNotification('Dock at the station to accept a mission.'); return; }
