@@ -412,6 +412,9 @@
    if(message.type==='frontier-npc-state'||message.type==='frontier-npc-killed'||message.type==='frontier-npc-respawn'){
     window.dispatchEvent(new CustomEvent('minispace-'+message.type,{detail:message}));
    }
+   if(message.type==='frontier-station-state'){
+    window.dispatchEvent(new CustomEvent('minispace-frontier-station-state',{detail:message}));
+   }
    if(message.type==='pvp-hit'){
     window.dispatchEvent(new CustomEvent('minispace-pvp-hit',{detail:message}));
    }
