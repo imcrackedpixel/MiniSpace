@@ -111,6 +111,12 @@
       }
     }
 
+    if (!this._mapAggroTargets) this._mapAggroTargets = Object.create(null);
+    if (this.publicNpcMiners.some(n => n && n.isAlive && !n.mapId && n.ship && n.ship._minispacePlayerTagged)) {
+      this._mapAggroTargets[currentMapId] = true;
+    }
+    const mapWideAggro = !!this._mapAggroTargets[currentMapId];
+
     this.publicNpcMiners.forEach(npc => {
       try {
         if (npc.mapId ? npc.mapId !== currentMapId : currentMapId !== 'public_space') return;
@@ -192,6 +198,7 @@
           }
         }
 
+        if (mapWideAggro && playerOk) npc.isAgro = true;
         const engaged = npc.isAgro && playerOk;
 
         // Always run the ship's own update() for combat hulls (so missiles / drones keep moving
