@@ -3243,7 +3243,7 @@ function setBar(id, v, max, valueId) {
     el.setAttribute('aria-valuemax', String(Math.round(maximum)));
   }
   const value = valueId && document.getElementById(valueId);
-  if (value) value.textContent = Math.ceil(current).toLocaleString() + ' / ' + Math.ceil(maximum).toLocaleString();
+  if (value) value.textContent = Math.round(current).toLocaleString() + ' / ' + Math.round(maximum).toLocaleString();
 }
 
 function syncAutoplayButton() {
@@ -3775,6 +3775,8 @@ function render() {
       (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
     } else if (!pub) {
       if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
+      // The Trade Hub tear is a real High-Sec exit; draw it with the other map gates.
+      if (mapManager.currentMapId === 'private_highsec' && window.MINISPACE_MARKET_GATE && typeof window.MINISPACE_MARKET_GATE.draw === 'function') window.MINISPACE_MARKET_GATE.draw(ctx);
       (mapManager.frontierEntryGates || [mapManager.frontierEntryGate]).forEach(g => { if (g && typeof g.draw === 'function') g.draw(ctx); });
       if (mapManager && mapManager.publicGate && typeof mapManager.publicGate.draw === 'function') mapManager.publicGate.draw(ctx);
       if (missionManager && missionManager.activeMission && !missionManager.activeMission.returned && mapManager.missionEntryGate) mapManager.missionEntryGate.draw(ctx);
@@ -4883,7 +4885,7 @@ if (
     try{const ds=debrisField&&typeof debrisField.getEntities==='function'?debrisField.getEntities():[];if(Array.isArray(ds))ds.forEach(d=>{if(d)plot(d.x,d.y,'#d29922',2);});}catch(_){}
     try{
       const id=mapManager&&mapManager.currentMapId;
-      if(id==='private_highsec')plot(4200,2500,'#36b99a',4);
+      if(id==='private_highsec'&&window.MINISPACE_MARKET_GATE)plot(window.MINISPACE_MARKET_GATE.x,window.MINISPACE_MARKET_GATE.y,'#36b99a',4);
       if(id==='public_trade_hub'){const h=window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station;if(h)plot(h.x,h.y,'#58a6ff',4);plot(700,3500,'#36b99a',4);}
       else{if(mainStation)plot(mainStation.x,mainStation.y,'#58a6ff',4);if(mapManager){['publicGate','frontierReturnGate','missionEntryGate','missionReturnGate'].forEach(k=>{const g=mapManager[k];if(g)plot(g.x,g.y,'#36b99a',3);});if(id==='private_highsec')(mapManager.frontierEntryGates||[mapManager.frontierEntryGate]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});(mapManager.playerGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#3fb950',3);});(mapManager.frontierGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});}}
     }catch(_){}
