@@ -1,4 +1,4 @@
-// AutoplayManager.js - mining, exploration and Easy combat mission loops.
+// AutoplayManager.js - mining, exploration and full-difficulty combat mission loops.
 const AUTOPLAY_MINING=['Mining Frigate','Mining Barge','Command Ship','Mining Capital'];
 const AUTOPLAY_EXPLORER=['Exploration Frigate','Improved Explorer Frigate','Explorer Cruiser'];
 const AUTOPLAY_COMBAT=['Combat Frigate','Carrier','Siege Cruiser','Siege Battleship','Siege Capital'];
@@ -20,10 +20,7 @@ class AutoplayManager{
   if(this.combatMode){
    const active=missionManager&&missionManager.activeMission;
    if(active&&active.returned&&typeof window.claimMissionReward==='function')window.claimMissionReward();
-   else if(active&&active.difficulty!=='Easy'){
-    this.isAutoplay=false;this.combatMode=false;
-    window.showCorpNotification('Combat autoplay only runs Easy missions.');return;
-   }
+   
    if(!ship.docked){
     this.combatPhase='docking';
     isDockingRequested=true;
@@ -45,13 +42,13 @@ class AutoplayManager{
   if(!ship||!ship.docked)return;
   const active=missionManager&&missionManager.activeMission;
   if(!active){
-   // Combat autoplay is deliberately restricted to Easy contracts.
-   // Filter before random selection so Medium/Hard missions can never be queued.
-   const choices=(missionManager.availableMissions||[]).filter(m=>m&&m.difficulty==='Easy');
+   // Pick from every available difficulty and mission type. Shuffle first so
+   // the autoplay loop does not keep favouring the same contract after a reload.
+   const choices=(missionManager.availableMissions||[]).filter(m=>m&&m.id&&m.difficulty);
    const selected=choices.length?choices[Math.floor(Math.random()*choices.length)]:null;
    if(!selected||!missionManager.acceptMission(selected.id,ship)){
     this.isAutoplay=false;this.combatMode=false;this.combatPhase='';
-    if(typeof window.showCorpNotification==='function')window.showCorpNotification('No Easy missions are currently available. Autoplay stopped.');
+    if(typeof window.showCorpNotification==='function')window.showCorpNotification('No missions are currently available. Autoplay stopped.');
     if(typeof syncAutoplayButton==='function')syncAutoplayButton();
     return;
    }
@@ -64,7 +61,7 @@ class AutoplayManager{
   this.combatPhase='travel';
   autoUndockTimer=180;
   if(typeof syncAutoplayButton==='function')syncAutoplayButton();
-  window.showCorpNotification('Mission autoplay ON: contract selected. Undocking shortly.');
+  window.showCorpNotification('Mission autoplay ON: '+missionManager.activeMission.difficulty+' '+missionManager.activeMission.title+'. Undocking shortly.');
  }
  onCombatDocked(){
   if(!this.isAutoplay||!this.combatMode||this.combatPhase!=='docking')return;
