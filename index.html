@@ -313,121 +313,85 @@ window.toggleMiniSpaceHud = function(button) {
 
 
 <script>
+/* Desktop-style draggable panels: headers move windows; windows never resize. */
 (function(){
- if(window.__miniSpaceDesktopWindows)return;window.__miniSpaceDesktopWindows=true;
- const desktop=()=>matchMedia('(min-width: 900px)').matches, key='minispace_desktop_window_layout_v1';
- let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{}}catch(_){}
- const save=()=>{try{localStorage.setItem(key,JSON.stringify(saved))}catch(_){}};
- function attach(el,handle,id){
-  if(!el||!handle||handle.dataset.desktopDragReady)return;
-  handle.dataset.desktopDragReady='1';handle.classList.add('desktop-drag-handle');
-  handle.title='Drag to move · resize from the bottom-right corner';
-  const restore=()=>{if(!desktop()||!saved[id])return;const p=saved[id];el.style.position='fixed';el.style.left=Math.max(0,Math.min(innerWidth-80,p.left))+'px';el.style.top=Math.max(0,Math.min(innerHeight-60,p.top))+'px';el.style.right='auto';el.style.bottom='auto';if(p.width)el.style.width=Math.min(innerWidth*.96,Math.max(150,p.width))+'px';if(p.height)el.style.height=Math.min(innerHeight*.94,Math.max(70,p.height))+'px';if(id==='station'||id==='universe')el.style.translate='none'};
-  restore();let down=false,moved=false,x=0,y=0,l=0,t=0;
-  handle.addEventListener('pointerdown',e=>{if(!desktop()||e.button!==0||e.target.closest('button,input,select,textarea,a'))return;const r=el.getBoundingClientRect();down=true;moved=false;x=e.clientX;y=e.clientY;l=r.left;t=r.top;try{handle.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault();e.stopPropagation()});
-  handle.addEventListener('pointermove',e=>{if(!down||!desktop())return;const dx=e.clientX-x,dy=e.clientY-y;if(Math.abs(dx)+Math.abs(dy)>3)moved=true;if(!moved)return;const r=el.getBoundingClientRect();el.style.position='fixed';el.style.left=Math.max(0,Math.min(innerWidth-Math.min(80,r.width),l+dx))+'px';el.style.top=Math.max(0,Math.min(innerHeight-Math.min(50,r.height),t+dy))+'px';el.style.right='auto';el.style.bottom='auto';if(id==='station'||id==='universe')el.style.translate='none'});
-  const finish=()=>{if(!down)return;down=false;if(moved){const r=el.getBoundingClientRect();saved[id]={left:r.left,top:r.top,width:r.width,height:r.height};save();el.dataset.justDragged='1';setTimeout(()=>delete el.dataset.justDragged,0)}};
-  handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);
-  el.addEventListener('click',e=>{if(el.dataset.justDragged){e.preventDefault();e.stopPropagation()}},true);
-  if(window.ResizeObserver){let timer;new ResizeObserver(()=>{if(!desktop())return;clearTimeout(timer);timer=setTimeout(()=>{const r=el.getBoundingClientRect();saved[id]=Object.assign({},saved[id],{left:r.left,top:r.top,width:r.width,height:r.height});save()},200)}).observe(el)}
- }
- function init(){if(!desktop())return;
-  const pilot=document.getElementById('pilot-panel');attach(pilot,document.getElementById('pilot-panel-heading'),'pilot');
-  const controls=document.getElementById('flight-controls');if(controls&&!document.getElementById('flight-controls-drag')){const b=document.createElement('div');b.id='flight-controls-drag';b.textContent='FLIGHT CONTROLS  ⠿';b.style.cssText='color:#9be7d4;font-size:10px;letter-spacing:1px;padding:2px 2px 6px;border-bottom:1px solid #34434c;margin-bottom:3px';controls.insertBefore(b,controls.firstChild)}attach(controls,document.getElementById('flight-controls-drag'),'controls');
-  attach(document.getElementById('minimap-panel'),document.getElementById('minimap-heading'),'nearby');
-  attach(document.getElementById('online-panel'),document.querySelector('#online-panel header'),'chat');
-  attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');
-  attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe');
- }
- init();window.addEventListener('resize',init);
- const mo=new MutationObserver(()=>{if(desktop()){attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe')}});
- mo.observe(document.body,{subtree:true,attributes:true,attributeFilter:['style','class']});
-})();
-</script>
-
-<!-- MOBILE WINDOW MOVE + RESIZE -->
-<script>
-(function(){
- if(window.__miniSpaceMobileWindows)return;
- window.__miniSpaceMobileWindows=true;
- const mobile=()=>matchMedia('(max-width: 899px)').matches;
- const key='minispace_mobile_window_layout_v1';
- let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{}}catch(_){}
+ if(window.__miniSpaceDragWindowsV2)return;
+ window.__miniSpaceDragWindowsV2=true;
+ const key='minispace_window_positions_v2';
+ let saved={};
+ try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{}}catch(_){}
  const save=()=>{try{localStorage.setItem(key,JSON.stringify(saved))}catch(_){}};
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
  function attach(el,handle,id){
-  if(!el||!handle||handle.dataset.mobileDragReady)return;
-  handle.dataset.mobileDragReady='1';handle.classList.add('mobile-drag-handle');
-  el.classList.add('mobile-window-movable');
+  if(!el||!handle||handle.dataset.dragWindowReady)return;
+  handle.dataset.dragWindowReady='1';
+  handle.classList.add('desktop-drag-handle');
+  handle.title='Drag this header to move the window';
   const restore=()=>{
-   if(!mobile()||!saved[id])return;
-   const p=saved[id],r=el.getBoundingClientRect();
-   el.style.position='fixed';el.style.left=clamp(p.left,0,innerWidth-70)+'px';
-   el.style.top=clamp(p.top,0,innerHeight-60)+'px';
+   const p=saved[id];if(!p)return;
+   const r=el.getBoundingClientRect();
+   el.style.position='fixed';
+   el.style.left=clamp(p.left,0,Math.max(0,innerWidth-Math.min(70,r.width)))+'px';
+   el.style.top=clamp(p.top,0,Math.max(0,innerHeight-Math.min(50,r.height)))+'px';
    el.style.right='auto';el.style.bottom='auto';el.style.margin='0';
-   if(p.width)el.style.width=clamp(p.width,150,innerWidth-8)+'px';
-   if(p.height)el.style.height=clamp(p.height,90,innerHeight-8)+'px';
-   el.style.transform='none';el.style.translate='none';
+   if(id==='station'||id==='universe'){el.style.translate='none';el.style.transform='none'}
   };
   restore();
-  let dragging=null,resizing=null;
+  let drag=null;
   handle.addEventListener('pointerdown',e=>{
-   if(!mobile()||e.target.closest('button,input,select,textarea,a'))return;
+   if(e.button!==0||e.target.closest('button,input,select,textarea,a'))return;
    const r=el.getBoundingClientRect();
-   dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top,moved:false};
+   drag={x:e.clientX,y:e.clientY,left:r.left,top:r.top,moved:false};
    try{handle.setPointerCapture(e.pointerId)}catch(_){}
    e.preventDefault();e.stopPropagation();
   });
   handle.addEventListener('pointermove',e=>{
-   if(!dragging||!mobile())return;
-   const dx=e.clientX-dragging.x,dy=e.clientY-dragging.y;
-   if(Math.abs(dx)+Math.abs(dy)>3)dragging.moved=true;
-   if(!dragging.moved)return;
+   if(!drag)return;
+   const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+   if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;
+   if(!drag.moved)return;
    const r=el.getBoundingClientRect();
-   el.style.position='fixed';el.style.left=clamp(dragging.left+dx,0,innerWidth-Math.min(70,r.width))+'px';
-   el.style.top=clamp(dragging.top+dy,0,innerHeight-Math.min(55,r.height))+'px';
-   el.style.right='auto';el.style.bottom='auto';el.style.margin='0';el.style.transform='none';el.style.translate='none';
+   el.style.position='fixed';
+   el.style.left=clamp(drag.left+dx,0,Math.max(0,innerWidth-Math.min(70,r.width)))+'px';
+   el.style.top=clamp(drag.top+dy,0,Math.max(0,innerHeight-Math.min(50,r.height)))+'px';
+   el.style.right='auto';el.style.bottom='auto';el.style.margin='0';
+   if(id==='station'||id==='universe'){el.style.translate='none';el.style.transform='none'}
   });
-  const finishDrag=()=>{
-   if(!dragging)return;
-   if(dragging.moved){const r=el.getBoundingClientRect();saved[id]=Object.assign({},saved[id],{left:r.left,top:r.top,width:r.width,height:r.height});save();el.dataset.mobileJustDragged='1';setTimeout(()=>delete el.dataset.mobileJustDragged,80)}
-   dragging=null;
+  const finish=()=>{
+   if(!drag)return;
+   if(drag.moved){
+    const r=el.getBoundingClientRect();
+    saved[id]={left:r.left,top:r.top};save();
+    el.dataset.justDragged='1';
+    setTimeout(()=>delete el.dataset.justDragged,100);
+   }
+   drag=null;
   };
-  handle.addEventListener('pointerup',finishDrag);handle.addEventListener('pointercancel',finishDrag);
-  let grip=el.querySelector(':scope > .mobile-resize-grip');
-  if(!grip){grip=document.createElement('div');grip.className='mobile-resize-grip';grip.textContent='⤢';grip.setAttribute('aria-label','Resize window');el.appendChild(grip)}
-  grip.addEventListener('pointerdown',e=>{
-   if(!mobile())return;
-   const r=el.getBoundingClientRect();resizing={x:e.clientX,y:e.clientY,width:r.width,height:r.height};
-   try{grip.setPointerCapture(e.pointerId)}catch(_){}
-   e.preventDefault();e.stopPropagation();
-  });
-  grip.addEventListener('pointermove',e=>{
-   if(!resizing||!mobile())return;
-   el.style.width=clamp(resizing.width+e.clientX-resizing.x,150,innerWidth-8)+'px';
-   el.style.height=clamp(resizing.height+e.clientY-resizing.y,90,innerHeight-8)+'px';
-  });
-  const finishResize=()=>{
-   if(!resizing)return;const r=el.getBoundingClientRect();
-   saved[id]=Object.assign({},saved[id],{left:r.left,top:r.top,width:r.width,height:r.height});save();resizing=null;
-  };
-  grip.addEventListener('pointerup',finishResize);grip.addEventListener('pointercancel',finishResize);
-  el.addEventListener('click',e=>{if(el.dataset.mobileJustDragged){e.preventDefault();e.stopPropagation()}},true);
+  handle.addEventListener('pointerup',finish);
+  handle.addEventListener('pointercancel',finish);
+  el.addEventListener('click',e=>{
+   if(el.dataset.justDragged){e.preventDefault();e.stopPropagation()}
+  },true);
  }
  function init(){
-  if(!mobile())return;
   attach(document.getElementById('pilot-panel'),document.getElementById('pilot-panel-heading'),'pilot');
   const controls=document.getElementById('flight-controls');
-  if(controls&&!document.getElementById('mobile-flight-drag')){const h=document.createElement('div');h.id='mobile-flight-drag';h.textContent='FLIGHT CONTROLS  ⠿';h.style.cssText='padding:5px;color:#9be7d4;font-size:11px;font-weight:bold;touch-action:none';controls.insertBefore(h,controls.firstChild)}
-  attach(controls,document.getElementById('mobile-flight-drag'),'controls');
+  if(controls&&!document.getElementById('flight-controls-drag')){
+   const h=document.createElement('div');h.id='flight-controls-drag';
+   h.textContent='FLIGHT CONTROLS  ⠿';
+   h.style.cssText='color:#9be7d4;font-size:10px;letter-spacing:1px;padding:5px 2px 7px;border-bottom:1px solid #34434c;margin-bottom:3px;font-weight:bold';
+   controls.insertBefore(h,controls.firstChild);
+  }
+  attach(controls,document.getElementById('flight-controls-drag'),'controls');
   attach(document.getElementById('minimap-panel'),document.getElementById('minimap-heading'),'nearby');
   attach(document.getElementById('online-panel'),document.querySelector('#online-panel header'),'chat');
   attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');
   attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe');
  }
- init();window.addEventListener('resize',init);
+ init();
+ window.addEventListener('resize',init);
  const mo=new MutationObserver(()=>init());
- mo.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['style','class']});
+ mo.observe(document.body,{subtree:true,childList:true});
 })();
 </script>
 
