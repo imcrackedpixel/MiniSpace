@@ -644,8 +644,9 @@ window.jumpToFrontierSystem = function(id) {
 };
 window.findFrontierRoute = function(from, to) {
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
+  const homeGateSystemId = mapManager && mapManager.frontierHomeGateSystemId;
   const linksFor = id => id === 'private_highsec' ? systems.filter(s => s.ring === 1).map(s => s.id) :
-    (((systems.find(s => s.id === id) || {}).links || []).filter(next => next !== 'private_highsec' || to === 'private_highsec'));
+    (((systems.find(s => s.id === id) || {}).links || []).filter(next => next !== 'private_highsec' || id === homeGateSystemId));
   const queue = [[from]], seen = new Set([from]);
   while (queue.length) {
     const path = queue.shift(), last = path[path.length - 1];
@@ -659,14 +660,6 @@ window.flyToFrontierGate = function(destinationId) {
   const current = mapManager.currentMapId, systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
   if (destinationId !== 'private_highsec' && !systems.some(s => s.id === destinationId)) { window.showCorpNotification('Unknown system destination.'); return; }
   if (current === destinationId) { window.closeUniverse(); return; }
-  if (destinationId === 'private_highsec' && isFrontierSpace()) {
-    const gate = mapManager.frontierReturnGate;
-    if (!gate) { window.showCorpNotification('High-Sec return gate unavailable.'); return; }
-    window._universeRouteDestination = destinationId;
-    if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
-    lockedTarget = null; targetMovePos = { x: gate.x, y: gate.y }; isDockingRequested = false;
-    window.closeUniverse(); window.showCorpNotification('ROUTE SET · HIGH-SEC · flying to the return rift.'); return;
-  }
   const path = window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, destinationId);
   if (!path || path.length < 2) { window.showCorpNotification('No gate route to that system.'); return; }
   const nextHop = path[1];
@@ -842,10 +835,23 @@ window.requestDock = function() {
 // and which zones are allowed live in AutoplayManager.toggle().
 window.toggleOffensiveMode = function() {
   playerData.offensiveMode = !playerData.offensiveMode;
-  if (playerShip) playerShip.ignoreStationBoss = !playerData.offensiveMode;
+  if (playerShip) {
+    playerShip.ignoreStationBoss = !playerData.offensiveMode;
+    playerShip.weaponsEnabled = !!playerData.offensiveMode;
+    if (!playerData.offensiveMode) {
+      playerShip.currentTarget = null;
+      if (typeof playerShip.releaseScrambler === 'function') playerShip.releaseScrambler();
+    }
+    (playerShip.drones || []).forEach(entry => {
+      if (!entry) return;
+      entry.targetEnemy = null;
+      const drone = entry.ship || entry;
+      if (drone) { drone.weaponsEnabled = !!playerData.offensiveMode; if (!playerData.offensiveMode) drone.currentTarget = null; }
+    });
+  }
   const button = document.getElementById('offensive-btn');
   if (button) {
-    button.textContent = 'OFFENSIVE: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
+    button.textContent = 'COMBAT: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
     button.style.color = playerData.offensiveMode ? '#ff8b82' : '#9aa7b0';
     button.style.borderColor = playerData.offensiveMode ? '#b94a48' : '#39434b';
   }
@@ -2594,7 +2600,7 @@ function updateHUD() {
   if ((b = document.getElementById('dock-btn'))) b.style.display = (s.docked || inPublicSpace()) ? 'none' : 'block';
   if ((b = document.getElementById('offensive-btn'))) {
     b.style.display = (['Combat Frigate','Carrier','Siege Cruiser','Siege Battleship','Siege Capital','Explorer Cruiser'].includes(s.className) || (Array.isArray(s.drones) && s.drones.length > 0)) ? 'block' : 'none';
-    b.textContent = 'OFFENSIVE: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
+    b.textContent = 'COMBAT: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
     b.style.color = playerData.offensiveMode ? '#ff8b82' : '#9aa7b0';
     b.style.borderColor = playerData.offensiveMode ? '#b94a48' : '#39434b';
     s.ignoreStationBoss = !playerData.offensiveMode;
@@ -2751,6 +2757,8 @@ function manualControl() {
     : [];
   if (playerData.offensiveMode && inMissionSpace() && missionManager) enemies.push.apply(enemies, missionManager.getLivingEnemies());
   ship.ignoreStationBoss = !playerData.offensiveMode;
+  ship.weaponsEnabled = !!playerData.offensiveMode;
+  (ship.drones || []).forEach(entry => { const drone = entry && (entry.ship || entry); if (drone) drone.weaponsEnabled = !!playerData.offensiveMode; });
   const name = ship.className;
 
   if (name === 'Mining Capital' || name === 'Command Ship') {
