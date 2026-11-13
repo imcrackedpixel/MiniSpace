@@ -385,7 +385,7 @@ class MapManager {
    return {x:p[0],y:p[1],radius:88,destinationId:system.id,draw:function(ctx){
      const targeted = drawUniverseTargetTear(ctx, this);
      drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,18+i);
-     drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':system.regionName+' REGION',system.name,targeted?'#fbbf24':'#fb923c');
+     drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':system.regionName+' REGION ENTRANCE',system.name,targeted?'#fbbf24':'#fb923c');
    }};
  });
  this.frontierEntryGate = this.frontierEntryGates[0];
