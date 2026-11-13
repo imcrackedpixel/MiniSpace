@@ -1054,6 +1054,12 @@ window.openUniverse = function() {
         host._universePinchStartDistance = 0;
         host._universePinchStartZoom = Number(host.dataset.mapZoom) || 1;
       }
+      if (host._universePointers && host._universePointers.size === 1) {
+        const remaining = Array.from(host._universePointers.values())[0];
+        const viewport = getMapParts().viewport;
+        if (viewport) host._universePanStart = {x:remaining.lastX,y:remaining.lastY,left:viewport.scrollLeft,top:viewport.scrollTop};
+        host._universeGestureMoved = true;
+      }
       if (!host._universePointers || host._universePointers.size === 0) {
         host._universePanStart = null;
         if (host._universeGestureMoved) {
