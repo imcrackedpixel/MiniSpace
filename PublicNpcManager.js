@@ -520,9 +520,10 @@ class PublicNpcManager {
   }
 
   spawnRedSpaceMiningEncounter(system, state, station) {
-    if (!system || Number(system.ring) < 7 || !state || state.redSpaceEncounterSeeded) return;
-    // Seed each system from its ID so every client creates the same encounter and positions.
-    let seed = 216 << 0;
+    if (!system || !system.id || !state || state.redSpaceEncounterSeeded) return;
+    // Every frontier system has roaming mining traffic and pirate patrols.
+    // Seed by system ID so all clients generate matching starting populations.
+    let seed = 216;
     const key = String(system.id || '');
     for (let i = 0; i < key.length; i++) seed = (Math.imul(seed, 31) + key.charCodeAt(i)) >>> 0;
     const random = () => {
@@ -530,33 +531,37 @@ class PublicNpcManager {
       return seed / 4294967296;
     };
     state.redSpaceEncounterSeeded = true;
-    const roll = random();
     const ring = Math.max(1, Number(system.ring) || 1);
-    // Capital-miner operations become more common in the deepest systems:
-    // ring 7: 4%, ring 8: 10%, ring 9: 15%, ring 10+: 22%.
-    const capitalOperationChance = ring >= 10 ? 0.22 : ring >= 9 ? 0.15 : ring >= 8 ? 0.10 : 0.04;
-    // Keep the ordinary mining-fleet and combat-patrol chances unchanged.
-    let miners = [];
-    let escorts = [];
-    if (roll < capitalOperationChance) {
-      miners = ['miningCapital', random() < 0.7 ? 'barge' : 'command'];
-      escorts = random() < 0.75 ? ['siegeBattleship'] : ['siegeCruiser'];
-    } else if (roll < capitalOperationChance + 0.18) {
-      const count = 2 + Math.floor(random() * 3);
-      for (let i = 0; i < count; i++) {
-        const pick = random();
-        miners.push(pick < 0.48 ? 'frigate' : (pick < 0.86 ? 'barge' : 'command'));
+    const miners = [];
+    const escorts = [];
+    const minerPools = ring <= 2 ? ['frigate', 'frigate', 'barge']
+      : ring <= 4 ? ['frigate', 'barge', 'barge', 'command']
+      : ring <= 6 ? ['barge', 'command', 'command']
+      : ['barge', 'command', 'command', 'miningCapital'];
+    const minerCount = ring <= 2 ? 2 : ring <= 4 ? 3 : 3 + Math.floor(random() * 2);
+    for (let i = 0; i < minerCount; i++) {
+      let type = minerPools[Math.floor(random() * minerPools.length)];
+      if (type === 'miningCapital') {
+        const chance = ring >= 10 ? 0.22 : ring >= 9 ? 0.15 : ring >= 8 ? 0.10 : 0.04;
+        if (random() >= chance) type = 'command';
       }
-      if (random() < 0.35) escorts.push(random() < 0.72 ? 'combatFrigate' : 'siegeCruiser');
-    } else if (roll < capitalOperationChance + 0.26) {
-      escorts = [random() < 0.65 ? 'combatFrigate' : 'siegeCruiser'];
-    } else {
-      return;
+      miners.push(type);
+    }
+    if (ring >= 7 && !miners.includes('miningCapital')) {
+      const chance = ring >= 10 ? 0.22 : ring >= 9 ? 0.15 : ring >= 8 ? 0.10 : 0.04;
+      if (random() < chance) miners[0] = 'miningCapital';
+    }
+    const escortCount = ring <= 4 ? 1 : 2;
+    for (let i = 0; i < escortCount; i++) {
+      if (ring <= 2) escorts.push('combatFrigate');
+      else if (ring <= 4) escorts.push(random() < 0.8 ? 'combatFrigate' : 'siegeCruiser');
+      else if (ring <= 6) escorts.push(random() < 0.8 ? 'siegeCruiser' : 'combatFrigate');
+      else escorts.push(random() < 0.65 ? 'siegeBattleship' : 'siegeCruiser');
     }
 
     const cx = Number(station && station.x) || 4500;
     const cy = Number(station && station.y) || 4500;
-    const encounterId = 'red-mining-' + system.id;
+    const encounterId = 'frontier-traffic-' + system.id;
     let index = 0;
     const spawn = (type, angle, radius, role, hpScale, damage) => {
       const cfg = PIRATE_TYPES[type];
@@ -585,17 +590,21 @@ class PublicNpcManager {
 
     miners.forEach((type, i) => {
       const angle = (i / Math.max(1, miners.length)) * Math.PI * 2 + random() * 0.3;
-      spawn(type, angle, 260 + random() * 180, 'mining_fleet', type === 'miningCapital' ? 0.72 : 0.78, 0);
+      const radius = 520 + random() * 520;
+      const hp = ring >= 7 ? 0.68 : (ring >= 4 ? 0.62 : 0.55);
+      spawn(type, angle, radius, 'mining_fleet', hp, 0);
     });
     escorts.forEach((type, i) => {
       const angle = (i / Math.max(1, escorts.length)) * Math.PI * 2 + Math.PI + random() * 0.25;
-      spawn(type, angle, 650 + random() * 180, 'patrol', 0.72, 0.16);
+      const radius = 1150 + random() * 500;
+      const damage = ring <= 2 ? 0.055 : ring <= 4 ? 0.085 : ring <= 6 ? 0.12 : 0.16;
+      const hp = ring <= 2 ? 0.42 : ring <= 4 ? 0.52 : ring <= 6 ? 0.62 : 0.72;
+      spawn(type, angle, radius, 'patrol', hp, damage);
     });
 
     if (typeof window.showCorpNotification === 'function') {
-      const label = miners.some(type => type === 'miningCapital') ? 'MINING CAPITAL OPERATION'
-        : (miners.length ? 'PIRATE MINING FLEET' : 'PIRATE COMBAT PATROL');
-      window.showCorpNotification(label + ' · red-space activity detected');
+      const label = miners.some(type => type === 'miningCapital') ? 'MINING CAPITAL OPERATION' : 'FRONTIER MINING TRAFFIC';
+      window.showCorpNotification(label + ' · ' + miners.length + ' miners and ' + escorts.length + ' pirate escorts detected');
     }
   }
 
