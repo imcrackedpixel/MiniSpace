@@ -921,9 +921,9 @@ window.openUniverse = function() {
     const pocketDepth = Number(system.mapPocketDepth) || 0;
     let x, y;
     if (region === 0) { x = 105 + depth * 82 + (branch ? 8 : 0); y = 92 + (branch ? 34 + pocketDepth * 15 : 0); }
-    else if (region === 1) { x = 655 - (branch ? 42 + pocketDepth * 15 : 0); y = 72 + depth * 43; }
+    else if (region === 1) { x = 655 - (branch ? 42 + pocketDepth * 15 : 0); y = 195 + depth * 15; }
     else if (region === 2) { x = 655 - depth * 82 - (branch ? 8 : 0); y = 385 - (branch ? 34 + pocketDepth * 15 : 0); }
-    else { x = 105 + (branch ? 42 + pocketDepth * 15 : 0); y = 410 - depth * 43; }
+    else { x = 105 + (branch ? 42 + pocketDepth * 15 : 0); y = 195 + depth * 15; }
     systemPositions.set(system.id, [x, y]);
   }));
   const xy = id => id === 'private_highsec' ? [380, 240] : (systemPositions.get(id) || [380, 240]);
