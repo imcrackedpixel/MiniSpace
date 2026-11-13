@@ -224,7 +224,7 @@
         }
       }
       if (!bootstrappedFromSave) {
-        // No established local pilot save: preserve the database starter wallet.
+        // No established local pilot save: preserve the new pilot's zero-balance wallet.
         try {
           await api('/rest/v1/rpc/market_sync_game_state', {
             method: 'POST',
