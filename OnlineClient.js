@@ -335,6 +335,17 @@
   panel();
   if(!state.authReady||state.authFailed||state.accountBanned||state.accountKicked)return;
 
+  const accessToken=window.MINISPACE_AUTH?.getAccessToken?.();
+  if(typeof accessToken!=='string'||accessToken.length<40){
+   $('online-status').textContent='SIGN IN REQUIRED';
+   if(!state.missingTokenReported){
+    log('Online login is waiting for a valid account session. Please log in again.');
+    state.missingTokenReported=true;
+   }
+   return;
+  }
+  state.missingTokenReported=false;
+
   if(state.socket&&(
    state.socket.readyState===WebSocket.OPEN||
    state.socket.readyState===WebSocket.CONNECTING
@@ -365,7 +376,7 @@
     type:'hello',
     name:localStorage.getItem('minispace_pilot_name')||'Pilot',
     resumeToken:getResumeToken(),
-    accessToken:window.MINISPACE_AUTH?.getAccessToken?.()||null
+    accessToken:accessToken
    });
    tick();
   };
