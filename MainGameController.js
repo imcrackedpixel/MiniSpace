@@ -3875,6 +3875,8 @@ function render() {
       // clipping, and layer order with asteroids, gates and ships.
       const tradeStation = window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station;
       if (tradeStation && typeof tradeStation.draw === 'function') tradeStation.draw(ctx);
+      const returnTear = window.MINISPACE_TRADE_HUB_RETURN_GATE;
+      if (returnTear && typeof returnTear.draw === 'function') returnTear.draw(ctx);
     } else if (!pub) {
       if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
       // The Trade Hub tear is a real High-Sec exit; draw it with the other map gates.
@@ -4315,6 +4317,7 @@ if (
       ctx.restore();
     }
   };
+  window.MINISPACE_TRADE_HUB_RETURN_GATE = hubReturnGate;
 
   function startTradeTearEntry() {
     if (window.MINISPACE_TEAR_ENTRY_EFFECT) return;
@@ -4444,22 +4447,9 @@ if (
       mapId !== 'public_trade_hub'
     ) return;
 
-    const dpr = window.devicePixelRatio || 1;
-    const z = cameraZoom * dpr;
-
-    ctx.setTransform(
-      z, 0, 0, z,
-      canvas.width / 2 - playerShip.x * z,
-      canvas.height / 2 - playerShip.y * z
-    );
-
-    if (mapId === 'private_highsec') {
-      tradeGate.draw(ctx);
-    } else {
-      hubReturnGate.draw(ctx);
-    }
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    // The tears themselves are drawn in the core world pass, using the
+    // exact same camera transform as ships and stations. Only screen-space
+    // transition effects belong in this wrapper.
     drawTradeTearEntryEffect(ctx, canvas.width, canvas.height);
   };
 })();
