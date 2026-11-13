@@ -83,6 +83,7 @@ const wss = new WebSocket.Server({server});
 const players = new Map();
 const friends = new Map();
 const publicRooms = new Map();
+const frontierStationStates = new Map();
 const resumeTokens = new Map();
 
 const zones = [
@@ -215,6 +216,10 @@ function sendRoomSnapshot(p) {
   if(!p.roomId)return;
   const room=publicRooms.get(p.roomId);
   if(room&&String(p.mapId).indexOf('frontier_')===0)send(p.ws,{type:'frontier-npc-state',mapId:p.mapId,deadNpcs:[...room.deadNpcs.entries()].map(([npcId,respawnAt])=>({npcId,respawnAt}))});
+  if(String(p.mapId).indexOf('frontier_')===0){
+    const siege=frontierStationStates.get(p.mapId);
+    if(siege)send(p.ws,{type:'frontier-station-state',mapId:p.mapId,hp:siege.hp,maxHp:siege.maxHp,wavesSpawned:siege.wavesSpawned});
+  }
 
   send(p.ws,{
     type:'room-joined',
@@ -467,6 +472,21 @@ wss.on('connection',ws=>{
       send(target.ws,{type:'pvp-hit',mapId:mapId,attackerId:p.id,damage:Math.min(500,Number(m.damage)||0),
         shield:target.shield,armor:target.armor,structure:target.structure});
       broadcastRoom(p.roomId,{type:'player',player:publicPlayer(target)},target.ws);
+      return;
+    }
+
+    if(m.type==='frontier-station-state') {
+      const mapId=String(m.mapId||'');
+      if(!p.roomId||p.roomType!=='public'||p.mapId!==mapId||mapId.indexOf('frontier_')!==0)return;
+      const maxHp=Number(m.maxHp),incomingHp=Number(m.hp);
+      if(!Number.isFinite(maxHp)||!Number.isFinite(incomingHp)||maxHp<1000||maxHp>10000000)return;
+      let siege=frontierStationStates.get(mapId);
+      if(!siege)siege={maxHp:maxHp,hp:Math.max(0,Math.min(maxHp,incomingHp)),wavesSpawned:[]};
+      if(Math.abs(siege.maxHp-maxHp)>1)return;
+      siege.hp=Math.min(siege.hp,Math.max(0,Math.min(siege.maxHp,incomingHp)));
+      if(Array.isArray(m.wavesSpawned))m.wavesSpawned.forEach(w=>{const n=Number(w);if(Number.isInteger(n)&&n>=0&&n<3&&!siege.wavesSpawned.includes(n))siege.wavesSpawned.push(n);});
+      frontierStationStates.set(mapId,siege);
+      broadcastRoom(p.roomId,{type:'frontier-station-state',mapId:mapId,hp:siege.hp,maxHp:siege.maxHp,wavesSpawned:siege.wavesSpawned});
       return;
     }
 
