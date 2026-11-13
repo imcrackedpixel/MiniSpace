@@ -297,10 +297,10 @@ const FRONTIER_SYSTEMS = (function () {
   ];
   const counts = [6,6,6,6,6,6,3,3,3,4];
   const names = ['Kestrel','Morrow','Glass','Riven','Solace','Thorn','Cobalt','Drift','Hollow','Ember','Pale','Vesper','Orison','Fallow','Gallow','Aster','Nacre','Sable','Lumen','Tarn','Warden','Rook','Haven','Bastion','Dusk','Mire','Glimmer','Cairn','Oxbow','Vigil','Ashfall','Kepler','Wraith','Sunder','Eclipse','Null','Grave','Obsidian','Lastlight','Eventide'];
-  const rings = [];
+  const all = [];
   let oldIndex = 0, generated = 0;
   counts.forEach((count, ringIndex) => {
-    const ring = ringIndex + 1, nodes = [];
+    const ring = ringIndex + 1;
     for (let i = 0; i < count; i++) {
       let row;
       if (oldIndex < old.length) row = old[oldIndex++];
@@ -309,27 +309,66 @@ const FRONTIER_SYSTEMS = (function () {
         row = ['frontier_ring' + ring + '_sector' + (i + 1), word + ' ' + (ring > 6 ? 'Abyss' : 'Reach'), ring >= 7 ? '☠️' : (ring >= 4 ? '⚔️' : '🚀'), ring >= 7 ? 'Battleship' : (ring >= 4 ? 'Cruiser' : 'Frigate')];
         generated++;
       }
-      nodes.push({id:row[0],name:row[1],shipIcon:row[2],recommendedShip:row[3],ring:ring,level:ring,
+      all.push({id:row[0],name:row[1],shipIcon:row[2],recommendedShip:row[3],ring:ring,level:ring,
         security:ring <= 6 ? 'protected' : 'full-loot',
         lossMode:ring <= 6 ? 'no-loss' : 'full-loot',
         kind:ring <= 6 ? 'Protected PvP' : 'Full-Loot PvP',links:[]});
     }
-    rings.push(nodes);
   });
-  rings.forEach(nodes => nodes.forEach((node, i) => {
-    node.links.push(nodes[(i + 1) % nodes.length].id, nodes[(i + nodes.length - 1) % nodes.length].id);
-  }));
-  rings[0].forEach(node => node.links.push('private_highsec'));
-  for (let ri = 1; ri < rings.length; ri++) {
-    const inner = rings[ri - 1], outer = rings[ri];
-    outer.forEach((node, i) => {
-      const target = Math.floor(i * inner.length / outer.length) % inner.length;
-      node.links.push(inner[target].id);
-      inner[target].links.push(node.id);
+
+  // Four independent rabbit-hole regions. Each gets its own High-Sec entrance.
+  const regionNames = ['TOP','RIGHT','BOTTOM','LEFT'];
+  const regions = [[],[],[],[]];
+  const entrySystems = all.filter(s => s.ring === 1).slice(0,4);
+  entrySystems.forEach((system, regionId) => regions[regionId].push(system));
+  const remaining = all.filter(s => !entrySystems.includes(s)).sort((a,b) => a.ring-b.ring || a.id.localeCompare(b.id));
+  remaining.forEach(system => {
+    let target = 0;
+    for (let i = 1; i < regions.length; i++) if (regions[i].length < regions[target].length) target = i;
+    regions[target].push(system);
+  });
+
+  regions.forEach((members, regionId) => {
+    members.sort((a,b) => a.ring-b.ring || a.id.localeCompare(b.id));
+    const mainCount = members.length - 6;
+    const mainline = members.slice(0,mainCount);
+    const pockets = members.slice(mainCount);
+    mainline.forEach((system,index) => {
+      system.regionId = regionId;
+      system.regionName = regionNames[regionId];
+      system.regionRoot = index === 0;
+      system.isSidePocket = false;
+      system.mapDepth = index;
+      system.mapBranch = 0;
+      system.parentId = index === 0 ? 'private_highsec' : mainline[index-1].id;
+      system.links.push(system.parentId);
+      if (index + 1 < mainline.length) system.links.push(mainline[index+1].id);
     });
-  }
-  rings.forEach(nodes => nodes.forEach(node => { node.links = Array.from(new Set(node.links)); }));
-  return rings.flat();
+
+    // Three optional side pockets per region. Each pocket has an entry and a
+    // dead-end system; the branch point never has more than three gates.
+    const anchors = [1, Math.floor((mainline.length-1)/2), mainline.length-1];
+    for (let branch = 0; branch < 3; branch++) {
+      const first = pockets[branch*2], deadEnd = pockets[branch*2+1], anchor = mainline[anchors[branch]];
+      first.regionId = deadEnd.regionId = regionId;
+      first.regionName = deadEnd.regionName = regionNames[regionId];
+      first.regionRoot = deadEnd.regionRoot = false;
+      first.isSidePocket = deadEnd.isSidePocket = true;
+      first.mapDepth = deadEnd.mapDepth = anchors[branch];
+      first.mapBranch = deadEnd.mapBranch = branch + 1;
+      first.mapPocketDepth = 0; deadEnd.mapPocketDepth = 1;
+      first.parentId = anchor.id;
+      deadEnd.parentId = first.id;
+      anchor.links.push(first.id);
+      first.links.push(anchor.id,deadEnd.id);
+      deadEnd.links.push(first.id);
+    }
+  });
+
+  regions.forEach(members => members.forEach(system => {
+    system.links = Array.from(new Set(system.links));
+  }));
+  return all;
 })();
 window.MINISPACE_UNIVERSE_SYSTEMS = FRONTIER_SYSTEMS;
 
@@ -338,15 +377,15 @@ class MapManager {
  this.currentMapId = 'private_highsec';  
  this.missionReturnGate = null;
  this.frontierReturnGate = null;
- this.frontierHomeGateSystemId = (FRONTIER_SYSTEMS.find(s => s.ring === 1) || {}).id || null;
+ this.frontierHomeGateSystemId = (FRONTIER_SYSTEMS.find(s => s.regionRoot) || {}).id || null;
  this.frontierGates = [];
- this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.ring === 1).slice(0, 1).map((system, i) => {
-   const spots = [[500,500],[2500,1500],[4500,500],[4500,2500],[4500,3900],[500,2500]];
+ this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.regionRoot).map((system, i) => {
+   const spots = [[500,500],[4500,500],[4500,4500],[500,4500]];
    const p = spots[i] || [2500,2500];
    return {x:p[0],y:p[1],radius:88,destinationId:system.id,draw:function(ctx){
      const targeted = drawUniverseTargetTear(ctx, this);
      drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,18+i);
-     drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':'FRONTIER GATE',system.name,targeted?'#fbbf24':'#fb923c');
+     drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':system.regionName+' REGION',system.name,targeted?'#fbbf24':'#fb923c');
    }};
  });
  this.frontierEntryGate = this.frontierEntryGates[0];
@@ -402,27 +441,29 @@ class MapManager {
   let gateSeed=0;for(let k=0;k<system.id.length;k++)gateSeed=(gateSeed*33+system.id.charCodeAt(k))>>>0;
   let gateRng=gateSeed||1;
   const gateRandom=()=>{gateRng=(gateRng*1664525+1013904223)>>>0;return gateRng/4294967296;};
-  // Only the system used to enter this expedition has a physical High-Sec exit.
-  // Every other system exposes only neighbouring frontier gates.
-  const hasHomeExit=this.frontierHomeGateSystemId===system.id;
-  const gateDestinations=system.links.filter(id=>id!=='private_highsec'||hasHomeExit);
+  // Every system has a gate back to its parent plus one forward route;
+  // selected junctions also have a third gate into an optional side pocket.
+  const returnDestination=system.parentId || 'private_highsec';
+  const gateDestinations=system.links.slice();
   const gateRotation=gateRandom()*Math.PI*2;
   const gateRadius=2750+gateRandom()*550;
   const allGates=gateDestinations.map((id,i,all)=>{
     const a=gateRotation+(2*Math.PI*(i+1)/(all.length+1))+(gateRandom()-0.5)*0.16;
     const distance=gateRadius+(gateRandom()-0.5)*420;
+    const isReturn=id===returnDestination;
     const isHome=id==='private_highsec';
-    const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:isHome?105:90,destinationId:id};
+    const d=FRONTIER_SYSTEMS.find(s=>s.id===id);
+    const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:isReturn?105:90,destinationId:id};
     g.draw=function(ctx){
       const targeted = drawUniverseTargetTear(ctx, this);
-      drawSpaceRift(ctx,this.x,this.y,this.radius,isHome?RIFT_PALETTES.ret:RIFT_PALETTES.pvp,40+i);
-      const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);
-      drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET TEAR':(isHome?'RETURN RIFT':'FRONTIER ROUTE'),isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),targeted?'#fbbf24':(isHome?'#34d399':'#fb923c'));
+      drawSpaceRift(ctx,this.x,this.y,this.radius,isReturn?RIFT_PALETTES.ret:RIFT_PALETTES.pvp,40+i);
+      const label=isReturn?'RETURN GATE':(d&&d.isSidePocket?'SIDE POCKET GATE':'DEEP-SPACE GATE');
+      drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET TEAR':label,isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),targeted?'#fbbf24':(isReturn?'#34d399':'#fb923c'));
     };
     return g;
   });
-  this.frontierReturnGate=allGates.find(g=>g.destinationId==='private_highsec')||null;
-  this.frontierGates=allGates.filter(g=>g.destinationId!=='private_highsec');
+  this.frontierReturnGate=allGates.find(g=>g.destinationId===returnDestination)||null;
+  this.frontierGates=allGates.filter(g=>g!==this.frontierReturnGate);
   this.frontierStation=new SpaceStation(cx,cy,system.name+' Station');
   this.frontierStation.isFrontierStation = true;
   let seed=0;for(let k=0;k<system.id.length;k++)seed=(seed*33+system.id.charCodeAt(k))>>>0;const oldRandom=Math.random;let rng=seed||1;Math.random=function(){rng=(rng*1664525+1013904223)>>>0;return rng/4294967296;};
