@@ -912,11 +912,7 @@ window.openUniverse = function() {
   // Four readable map regions. System placement is stable and independent of
   // render order, while the gates still connect the exact same system IDs.
   const regionMembers = [[], [], [], []];
-  systems.forEach(system => {
-    let hash = 2166136261;
-    for (const ch of String(system.id)) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619) >>> 0;
-    regionMembers[hash % 4].push(system);
-  });
+  systems.forEach((system, index) => regionMembers[index % 4].push(system));
   const systemPositions = new Map();
   regionMembers.forEach((members, region) => members.forEach((system, index) => {
     let x, y;
@@ -925,9 +921,9 @@ window.openUniverse = function() {
       x = 95 + col * 190 + ((index * 13) % 17 - 8);
       y = (region === 0 ? 55 : 326) + row * 36 + ((index * 7) % 9 - 4);
     } else {
-      const col = index % 2, row = Math.floor(index / 2);
-      x = (region === 3 ? 78 : 582) + col * 112 + ((index * 11) % 13 - 6);
-      y = 178 + row * 39 + ((index * 5) % 9 - 4);
+      const col = index % 3, row = Math.floor(index / 3);
+      x = (region === 3 ? 55 : 541) + col * 82 + ((index * 11) % 9 - 4);
+      y = 190 + row * 34 + ((index * 5) % 7 - 3);
     }
     systemPositions.set(system.id, [x, y]);
   }));
