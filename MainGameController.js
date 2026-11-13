@@ -1084,6 +1084,7 @@ window.openUniverse = function() {
   const plottedPath = window._universeTargetSystemId
     ? window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, window._universeTargetSystemId)
     : null;
+  const plottedSystems = new Set(plottedPath || []);
   const plottedEdges = new Set();
   if (plottedPath) for (let i = 1; i < plottedPath.length; i++) plottedEdges.add([plottedPath[i - 1], plottedPath[i]].sort().join('|'));
   systems.forEach(s => s.links.forEach(id => {
@@ -1096,7 +1097,7 @@ window.openUniverse = function() {
     const p = xy(sighting.systemId);
     return '<button type="button" data-fleet-system="' + sighting.systemId + '" data-sighting-id="' + sighting.id +
       '" title="Explorer ping · ' + sighting.ships + ' mining ships · intel confidence ' + (sighting.intelConfidence || 0) + '% · dispatch Corp Explorer" style="position:absolute;left:' + (p[0] / 16) +
-      '%;top:' + (p[1] / 9.6) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">' + (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ') + sighting.ships + '</button>';
+      '%;top:' + (p[1] / 11.2) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">' + (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ') + sighting.ships + '</button>';
   }).join('');
   const corpExplorer = botManager && botManager.bots
     ? botManager.bots.find(entry => entry && entry.ship && ['Exploration Frigate','Improved Explorer Frigate','Explorer Cruiser'].includes(entry.className))
@@ -1112,35 +1113,35 @@ window.openUniverse = function() {
   const teamMembers = onlineState && onlineState.teamId ? (onlineState.teamLocations || []) : [];
   const teamMarkers = teamMembers.filter(member => member && member.id !== onlineState.id && (member.mapId === 'private_highsec' || systemPositions.has(member.mapId))).map(member => {
     const p = xy(member.mapId), label = String(member.name || 'TEAMMATE').replace(/[&<>"']/g, '');
-    return '<div title="TEAMMATE · ' + label + ' · ' + String(member.system || member.mapId) + '" style="position:absolute;left:' + (p[0] / 16) + '%;top:' + (p[1] / 9.6) + '%;transform:translate(13px,-27px);z-index:10;pointer-events:none;white-space:nowrap;padding:3px 6px;border-radius:9px;border:1px solid #34d399;background:rgba(3,55,42,.97);color:#a7f3d0;font-size:10px;font-weight:900;box-shadow:0 0 12px rgba(52,211,153,.65)">● ' + label + '</div>';
+    return '<div title="TEAMMATE · ' + label + ' · ' + String(member.system || member.mapId) + '" style="position:absolute;left:' + (p[0] / 16) + '%;top:' + (p[1] / 11.2) + '%;transform:translate(13px,-27px);z-index:10;pointer-events:none;white-space:nowrap;padding:3px 6px;border-radius:9px;border:1px solid #34d399;background:rgba(3,55,42,.97);color:#a7f3d0;font-size:10px;font-weight:900;box-shadow:0 0 12px rgba(52,211,153,.65)">● ' + label + '</div>';
   }).join('');
   const teamLocationsSummary = teamMembers.length ? teamMembers.map(member => String(member.name || 'Pilot') + ' · ' + String(member.system || member.mapId || 'Unknown')).join(' | ') : '';
   const explorerMarker = explorerPoint ? '<div title="Corp Explorer · ' + explorerLabel + '" aria-label="Corp Explorer ' + explorerLabel +
-    '" style="pointer-events:none;position:absolute;left:' + (explorerPoint[0] / 16) + '%;top:' + (explorerPoint[1] / 9.6) +
+    '" style="pointer-events:none;position:absolute;left:' + (explorerPoint[0] / 16) + '%;top:' + (explorerPoint[1] / 11.2) +
     '%;transform:translate(-50%,-155%);z-index:9;white-space:nowrap;padding:4px 7px;border-radius:10px;border:1px solid #5eead4;background:rgba(4,55,58,.96);color:#ccfbf1;font-size:10px;font-weight:900;box-shadow:0 0 14px rgba(45,212,191,.7)">🚀 ' + explorerLabel + '</div>' : '';
-  const homeHere = current === 'private_highsec', homeTargeted = window._universeTargetSystemId === 'private_highsec';
-  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : (homeTargeted ? '#fbbf24' : '#38bdf8')) + ';background:' + (homeHere ? '#854d0e' : (homeTargeted ? '#713f12' : '#12354a')) + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (homeTargeted ? '0 0 0 5px rgba(251,191,36,.24),0 0 22px #fbbf24' : '0 0 12px #38bdf8')) + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
+  const homeHere = current === 'private_highsec', homeTargeted = window._universeTargetSystemId === 'private_highsec', homeOnRoute = plottedSystems.has('private_highsec');
+  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current ' : '') + (homeOnRoute ? 'route ' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : ((homeTargeted || homeOnRoute) ? '#fbbf24' : '#38bdf8')) + ';background:' + (homeHere ? '#854d0e' : ((homeTargeted || homeOnRoute) ? '#713f12' : '#12354a')) + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : ((homeTargeted || homeOnRoute) ? '0 0 0 5px rgba(251,191,36,.24),0 0 22px #fbbf24' : '0 0 12px #38bdf8')) + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
     const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
-    const here = current === s.id, targeted = window._universeTargetSystemId === s.id;
-    return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (targeted ? 'targeted ' : '') + (here ? '' : 'reachable') +
+    const here = current === s.id, targeted = window._universeTargetSystemId === s.id, onRoute = plottedSystems.has(s.id);
+    return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (onRoute ? 'route ' : '') + (targeted ? 'targeted ' : '') + (here ? '' : 'reachable') +
       '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (s.ring <= 2 ? 'SAFE FRINGE · LOW THREAT · NO-LOSS' : (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP')) +
       '" aria-label="' + (here ? 'Your current system: ' : 'Fly to ') + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
-      '" style="position:absolute;left:' + (p[0] / 16) + '%;top:' + (p[1] / 9.6) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (targeted ? '0 0 0 5px rgba(251,191,36,.2),0 0 20px #fbbf24' : '0 0 9px ' + color)) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★' : s.ring) + '<span style="position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(2,8,16,.96);border:1px solid ' + (targeted ? '#fbbf24' : 'rgba(120,150,165,.45)') + ';color:' + (targeted ? '#fde68a' : '#d5e2e8') + ';font-size:9px;font-weight:' + (targeted ? '900' : '700') + ';text-shadow:0 1px 4px #000;pointer-events:none">' + s.name + '</span>' + (here ? '<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
+      '" style="position:absolute;left:' + (p[0] / 16) + '%;top:' + (p[1] / 11.2) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : ((targeted || onRoute) ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : ((targeted || onRoute) ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : ((targeted || onRoute) ? '0 0 0 5px rgba(251,191,36,.2),0 0 20px #fbbf24' : '0 0 9px ' + color)) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★' : s.ring) + '<span style="position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(2,8,16,.96);border:1px solid ' + ((targeted || onRoute) ? '#fbbf24' : 'rgba(120,150,165,.45)') + ';color:' + ((targeted || onRoute) ? '#fde68a' : '#d5e2e8') + ';font-size:9px;font-weight:' + (targeted ? '900' : '700') + ';text-shadow:0 1px 4px #000;pointer-events:none">' + s.name + '</span>' + (here ? '<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   }).join('');
   const list = systems.map(s => {
-    const targeted = window._universeTargetSystemId === s.id;
+    const targeted = window._universeTargetSystemId === s.id, onRoute = plottedSystems.has(s.id);
     return '<button type="button" data-system-id="' + s.id + '" style="display:inline-block;margin:3px;padding:5px 7px;background:' +
-      (targeted ? '#713f12' : (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025')) + ';color:' + (targeted ? '#fde68a' : '#e6edf3') + ';border:1px solid ' +
-      (targeted ? '#fbbf24' : (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171')) + ';border-radius:5px;font-size:11px;font-weight:' + (targeted ? '900' : '600') + '">' +
-      (targeted ? '★ ' : '') + s.name + ' · ' + s.ring + '</button>';
+      ((targeted || onRoute) ? '#713f12' : (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025')) + ';color:' + ((targeted || onRoute) ? '#fde68a' : '#e6edf3') + ';border:1px solid ' +
+      ((targeted || onRoute) ? '#fbbf24' : (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171')) + ';border-radius:5px;font-size:11px;font-weight:' + ((targeted || onRoute) ? '900' : '600') + '">' +
+      (targeted ? '★ ' : (onRoute ? '● ' : '')) + s.name + ' · ' + s.ring + '</button>';
   }).join('');
-  host.innerHTML = '<div class="universe-chart-scroll" aria-label="Interactive universe map"><div class="universe-map-zoom-space" style="width:1600px;height:960px"><div class="universe-starchart" style="position:relative;width:1600px;height:960px;min-width:1600px;min-height:960px;aspect-ratio:auto;overflow:hidden;transform:scale(1);transform-origin:top left"><svg viewBox="0 0 1600 960" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
+  host.innerHTML = '<div class="universe-chart-scroll" aria-label="Interactive universe map"><div class="universe-map-zoom-space" style="width:1600px;height:1120px"><div class="universe-starchart" style="position:relative;width:1600px;height:1120px;min-width:1600px;min-height:1120px;aspect-ratio:auto;overflow:hidden;transform:scale(1);transform-origin:top left"><svg viewBox="0 0 1600 1120" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
     routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + teamMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 4 ISOLATED REGIONS</div>' +
     '<div class="universe-chart-key">★ YOUR LOCATION · SOLID LINES = GATES · BLUE NO-LOSS · RED FULL-LOOT</div></div></div><div class="universe-map-controls"><button type="button" data-map-zoom="out" aria-label="Zoom out">−</button><button type="button" data-map-zoom="reset" aria-label="Reset zoom">100%</button><button type="button" data-map-zoom="in" aria-label="Zoom in">+</button></div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
     (teamLocationsSummary ? '<p class="universe-map-note" style="color:#86efac">TEAM LOCATIONS · ' + teamLocationsSummary + '</p>' : '') +
-    '<p class="universe-map-note">Tap a system to auto-route through connected gates. Your ship will keep following the route until it reaches the selected system. Pinch to zoom and drag to pan.</p>';
+    '<p class="universe-map-note">Tap a system to auto-route through connected gates. Every system on your route turns yellow; your ship follows the route until it reaches the destination. Pinch to zoom and drag to pan.</p>';
   if (!host.dataset.navigationBound) {
     const getMapParts = () => ({
       viewport: host.querySelector('.universe-chart-scroll'),
@@ -1157,8 +1158,8 @@ window.openUniverse = function() {
       const mapX = (parts.viewport.scrollLeft + localX) / oldZoom;
       const mapY = (parts.viewport.scrollTop + localY) / oldZoom;
       host.dataset.mapZoom = String(nextZoom);
-      parts.space.style.width = (760 * nextZoom) + 'px';
-      parts.space.style.height = (480 * nextZoom) + 'px';
+      parts.space.style.width = (1600 * nextZoom) + 'px';
+      parts.space.style.height = (1120 * nextZoom) + 'px';
       parts.chart.style.transform = 'scale(' + nextZoom + ')';
       parts.viewport.scrollLeft = mapX * nextZoom - localX;
       parts.viewport.scrollTop = mapY * nextZoom - localY;
