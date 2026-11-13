@@ -8,7 +8,7 @@ function isExplorerHull(cls){return AUTOPLAY_EXPLORER.includes(cls);}
 function isCombatAutoplayHull(cls){return AUTOPLAY_COMBAT.includes(cls);}
 class AutoplayManager{
  constructor(playerDataRef,stationRef,beltRef,debrisFieldRef){this.playerData=playerDataRef;this.station=stationRef;this.belt=beltRef;this.debrisField=debrisFieldRef;this.isAutoplay=false;this.combatMode=false;this.combatPhase='';}
- blockReason(ship){if(!ship)return'No ship.';if(!canAutoplay(ship.className))return'Autoplay is not supported by this ship.';if(typeof inPublicSpace==='function'&&inPublicSpace())return'Autoplay only works in High-Sec and mission systems.';return null;}
+ blockReason(ship){if(!ship)return'No ship.';if(!canAutoplay(ship.className))return'Autoplay is not supported by this ship.';if(typeof inPublicSpace==='function'&&inPublicSpace()&&!(typeof isFrontierSpace==='function'&&isFrontierSpace()))return'Autoplay is not available in the public Trade Hub.';return null;}
  toggle(){
   if(this.isAutoplay){this.isAutoplay=false;this.combatMode=false;this.combatPhase='';if(typeof isDockingRequested!=='undefined')isDockingRequested=false;return;}
   const ship=typeof playerShip!=='undefined'?playerShip:null;
@@ -114,7 +114,17 @@ class AutoplayManager{
    else ship.update(targetMovePos,null,false,[]);
    return;
   }
-  const mission=missionManager&&missionManager.activeMission;if(!mission){this.combatPhase='accept';return;}
+  const mission=missionManager&&missionManager.activeMission;
+  if(typeof isFrontierSpace==='function'&&isFrontierSpace()){
+   const currentId=mapManager&&mapManager.currentMapId;
+   const enemies=publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners)?publicNpcManager.publicNpcMiners.filter(n=>n&&n.isAlive&&n.mapId===currentId&&n.structure>0):[];
+   this.combatPhase='frontier-hunt';targetMovePos=null;
+   if(ship.className==='Combat Frigate')ship.update(null,null,false,enemies,true);
+   else if(ship.className==='Carrier')ship.update(null,null,false,false,enemies,true);
+   else ship.update(null,null,false,enemies);
+   return;
+  }
+  if(!mission){this.combatPhase='accept';return;}
   const gate=mapManager.missionEntryGate,ret=mapManager.missionReturnGate;
   if(typeof inMissionSpace==='function'&&inMissionSpace()){
    if(mission.completed){this.combatPhase='return';targetMovePos={x:ret.x,y:ret.y};}
