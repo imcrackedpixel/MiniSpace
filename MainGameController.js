@@ -806,6 +806,21 @@ window.setUniverseTargetSystem = function(destinationId) {
   if (typeof window.openUniverse === 'function') window.openUniverse();
   if (typeof updateNearbySpacePanel === 'function') updateNearbySpacePanel();
 };
+window.autoFlyToUniverseSystem = function(destinationId) {
+  if (!playerShip || !mapManager) return;
+  const valid = destinationId === 'private_highsec' || (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === destinationId);
+  if (!valid) return;
+  window._universeTargetSystemId = destinationId;
+  window._universeRouteDestination = destinationId;
+  try { localStorage.setItem('minispace_universe_target', destinationId); } catch (_) {}
+  window.refreshUniverseTargetRoute();
+  if (destinationId === mapManager.currentMapId) {
+    window.closeUniverse();
+    window.showCorpNotification('YOU ARE ALREADY IN ' + (destinationId === 'private_highsec' ? 'HIGH-SEC' : destinationId.replace('frontier_','').toUpperCase()) + '.');
+    return;
+  }
+  window.flyToFrontierGate(destinationId);
+};
 window.flyToFrontierGate = function(destinationId) {
   if (!playerShip || !mapManager) return;
   const current = mapManager.currentMapId, systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
@@ -961,6 +976,13 @@ window.openUniverse = function() {
     : explorerPhase === 'outbound' ? 'EN ROUTE'
     : 'CORP EXPLORER';
   const explorerPoint = explorerSystemId ? xy(explorerSystemId) : null;
+  const onlineState = window.MinispaceOnline && window.MinispaceOnline.state;
+  const teamMembers = onlineState && onlineState.teamId ? (onlineState.teamLocations || []) : [];
+  const teamMarkers = teamMembers.filter(member => member && member.id !== onlineState.id && (member.mapId === 'private_highsec' || systemPositions.has(member.mapId))).map(member => {
+    const p = xy(member.mapId), label = String(member.name || 'TEAMMATE').replace(/[&<>"']/g, '');
+    return '<div title="TEAMMATE · ' + label + ' · ' + String(member.system || member.mapId) + '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(13px,-27px);z-index:10;pointer-events:none;white-space:nowrap;padding:3px 6px;border-radius:9px;border:1px solid #34d399;background:rgba(3,55,42,.97);color:#a7f3d0;font-size:10px;font-weight:900;box-shadow:0 0 12px rgba(52,211,153,.65)">● ' + label + '</div>';
+  }).join('');
+  const teamLocationsSummary = teamMembers.length ? teamMembers.map(member => String(member.name || 'Pilot') + ' · ' + String(member.system || member.mapId || 'Unknown')).join(' | ') : '';
   const explorerMarker = explorerPoint ? '<div title="Corp Explorer · ' + explorerLabel + '" aria-label="Corp Explorer ' + explorerLabel +
     '" style="pointer-events:none;position:absolute;left:' + (explorerPoint[0] / 7.6) + '%;top:' + (explorerPoint[1] / 4.8) +
     '%;transform:translate(-50%,-155%);z-index:9;white-space:nowrap;padding:4px 7px;border-radius:10px;border:1px solid #5eead4;background:rgba(4,55,58,.96);color:#ccfbf1;font-size:10px;font-weight:900;box-shadow:0 0 14px rgba(45,212,191,.7)">🚀 ' + explorerLabel + '</div>' : '';
@@ -982,10 +1004,11 @@ window.openUniverse = function() {
       (targeted ? '★ ' : '') + s.name + ' · ' + s.ring + '</button>';
   }).join('');
   host.innerHTML = '<div class="universe-chart-scroll" aria-label="Interactive universe map"><div class="universe-map-zoom-space" style="width:760px;height:480px"><div class="universe-starchart" style="position:relative;width:760px;height:480px;min-width:760px;min-height:480px;aspect-ratio:auto;overflow:hidden;transform:scale(1);transform-origin:top left"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
-    routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 4 ISOLATED REGIONS</div>' +
+    routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + teamMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 4 ISOLATED REGIONS</div>' +
     '<div class="universe-chart-key">★ YOUR LOCATION · SOLID LINES = GATES · BLUE NO-LOSS · RED FULL-LOOT</div></div></div><div class="universe-map-controls"><button type="button" data-map-zoom="out" aria-label="Zoom out">−</button><button type="button" data-map-zoom="reset" aria-label="Reset zoom">100%</button><button type="button" data-map-zoom="in" aria-label="Zoom in">+</button></div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
-    '<p class="universe-map-note">Pinch with two fingers or use the mouse wheel to zoom. Drag or scroll to move around the map. Each region has its own entrance from High-Sec.</p>';
+    (teamLocationsSummary ? '<p class="universe-map-note" style="color:#86efac">TEAM LOCATIONS · ' + teamLocationsSummary + '</p>' : '') +
+    '<p class="universe-map-note">Tap a system to auto-fly to the next gate on your route. You still need to enter the gate. Pinch to zoom and drag to pan.</p>';
   if (!host.dataset.navigationBound) {
     const getMapParts = () => ({
       viewport: host.querySelector('.universe-chart-scroll'),
@@ -1088,7 +1111,7 @@ window.openUniverse = function() {
       const fleet = event.target.closest('button[data-fleet-system]');
       if (fleet) { window.hotDropMiningFleet(fleet.getAttribute('data-sighting-id')); return; }
       const node = event.target.closest('button[data-system-id]');
-      if (node) window.setUniverseTargetSystem(node.getAttribute('data-system-id'));
+      if (node) window.autoFlyToUniverseSystem(node.getAttribute('data-system-id'));
     });
     host.dataset.navigationBound = '1';
   }
