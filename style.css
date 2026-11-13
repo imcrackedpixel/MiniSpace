@@ -283,9 +283,10 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
   max-width: 90vw;
   max-height: 80vh;
 }
-#universe-modal{display:none;position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.84);align-items:center;justify-content:center;padding:10px;box-sizing:border-box}
-.universe-window{width:min(900px,98vw);max-height:92vh;overflow:auto;background:radial-gradient(ellipse at 50% 45%,#142c3a 0%,#09131d 58%,#050a11 100%);border:1px solid #34785d;border-radius:10px;box-shadow:0 12px 48px #000;padding:14px;color:#dce8ed}
-.universe-window header{display:flex;justify-content:space-between;align-items:center;color:#9be7d4;letter-spacing:1px;font-size:14px}.universe-window header button{background:#202a32;color:#dce8ed;border:1px solid #45545f;padding:7px 10px}
+#universe-modal{display:none;position:fixed;inset:0;z-index:30000;background:rgba(0,0,0,.9);align-items:center;justify-content:center;padding:max(8px,env(safe-area-inset-top)) 8px max(8px,env(safe-area-inset-bottom));box-sizing:border-box}
+.universe-window{position:relative;z-index:30001;width:min(900px,98vw);max-height:96dvh;overflow:auto;background:radial-gradient(ellipse at 50% 45%,#142c3a 0%,#09131d 58%,#050a11 100%);border:1px solid #34785d;border-radius:10px;box-shadow:0 12px 48px #000;padding:14px;color:#dce8ed}
+.universe-window header{position:sticky;top:-14px;z-index:20;display:flex;justify-content:space-between;align-items:center;gap:12px;min-height:48px;padding:4px 2px;background:#091722;color:#9be7d4;letter-spacing:1px;font-size:14px;border-bottom:1px solid #34785d}
+.universe-window header button{position:relative;z-index:21;flex:0 0 auto;min-width:76px;min-height:42px;background:#203943;color:#dce8ed;border:1px solid #65b7a2;border-radius:7px;padding:8px 12px;font-weight:900;touch-action:manipulation;pointer-events:auto}
 .universe-map-note{font-size:12px;color:#91a1a9;line-height:1.5}.universe-starchart{position:relative;width:100%;aspect-ratio:1.58;min-height:330px;overflow:hidden;border:1px solid #263f50;border-radius:8px;background:radial-gradient(circle at 20% 25%,#1d3544 0 1px,transparent 2px),radial-gradient(circle at 72% 65%,#294252 0 1px,transparent 2px),radial-gradient(ellipse at center,#102331,#050b13 72%);background-size:83px 79px,117px 103px,100% 100%}
 .universe-starchart:before{content:"";position:absolute;inset:0;background-image:radial-gradient(#9bc7d9 0.7px,transparent 1px);background-size:47px 43px;opacity:.25;pointer-events:none}.universe-starchart svg{position:absolute;inset:0;width:100%;height:100%}.universe-route-line{stroke:#75b8c6;stroke-width:1.7;stroke-dasharray:5 7;opacity:.48}
 .universe-node{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;gap:3px;align-items:center;justify-content:center;min-width:76px;max-width:110px;padding:6px 7px;background:rgba(8,18,28,.92);border:1px solid #557181;border-radius:20px;color:#e6edf3;box-shadow:0 0 14px #1b435b88;z-index:2}.universe-node strong{font-size:10px;white-space:nowrap}.universe-node small{font-size:8px;color:#b9c9d0}
@@ -751,3 +752,12 @@ html:fullscreen body, html:-webkit-full-screen body {
 .cargo-icon-debris_t3{color:#80d99b;border-color:#42965b}
 .cargo-icon-debris_t4{color:#eac66d;border-color:#b58a35}
 .cargo-icon-debris_t5{color:#e88b8b;border-color:#b84b55}
+
+
+/* Universe map always owns the top interaction layer; keep its close control reachable in fullscreen. */
+#universe-modal, #universe-modal * { pointer-events:auto; }
+@media screen and (orientation:landscape) and (max-width:950px) {
+  #universe-modal { align-items:flex-start; padding-top:max(5px,env(safe-area-inset-top)); }
+  .universe-window { max-height:calc(100dvh - max(10px,env(safe-area-inset-top)) - max(5px,env(safe-area-inset-bottom))); }
+  .universe-window header { top:-7px; min-height:44px; }
+}
