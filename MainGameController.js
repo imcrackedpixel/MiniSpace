@@ -978,13 +978,20 @@ window.onCorpExplorerPanicHotDrop = function(bot) {
   mainStation = arrival.station || mapManager.frontierStation || homeStation;
   window.MINISPACE_FRONTIER_STATION = mainStation;
   if (publicNpcManager) publicNpcManager.initFrontierSystem(arrival.system, mainStation);
-  playerShip.x = bot.ship.x + 190;
-  playerShip.y = bot.ship.y + 120;
+  const ambushHotDrop = !!mission.ambush;
+  if (ambushHotDrop && mapManager.frontierReturnGate) {
+    playerShip.x = mapManager.frontierReturnGate.x + 330;
+    playerShip.y = mapManager.frontierReturnGate.y + 210;
+    playerShip.angle = Math.atan2(mapManager.frontierReturnGate.y - playerShip.y, mapManager.frontierReturnGate.x - playerShip.x);
+  } else {
+    playerShip.x = bot.ship.x + 190;
+    playerShip.y = bot.ship.y + 120;
+    playerShip.angle = Math.atan2(bot.ship.y - playerShip.y, bot.ship.x - playerShip.x);
+  }
   playerShip.vx = 0; playerShip.vy = 0;
-  playerShip.angle = Math.atan2(bot.ship.y - playerShip.y, bot.ship.x - playerShip.x);
   playerShip.docked = false;
-  // Brief arrival shield prevents instant spawn-kills, including hostile player fire.
-  playerShip._miniTacticalShieldUntil = Date.now() + 4000;
+  // Ordinary tactical drops get four seconds of cover; the bait signal gets none.
+  playerShip._miniTacticalShieldUntil = Date.now() + (ambushHotDrop ? 0 : 4000);
   if (typeof playerShip.takeDamage === 'function' && !playerShip._miniTacticalShieldWrapped) {
     const originalTakeDamage = playerShip.takeDamage.bind(playerShip);
     playerShip.takeDamage = function() {
@@ -997,7 +1004,9 @@ window.onCorpExplorerPanicHotDrop = function(bot) {
   const remotePilots = window.MinispaceOnline && window.MinispaceOnline.state && window.MinispaceOnline.state.remotePlayers;
   const pilotsInSystem = remotePilots ? Object.values(remotePilots).filter(p => p && p.mapId === destinationId).length : 0;
   mission.playerReinforced = true;
-  if (mission.counterDropRisk && !mission.counterDropSpawned && publicNpcManager &&
+  if (ambushHotDrop && publicNpcManager && typeof publicNpcManager.startHotDropAmbush === 'function') {
+    publicNpcManager.startHotDropAmbush(arrival.system, mission.sightingId, playerShip.x, playerShip.y);
+  } else if (mission.counterDropRisk && !mission.counterDropSpawned && publicNpcManager &&
       typeof publicNpcManager.spawnTacticalCounterDrop === 'function') {
     mission.counterDropSpawned = publicNpcManager.spawnTacticalCounterDrop(arrival.system, mission.sightingId, playerShip.x, playerShip.y);
   }
@@ -1006,8 +1015,10 @@ window.onCorpExplorerPanicHotDrop = function(bot) {
     publicNpcManager.addCapitalDropEffect(destinationId, playerShip.x, playerShip.y);
   }
   if (typeof saveGameSession === 'function') saveGameSession();
-  window.showCorpNotification('TACTICAL REINFORCEMENT · pulled into ' + ((arrival.system && arrival.system.name) || 'the fleet system') +
-    (pilotsInSystem ? ' · ' + pilotsInSystem + ' other pilot(s) detected' : '') + ' · 4-second arrival shield.');
+  window.showCorpNotification(ambushHotDrop
+    ? 'HOT-DROP AMBUSH · you were baited into ' + ((arrival.system && arrival.system.name) || 'the system') + ' · pirates will reinforce until your ship is destroyed.'
+    : 'TACTICAL REINFORCEMENT · pulled into ' + ((arrival.system && arrival.system.name) || 'the fleet system') +
+      (pilotsInSystem ? ' · ' + pilotsInSystem + ' other pilot(s) detected' : '') + ' · 4-second arrival shield.');
 };
 
 window.openUniverse = function() {
@@ -1099,9 +1110,10 @@ window.openUniverse = function() {
   }));
   const fleetMarkers = fleetSightings.map(sighting => {
     const p = xy(sighting.systemId);
+    const ambush = !!sighting.ambush;
     return '<button type="button" data-fleet-system="' + sighting.systemId + '" data-sighting-id="' + sighting.id +
-      '" title="Explorer ping · ' + sighting.ships + ' mining ships · intel confidence ' + (sighting.intelConfidence || 0) + '% · dispatch Corp Explorer" style="position:absolute;left:' + (p[0] / 16) +
-      '%;top:' + (p[1] / 11.2) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">' + (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ') + sighting.ships + '</button>';
+      '" title="' + (ambush ? 'Unusual hostile signal · high-risk Explorer hot drop' : 'Explorer ping · ' + sighting.ships + ' mining ships · intel confidence ' + (sighting.intelConfidence || 0) + '% · dispatch Corp Explorer') + '" style="position:absolute;left:' + (p[0] / 16) +
+      '%;top:' + (p[1] / 11.2) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid ' + (ambush ? '#ef4444' : '#fbbf24') + ';background:' + (ambush ? '#450a0a' : '#422006') + ';color:' + (ambush ? '#fecaca' : '#fde68a') + ';font-size:11px;font-weight:900;box-shadow:0 0 12px ' + (ambush ? 'rgba(239,68,68,.7)' : 'rgba(251,191,36,.55)') + '">' + (ambush ? '☠ ' : (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ')) + sighting.ships + '</button>';
   }).join('');
   const corpExplorer = botManager && botManager.bots
     ? botManager.bots.find(entry => entry && entry.ship && ['Exploration Frigate','Improved Explorer Frigate','Explorer Cruiser'].includes(entry.className))
@@ -3582,6 +3594,11 @@ function updateGame() {
 
   if (pub && mapManager.currentMapId === 'public_space') {
     if (window.centralStationBoss && window.centralStationBoss.structure <= 0 && !window.extractionCountdownActive) {
+      if (!window.centralStationBoss._minispaceStationXpAwarded) {
+        window.centralStationBoss._minispaceStationXpAwarded = true;
+        if (typeof window.awardPlayerXP === 'function') window.awardPlayerXP('combat', 3000, 'Rogue station boss destroyed');
+        window.showCorpNotification('ROGUE STATION DESTROYED · +3,000 COMBAT XP');
+      }
       window.extractionCountdownActive = true;
       window.extractionDeadline = Date.now() + EXTRACTION_SECONDS * 1000;
       window.extractionLastShown = EXTRACTION_SECONDS;
@@ -3671,7 +3688,21 @@ function updateGame() {
     }
   } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
     const back=mapManager.frontierReturnGate;
-    if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius) {
+    if (publicNpcManager && publicNpcManager.isHotDropAmbushActive(mapManager.currentMapId)) {
+      const exits = [back].concat(mapManager.frontierGates || []).filter(Boolean);
+      const blocked = exits.find(g => Math.hypot(playerShip.x-g.x, playerShip.y-g.y) < g.radius + 25);
+      if (blocked) {
+        const dx = playerShip.x - blocked.x, dy = playerShip.y - blocked.y;
+        const distance = Math.hypot(dx, dy) || 1;
+        playerShip.x = blocked.x + dx / distance * (blocked.radius + 85);
+        playerShip.y = blocked.y + dy / distance * (blocked.radius + 85);
+        playerShip.vx = 0; playerShip.vy = 0; targetMovePos = null; gateCooldown = 90;
+        if (!publicNpcManager._hotDropGateWarningShown) {
+          publicNpcManager._hotDropGateWarningShown = true;
+          window.showCorpNotification('GATES JAMMED · hostile reinforcements are sealing every exit.');
+        }
+      }
+    } else if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius) {
       const currentSystem=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===mapManager.currentMapId);
       const returnDestination=currentSystem&&currentSystem.parentId||'private_highsec';
       const plottedDestination=window._universeRouteDestination;
@@ -3948,6 +3979,10 @@ window.getMiniSpaceMapId = function() {
 // Failing a mission on death clears the ship-change lock.
 window.handlePlayerDeath = function() {
   let destroyed = playerShip ? playerShip.className : 'Ship';
+  if (publicNpcManager && mapManager && typeof publicNpcManager.endHotDropAmbush === 'function') {
+    publicNpcManager.endHotDropAmbush(mapManager.currentMapId);
+    publicNpcManager._hotDropGateWarningShown = false;
+  }
   const currentSystem = isFrontierSpace()
     ? (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === mapManager.currentMapId)
     : null;
