@@ -372,6 +372,11 @@
    state.connected=true;
    state.reconnectAttempts=0;
    $('online-status').textContent='CONNECTED';
+   console.log('MiniSpace auth handshake:', {
+    tokenPresent: typeof accessToken === 'string' && accessToken.length > 0,
+    tokenLength: typeof accessToken === 'string' ? accessToken.length : 0,
+    authBridgeAvailable: !!window.MINISPACE_AUTH
+   });
    send({
     type:'hello',
     name:localStorage.getItem('minispace_pilot_name')||'Pilot',
