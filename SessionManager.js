@@ -137,7 +137,7 @@ class SessionManager {
             vy: restored.vy,
             angle: restored.angle,
             docked: restored.docked,
-            mapId: parsed.mapId || 'private_highsec'
+            mapId: parsed.mapId || (playerData.lastKnownLocation && playerData.lastKnownLocation.mapId) || 'private_highsec'
           };
 
           return restored;
@@ -158,6 +158,16 @@ class SessionManager {
         playerData.upgrades[playerShip.className] =
           Object.assign({}, playerShip.moduleLevels);
       }
+
+      const currentMapId = typeof window.getMiniSpaceMapId === 'function' ? window.getMiniSpaceMapId() : 'private_highsec';
+      playerData.lastKnownLocation = {
+        mapId: currentMapId,
+        x: playerShip ? Number(playerShip.x) || 0 : 0,
+        y: playerShip ? Number(playerShip.y) || 0 : 0,
+        angle: playerShip ? Number(playerShip.angle) || 0 : 0,
+        docked: playerShip ? !!playerShip.docked : false,
+        savedAt: Date.now()
+      };
 
       const saveData = {
         playerData: playerData,
@@ -183,9 +193,7 @@ class SessionManager {
         shipVy: playerShip ? playerShip.vy : null,
         shipAngle: playerShip ? playerShip.angle : null,
         shipDocked: playerShip ? !!playerShip.docked : false,
-        mapId: typeof window.getMiniSpaceMapId === 'function'
-          ? window.getMiniSpaceMapId()
-          : 'private_highsec'
+        mapId: currentMapId
       };
 
       localStorage.setItem('minispace_save', JSON.stringify(saveData));
