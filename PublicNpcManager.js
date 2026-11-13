@@ -264,10 +264,10 @@ class PublicNpcManager {
         ctx.shadowColor = '#39cfff';
         ctx.shadowBlur = 24;
         ctx.fillStyle = '#e8fbff';
-        ctx.fillText('CAPITAL HOT DROP', 0, -265);
+        ctx.fillText('TACTICAL REINFORCEMENT', 0, -265);
         ctx.font = 'bold 15px system-ui,sans-serif';
         ctx.fillStyle = '#8ceaff';
-        ctx.fillText('HEAVY HULL ARRIVAL', 0, -238);
+        ctx.fillText('CAPITAL ARRIVAL', 0, -238);
       }
       ctx.restore();
     }
