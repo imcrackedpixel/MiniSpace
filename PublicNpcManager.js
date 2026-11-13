@@ -181,8 +181,10 @@ class PublicNpcManager {
         [systems[i], systems[j]] = [systems[j], systems[i]];
       }
       const count = 2 + Math.floor(Math.random() * 3);
+      const ambushIndex = Math.floor(Math.random() * count);
       this.explorerFleetSightings = systems.slice(0, count).map((system, i) => ({
         id: 'explorer-scan-' + now + '-' + i,
+        ambush: i === ambushIndex,
         systemId: system.id,
         x: 1500 + Math.random() * 6000,
         y: 1500 + Math.random() * 6000,
@@ -402,7 +404,18 @@ class PublicNpcManager {
     state.stationMaxHp = Math.max(1, Number(station.maxStructure) || state.stationMaxHp || 1);
     state.stationHp = Math.max(0, Math.min(state.stationMaxHp, Number(station.structure) || 0));
     state.stationDestroyed = state.stationHp <= 0;
-    if (!wasDestroyed && state.stationDestroyed) this.addDestructionExplosion(station.x, station.y, 4.5, 'station', 'epic', 'station-' + systemId, systemId);
+    if (!wasDestroyed && state.stationDestroyed) {
+      this.addDestructionExplosion(station.x, station.y, 4.5, 'station', 'epic', 'station-' + systemId, systemId);
+      if (!state.stationXpAwarded) {
+        state.stationXpAwarded = true;
+        const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
+        const level = Math.max(1, Number(system && (system.level || system.ring)) || 1);
+        const xp = Math.round(900 * Math.pow(level, 1.55));
+        if (typeof window.awardPlayerXP === 'function') window.awardPlayerXP('combat', xp, 'Frontier station destroyed');
+        if (typeof window.showCorpNotification === 'function') window.showCorpNotification('STRONGHOLD DESTROYED · +' + xp.toLocaleString() + ' COMBAT XP · SYSTEM LEVEL ' + level);
+        if (typeof window.saveGameSession === 'function') window.saveGameSession();
+      }
+    }
     this.checkFrontierStationWaves(systemId, station);
     if (window.MinispaceOnline && typeof window.MinispaceOnline.send === 'function') {
       window.MinispaceOnline.send({type:'frontier-station-state',mapId:systemId,hp:state.stationHp,maxHp:state.stationMaxHp,wavesSpawned:state.wavesSpawned.slice()});
@@ -822,6 +835,57 @@ class PublicNpcManager {
     return true;
   }
 
+  startHotDropAmbush(system, sightingId, x, y) {
+    if (!system || !sightingId) return false;
+    if (!this._hotDropAmbushes) this._hotDropAmbushes = Object.create(null);
+    const old = this._hotDropAmbushes[system.id];
+    if (old && old.active) return false;
+    this._hotDropAmbushes[system.id] = {
+      sightingId: sightingId, active: true, wave: 0,
+      nextWaveAt: Date.now(), warned: false
+    };
+    this.spawnHotDropAmbushWave(system, x, y, 0);
+    return true;
+  }
+
+  spawnHotDropAmbushWave(system, x, y, wave) {
+    if (!system) return;
+    const plan = ['carrier','siegeBattleship','siegeBattleship','siegeCruiser','siegeCruiser'];
+    const cx = Number(x) || 4500, cy = Number(y) || 4500;
+    plan.forEach((type, index) => {
+      const cfg = PIRATE_TYPES[type];
+      if (!cfg) return;
+      const angle = (index / plan.length) * Math.PI * 2 + wave * 0.37;
+      const radius = 520 + (index % 3) * 150;
+      const id = 'ambush-' + system.id + '-' + wave + '-' + index;
+      this.addPirate(cfg, cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius, id, {
+        mapId: system.id, role: 'hotdrop_ambush', hpScale: 0.82,
+        dmg: 0.78, elite: true, rarity: 'rare'
+      });
+      const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
+      if (npc && npc.id === id) {
+        npc.autoAggro = true;
+        npc.isAgro = true;
+        npc.isAggro = true;
+        npc.noReward = true;
+        npc.hotDropAmbush = true;
+      }
+    });
+    if (typeof window.showCorpNotification === 'function') {
+      window.showCorpNotification('HOSTILE REINFORCEMENTS · WAVE ' + (wave + 1) + ' · NO ESCAPE SIGNAL DETECTED');
+    }
+  }
+
+  isHotDropAmbushActive(systemId) {
+    const state = this._hotDropAmbushes && this._hotDropAmbushes[systemId];
+    return !!(state && state.active);
+  }
+
+  endHotDropAmbush(systemId) {
+    const state = this._hotDropAmbushes && this._hotDropAmbushes[systemId];
+    if (state) state.active = false;
+  }
+
   totalHp(ship) {
     return (ship.shield || 0) + (ship.armor || 0) + (ship.structure || 0);
   }
@@ -1090,6 +1154,16 @@ class PublicNpcManager {
     if (isFrontier) {
       const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === currentMapId);
       this.initFrontierSystem(system, window.MINISPACE_FRONTIER_STATION);
+      const ambush = this._hotDropAmbushes && this._hotDropAmbushes[currentMapId];
+      if (ambush && ambush.active) {
+        if (!playerShip || playerShip.docked || Number(playerShip.structure) <= 0) {
+          ambush.active = false;
+        } else if (Date.now() >= ambush.nextWaveAt) {
+          ambush.wave++;
+          this.spawnHotDropAmbushWave(system, playerShip.x, playerShip.y, ambush.wave);
+          ambush.nextWaveAt = Date.now() + 2600;
+        }
+      }
     }
 
     // A player hit alerts every pirate in the same system.
