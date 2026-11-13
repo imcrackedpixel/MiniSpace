@@ -12,30 +12,30 @@ class AutoplayManager{
  toggle(){
   if(this.isAutoplay){this.isAutoplay=false;this.combatMode=false;this.combatPhase='';if(typeof isDockingRequested!=='undefined')isDockingRequested=false;return;}
   const ship=typeof playerShip!=='undefined'?playerShip:null;
+  const settings=this.settings||{};
+  const activity=settings.activity||'auto';
+  const selected=activity==='auto'?(isExplorerHull(ship&&ship.className)?'exploration':(isCombatAutoplayHull(ship&&ship.className)?'missions':'mining')):activity;
+  if(selected==='mining'&&!AUTOPLAY_MINING.includes(ship&&ship.className)){window.showCorpNotification('Mining autoplay requires a mining ship.');return;}
+  if(selected==='missions'&&!AUTOPLAY_COMBAT.includes(ship&&ship.className)){window.showCorpNotification('Mission autoplay requires a combat ship.');return;}
+  if(selected==='exploration'&&!AUTOPLAY_EXPLORER.includes(ship&&ship.className)){window.showCorpNotification('Exploration autoplay requires an explorer ship.');return;}
   const reason=this.blockReason(ship);
   if(reason){window.showCorpNotification(reason);return;}
+  const frontier=typeof isFrontierSpace==='function'&&isFrontierSpace();
+  const scope=settings.frontier&&settings.frontier[selected]||'home';
+  if(scope==='frontier'&&!frontier){window.showCorpNotification('Autoplay is set to Frontier only. Travel through a frontier gate first.');return;}
+  if(scope==='home'&&frontier){window.showCorpNotification('Autoplay is set to Home only. Return to High-Sec first.');return;}
+  this.activity=selected;
   this.isAutoplay=true;
-  this.combatMode=isCombatAutoplayHull(ship.className);
-  if(this.combatMode && !this.playerData.offensiveMode && typeof window.toggleOffensiveMode==='function') window.toggleOffensiveMode();
+  this.combatMode=selected==='missions';
+  if(this.combatMode&&!this.playerData.offensiveMode&&typeof window.toggleOffensiveMode==='function')window.toggleOffensiveMode();
   if(this.combatMode){
    const active=missionManager&&missionManager.activeMission;
    if(active&&active.returned&&typeof window.claimMissionReward==='function')window.claimMissionReward();
-   
-   if(!ship.docked){
-    this.combatPhase='docking';
-    isDockingRequested=true;
-    targetMovePos={x:this.station.x,y:this.station.y};
-    window.showCorpNotification('Combat autoplay ON: returning to station to prepare an Easy mission.');
-    return;
-   }
-   this.startEasyMissionAtStation();
-   return;
+   if(!ship.docked){this.combatPhase='docking';isDockingRequested=true;targetMovePos={x:this.station.x,y:this.station.y};window.showCorpNotification('Mission autoplay: returning to station to prepare an Easy mission.');return;}
+   this.startEasyMissionAtStation();return;
   }
   if(ship.docked)autoUndockTimer=60;
-  else if(typeof window.showCorpNotification==='function'){
-   const label=isExplorerHull(ship.className)?'relic exploration':(isCombatAutoplayHull(ship.className)?'Easy mission combat':'mining');
-   window.showCorpNotification('Autoplay ON: '+label+' engaged.');
-  }
+  else if(typeof window.showCorpNotification==='function')window.showCorpNotification('Autoplay ON: '+(selected==='exploration'?'relic exploration':'mining')+' engaged.');
  }
  startEasyMissionAtStation(){
   const ship=typeof playerShip!=='undefined'?playerShip:null;
@@ -44,7 +44,7 @@ class AutoplayManager{
   if(!active){
    // Pick from every available difficulty and mission type. Shuffle first so
    // the autoplay loop does not keep favouring the same contract after a reload.
-   const choices=(missionManager.availableMissions||[]).filter(m=>m&&m.id&&m.difficulty);
+   const choices=(missionManager.availableMissions||[]).filter(m=>m&&m.id&&String(m.difficulty||'').toLowerCase()==='easy');
    const selected=choices.length?choices[Math.floor(Math.random()*choices.length)]:null;
    if(!selected||!missionManager.acceptMission(selected.id,ship)){
     this.isAutoplay=false;this.combatMode=false;this.combatPhase='';
@@ -58,6 +58,7 @@ class AutoplayManager{
   }
   this.isAutoplay=true;
   this.combatMode=true;
+  this.activity='missions';
   this.combatPhase='travel';
   autoUndockTimer=180;
   if(typeof syncAutoplayButton==='function')syncAutoplayButton();
@@ -65,7 +66,7 @@ class AutoplayManager{
  }
  onCombatDocked(){
   if(!this.isAutoplay||!this.combatMode||this.combatPhase!=='docking')return;
-  this.isAutoplay=true;this.combatMode=true;
+  this.isAutoplay=true;this.combatMode=true;this.activity='missions';
   const active=missionManager&&missionManager.activeMission;
   if(active&&active.returned&&typeof window.claimMissionReward==='function'){
    window.claimMissionReward();
