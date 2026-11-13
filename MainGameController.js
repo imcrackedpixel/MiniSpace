@@ -1049,15 +1049,33 @@ window.removeFittedModule = function(slot) {
   delete slots[slot];playerData.fittedModules[playerShip.className]=Object.assign({},slots);
   applyDesign(playerShip);saveGameSession();updateStationUI();
 };
+function fittedModuleUpgradeRequirements(slot, rank) {
+  const tierMult = getShipTierMultiplier();
+  const req = { scrap: upgradeCostAt(rank), ore: null, component: null };
+  // Ranks 1-5 use Scrap Metals only. Rank 6 onward adds scaling ore and components.
+  if (rank >= 5) {
+    const oreBase = upgradeOreRequirement(slot, rank);
+    req.ore = { key: oreBase.key, qty: Math.ceil(oreBase.qty * (1 + (rank - 5) * 0.5)) };
+    const componentTier = rank <= 6 ? 1 : rank <= 8 ? 2 : 3;
+    req.component = { key: 'debris_t' + componentTier, qty: Math.ceil((10 + (rank - 5) * 10) * tierMult) };
+  }
+  return req;
+}
 window.upgradeFittedModule = function(slot) {
   if(!playerShip||!playerShip.docked)return;
   const slots=ensureFittedModules(playerShip),mod=slots[slot];if(!mod)return;
   const rank=Math.max(1,Number(mod.rank)||1);if(rank>=10){window.showCorpNotification('This module is already Rank 10.');return;}
-  const cost=upgradeCostAt(rank),ore=upgradeOreRequirement(slot,rank);
-  const have=Math.max(0,Math.floor(Number(playerData.stationOre&&playerData.stationOre[ore.key])||0));
-  if(have<ore.qty){window.showCorpNotification('Need '+ore.qty.toLocaleString()+' '+itemLabel(ore.key)+' in your hangar to upgrade.');return;}
-  if((Number(playerData.isk)||0)<cost){window.showCorpNotification('Need '+fmtISK(cost)+' Scrap Metals to upgrade.');return;}
-  playerData.isk-=cost;playerData.stationOre[ore.key]=have-ore.qty;mod.rank=rank+1;
+  const req=fittedModuleUpgradeRequirements(slot,rank);
+  const scrap=Math.max(0,Number(playerData.isk)||0);
+  if(scrap<req.scrap){window.showCorpNotification('Need '+fmtISK(req.scrap)+' Scrap Metals to upgrade.');return;}
+  const oreHave=req.ore?Math.max(0,Math.floor(Number(playerData.stationOre&&playerData.stationOre[req.ore.key])||0)):0;
+  if(req.ore&&oreHave<req.ore.qty){window.showCorpNotification('Need '+req.ore.qty.toLocaleString()+' '+itemLabel(req.ore.key)+' in your hangar.');return;}
+  const componentHave=req.component?Math.max(0,Math.floor(Number(playerData.stationOre&&playerData.stationOre[req.component.key])||0)):0;
+  if(req.component&&componentHave<req.component.qty){window.showCorpNotification('Need '+req.component.qty.toLocaleString()+' '+itemLabel(req.component.key)+' components in your hangar.');return;}
+  playerData.isk-=req.scrap;
+  if(req.ore)playerData.stationOre[req.ore.key]=oreHave-req.ore.qty;
+  if(req.component)playerData.stationOre[req.component.key]=componentHave-req.component.qty;
+  mod.rank=rank+1;
   playerData.fittedModules[playerShip.className]=Object.assign({},slots);
   applyDesign(playerShip);saveGameSession();updateStationUI();
   window.showCorpNotification(mod.name+' upgraded to Rank '+mod.rank+'.');
@@ -2312,8 +2330,9 @@ function updateStationUI() {
       for(const mod of (MODULE_KEYS[playerShip.className]||[])){
         const installed=slots[mod];
         if(installed){
-          const rank=Math.max(1,Number(installed.rank)||1),next=rank<10, cost=next?upgradeCostAt(rank):0,ore=next?upgradeOreRequirement(mod,rank):null;
-          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/10</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+fmtISK(cost)+' + '+fmtISK(ore.qty)+' '+itemLabel(ore.key):'MAX RANK')+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
+          const rank=Math.max(1,Number(installed.rank)||1),next=rank<10,req=next?fittedModuleUpgradeRequirements(mod,rank):null;
+          const costLabel=next?fmtISK(req.scrap)+' Scrap Metals'+(req.ore?' + '+req.ore.qty.toLocaleString()+' '+itemLabel(req.ore.key)+' + '+req.component.qty.toLocaleString()+' '+itemLabel(req.component.key):''):'MAX RANK';
+          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/10</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+costLabel:'MAX RANK')+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
         } else {
           fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>EMPTY</strong><small>Find a compatible frontier drop</small></div>';
         }
