@@ -1592,7 +1592,7 @@ window.applySkillChip=function(id){
 };
 
 function moduleDropSaleValue(drop) {
-  const values = { white: 250000, green: 1250000, blue: 6000000, purple: 25000000 };
+  const values = { white: 100000, green: 500000, blue: 2500000, purple: 10000000 };
   return values[String(drop && drop.rarity || 'white').toLowerCase()] || values.white;
 }
 function ensureFittedModules(ship) {
