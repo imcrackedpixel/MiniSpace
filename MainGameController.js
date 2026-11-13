@@ -789,7 +789,7 @@ window.flyToFrontierGate = function(destinationId) {
     ' · flying to ' + (nextHop === 'private_highsec' ? 'HIGH-SEC' : nextHop.replace('frontier_','').toUpperCase()) + ' gate.');
 };
 window.hotDropMiningFleet = function(sightingId) {
-  if (!playerShip || !mapManager || !publicNpcManager) return;
+  if (!playerShip || !mapManager || !publicNpcManager || !botManager) return;
   if (!(Number(playerData.explorationCorpPurchased) > 0)) {
     window.showCorpNotification('A Corp Explorer is required to locate mining fleets.');
     return;
@@ -803,29 +803,15 @@ window.hotDropMiningFleet = function(sightingId) {
   }
   const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === sighting.systemId);
   if (!system) return;
-  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
-  if (mapManager.currentMapId !== system.id) {
-    window.startMiniSpaceJumpEffect();
-    const result = mapManager.jumpToFrontierSystem(playerShip, system.id);
-    if (!result) return;
-    asteroidBelt = result.asteroidBelt;
-    debrisField = result.debrisField;
-    mainStation = result.station || mapManager.frontierStation || homeStation;
-    window.MINISPACE_FRONTIER_STATION = mainStation;
-    if (publicNpcManager) publicNpcManager.initFrontierSystem(system, mainStation);
-  }
   publicNpcManager.spawnExplorerMiningFleet(system, sighting);
-  playerShip.x = Math.max(500, sighting.x - 900);
-  playerShip.y = Math.max(500, sighting.y - 500);
-  playerShip.vx = 0;
-  playerShip.vy = 0;
-  playerShip.docked = false;
-  targetMovePos = { x: sighting.x, y: sighting.y };
-  lockedTarget = null;
-  isDockingRequested = false;
-  gateCooldown = 180;
+  const dispatch = botManager.dispatchExplorerToFleet(sighting, system);
+  if (!dispatch || !dispatch.success) {
+    window.showCorpNotification(dispatch && dispatch.message ? dispatch.message : 'Corp Explorer could not accept the hot-drop.');
+    return;
+  }
+  sighting.dispatched = true;
   window.closeUniverse();
-  window.showCorpNotification('CORP EXPLORER HOT DROP · ' + system.name + ' · ' + sighting.ships + ' mining ships detected. Approach to engage.');
+  window.showCorpNotification('CORP EXPLORER HOT DROP · ' + system.name + ' · cloaked outbound, 10-second Panic Button, then cloaked return to High-Sec. Your ship stays here.');
   saveGameSession();
 };
 
@@ -2994,6 +2980,7 @@ function autoLootNearbyWrecks() {
 
 function updateGame() {
   normalizeWrecks();
+  if (botManager && typeof botManager.updateExplorerDispatches === 'function') botManager.updateExplorerDispatches();
   const pub = inPublicSpace();
   if (window.Balance) window.Balance.applyAll(balancedShips());
   if (!inMissionSpace() && botManager) {
@@ -3211,7 +3198,7 @@ function render() {
   if (asteroidBelt && typeof asteroidBelt.draw === 'function') safeWorldDraw('asteroid belt', () => asteroidBelt.draw(ctx, view));
   if (debrisField && typeof debrisField.draw === 'function') safeWorldDraw('debris field', () => debrisField.draw(ctx));
 
-  if (!pub && !inMissionSpace() && botManager && typeof botManager.draw === 'function') safeWorldDraw('corp ships', () => botManager.draw(ctx, asteroidBelt, debrisField));
+  if (!pub && !inMissionSpace() && botManager && typeof botManager.draw === 'function') safeWorldDraw('corp ships', () => botManager.draw(ctx, asteroidBelt, debrisField, mapManager.currentMapId));
   if (!inMissionSpace() && publicNpcManager && typeof publicNpcManager.draw === 'function') safeWorldDraw('public pirates', () => publicNpcManager.draw(ctx, mapManager.currentMapId, asteroidBelt));
   if (inMissionSpace() && missionManager) safeWorldDraw('mission fleet', () => missionManager.drawMissionFleet(ctx));
 
