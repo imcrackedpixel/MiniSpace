@@ -1120,7 +1120,8 @@ window.openUniverse = function() {
     '" style="pointer-events:none;position:absolute;left:' + (explorerPoint[0] / 16) + '%;top:' + (explorerPoint[1] / 11.2) +
     '%;transform:translate(-50%,-155%);z-index:9;white-space:nowrap;padding:4px 7px;border-radius:10px;border:1px solid #5eead4;background:rgba(4,55,58,.96);color:#ccfbf1;font-size:10px;font-weight:900;box-shadow:0 0 14px rgba(45,212,191,.7)">🚀 ' + explorerLabel + '</div>' : '';
   const homeHere = current === 'private_highsec', homeTargeted = window._universeTargetSystemId === 'private_highsec', homeOnRoute = plottedSystems.has('private_highsec');
-  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current ' : '') + (homeOnRoute ? 'route ' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : ((homeTargeted || homeOnRoute) ? '#fbbf24' : '#38bdf8')) + ';background:' + (homeHere ? '#854d0e' : ((homeTargeted || homeOnRoute) ? '#713f12' : '#12354a')) + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : ((homeTargeted || homeOnRoute) ? '0 0 0 5px rgba(251,191,36,.24),0 0 22px #fbbf24' : '0 0 12px #38bdf8')) + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
+  const homePoint = xy('private_highsec');
+  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current ' : '') + (homeOnRoute ? 'route ' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:' + (homePoint[0] / 16) + '%;top:' + (homePoint[1] / 11.2) + '%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : ((homeTargeted || homeOnRoute) ? '#fbbf24' : '#38bdf8')) + ';background:' + (homeHere ? '#854d0e' : ((homeTargeted || homeOnRoute) ? '#713f12' : '#12354a')) + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : ((homeTargeted || homeOnRoute) ? '0 0 0 5px rgba(251,191,36,.24),0 0 22px #fbbf24' : '0 0 12px #38bdf8')) + '">' + (homeHere ? '★' : '⌂') + '<span style="position:absolute;left:50%;top:calc(100% + 8px);transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(2,8,16,.96);border:1px solid #fbbf24;color:#fde68a;font-size:9px;font-weight:900">PRIVATE HIGH-SEC 1.0</span>' + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
     const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
     const here = current === s.id, targeted = window._universeTargetSystemId === s.id, onRoute = plottedSystems.has(s.id);
@@ -1576,6 +1577,65 @@ function ensureFittedModules(ship) {
   if (saved && typeof saved === 'object') ship.fittedModules = Object.assign({}, saved, ship.fittedModules);
   return ship.fittedModules;
 }
+window.quickEquipBestShips = function() {
+  if (!playerShip || !playerShip.docked || isFrontierSpace()) {
+    window.showCorpNotification('Dock at a station to quick-equip your stored ships.');
+    return;
+  }
+  const rarityScore = { white: 1, green: 2, blue: 3, purple: 4 };
+  const drops = Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops : [];
+  const owned = new Set(['Mining Frigate']);
+  (playerData.shipsOwned || []).forEach(h => owned.add(h));
+  Object.keys(playerData.builtHulls || {}).forEach(h => { if (playerData.builtHulls[h]) owned.add(h); });
+  if (playerShip) owned.add(playerShip.className);
+  let fittedCount = 0, improvedCount = 0;
+  if (!playerData.fittedModules || typeof playerData.fittedModules !== 'object') playerData.fittedModules = {};
+  for (const hull of owned) {
+    const slotsForHull = MODULE_KEYS[hull];
+    if (!slotsForHull) continue;
+    const slots = Object.assign({}, playerData.fittedModules[hull] || {});
+    for (const slot of slotsForHull) {
+      const current = slots[slot];
+      let bestIndex = -1, bestScore = 0, bestRank = 0;
+      for (let i = 0; i < drops.length; i++) {
+        const d = drops[i];
+        if (!d || d.hull !== hull || d.module !== slot) continue;
+        const score = rarityScore[String(d.rarity || 'white').toLowerCase()] || 1;
+        const rank = Math.max(1, Number(d.rank) || 1);
+        if (score > bestScore || (score === bestScore && rank > bestRank)) {
+          bestIndex = i; bestScore = score; bestRank = rank;
+        }
+      }
+      if (bestIndex < 0) continue;
+      const currentScore = current ? (rarityScore[String(current.rarity || 'white').toLowerCase()] || 1) : 0;
+      const currentRank = current ? Math.max(1, Number(current.rank) || 1) : 0;
+      if (current && (bestScore < currentScore || (bestScore === currentScore && bestRank <= currentRank))) continue;
+      if (current) {
+        drops.push({ id: current.id || ('returned_' + Date.now() + '_' + fittedCount), name: current.name || slot,
+          hull: hull, module: slot, rarity: current.rarity || 'white', rank: current.rank || 1 });
+      }
+      const chosen = drops[bestIndex];
+      slots[slot] = { id: chosen.id, name: chosen.name || slot, module: slot, hull: hull,
+        rarity: chosen.rarity || 'white', rank: Math.max(1, Number(chosen.rank) || 1) };
+      drops.splice(bestIndex, 1);
+      fittedCount++;
+      improvedCount++;
+    }
+    playerData.fittedModules[hull] = slots;
+    if (playerShip && playerShip.className === hull) playerShip.fittedModules = Object.assign({}, slots);
+  }
+  playerData.moduleDrops = drops;
+  if (improvedCount && playerShip) {
+    applyDesign(playerShip);
+    applyPilotTalents();
+  }
+  saveGameSession();
+  updateStationUI();
+  window.showCorpNotification(improvedCount
+    ? 'Quick-equip complete: best available rarity fitted to ' + fittedCount + ' ship slot(s).'
+    : 'No better compatible modules in your station hangar.');
+};
+
 window.fitFrontierModuleDrop = function(id) {
   if (!playerShip || !playerShip.docked) { window.showCorpNotification('Dock at a station to fit a module drop.'); return; }
   const drops = Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops : [];
@@ -2876,7 +2936,7 @@ function updateStationUI() {
   if (hangarEl) { hangarEl.innerHTML = hangarHtml; window.setHangarView(window._miniHangarView || 'items'); }
   const fittingEl=document.getElementById('hangar-fitting-panel');
   if(fittingEl){
-    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div>';
+    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div><button onclick="window.quickEquipBestShips()" '+(!playerShip||!playerShip.docked?'disabled':'')+' style="width:100%;margin:6px 0;font-weight:900;">✦ QUICK-EQUIP BEST MODULES TO ALL STORED SHIPS</button>';
     if(playerShip){
       const slots=ensureFittedModules(playerShip);
       fit+='<div class="fitting-module-grid">';
