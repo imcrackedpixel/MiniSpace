@@ -5,7 +5,7 @@ create extension if not exists pgcrypto;
 
 create table if not exists public.pilot_wallets (
   pilot_id uuid primary key references auth.users(id) on delete cascade,
-  isk bigint not null default 1000000 check (isk >= 0),
+  isk bigint not null default 0 check (isk >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -60,7 +60,7 @@ set search_path = public
 as $$
 begin
   insert into public.pilot_wallets(pilot_id, isk)
-  values (new.id, 1000000)
+  values (new.id, 0)
   on conflict (pilot_id) do nothing;
   return new;
 end;
