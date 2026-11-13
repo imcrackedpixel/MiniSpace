@@ -314,7 +314,7 @@ class MapManager {
  this.currentMapId = 'private_highsec';  
  this.missionReturnGate = null;
  this.frontierReturnGate = null;
- this.frontierHomeGateSystemId = null;
+ this.frontierHomeGateSystemId = (FRONTIER_SYSTEMS.find(s => s.ring === 1) || {}).id || null;
  this.frontierGates = [];
  this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.ring === 1).map((system, i) => {
    const spots = [[500,500],[2500,1500],[4500,500],[4500,2500],[4500,3900],[500,2500]];
