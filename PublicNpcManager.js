@@ -234,7 +234,7 @@ class PublicNpcManager {
     if (!wasDestroyed && state.stationDestroyed) this.addDestructionExplosion(
       (window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.x) || 4500,
       (window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.y) || 4500,
-      4.5, 'station', 'epic', 'station-' + message.mapId
+      4.5, 'station', 'epic', 'station-' + message.mapId, message.mapId
     );
     if (Array.isArray(message.wavesSpawned)) message.wavesSpawned.forEach(w => {
       const n = Number(w);
@@ -258,7 +258,7 @@ class PublicNpcManager {
     state.stationMaxHp = Math.max(1, Number(station.maxStructure) || state.stationMaxHp || 1);
     state.stationHp = Math.max(0, Math.min(state.stationMaxHp, Number(station.structure) || 0));
     state.stationDestroyed = state.stationHp <= 0;
-    if (!wasDestroyed && state.stationDestroyed) this.addDestructionExplosion(station.x, station.y, 4.5, 'station', 'epic', 'station-' + systemId);
+    if (!wasDestroyed && state.stationDestroyed) this.addDestructionExplosion(station.x, station.y, 4.5, 'station', 'epic', 'station-' + systemId, systemId);
     this.checkFrontierStationWaves(systemId, station);
     if (window.MinispaceOnline && typeof window.MinispaceOnline.send === 'function') {
       window.MinispaceOnline.send({type:'frontier-station-state',mapId:systemId,hp:state.stationHp,maxHp:state.stationMaxHp,wavesSpawned:state.wavesSpawned.slice()});
@@ -330,7 +330,7 @@ class PublicNpcManager {
     state.guardRespawns[message.npcId] = at;
     const npc = this.publicNpcMiners.find(n => n && n.id === message.npcId && n.mapId === message.mapId);
     if (npc) {
-      if (!npc._explosionPlayed) { npc._explosionPlayed = true; this.addDestructionExplosion(npc.ship && npc.ship.x, npc.ship && npc.ship.y, this.pirateExplosionSize(npc), 'ship', npc.rarity, 'pirate-' + message.mapId + '-' + npc.id); }
+      if (!npc._explosionPlayed) { npc._explosionPlayed = true; this.addDestructionExplosion(npc.ship && npc.ship.x, npc.ship && npc.ship.y, this.pirateExplosionSize(npc), 'ship', npc.rarity, 'pirate-' + message.mapId + '-' + npc.id, message.mapId); }
       npc.isAlive = false;
     }
     this.publicNpcMiners = this.publicNpcMiners.filter(n => n && n.isAlive);
@@ -380,7 +380,7 @@ class PublicNpcManager {
     this.checkFrontierStationWaves(id, station);
   }
 
-  addDestructionExplosion(x, y, size, kind, rarity, key) {
+  addDestructionExplosion(x, y, size, kind, rarity, key, mapId) {
     if (!Number.isFinite(Number(x)) || !Number.isFinite(Number(y))) return;
     if (key && this._playedDestructionIds[key]) return;
     if (key) this._playedDestructionIds[key] = Date.now();
@@ -398,6 +398,7 @@ class PublicNpcManager {
     }
     this.destructionEffects.push({
       x: Number(x), y: Number(y), scale, kind: kind || 'ship', rarity: rarity || 'common',
+      mapId: mapId || (typeof mapManager !== 'undefined' ? mapManager.currentMapId : 'public_space'),
       colors, particles, start: Date.now(),
       duration: kind === 'station' ? 4400 : Math.round(1500 + scale * 360)
     });
@@ -417,6 +418,7 @@ class PublicNpcManager {
     const now = Date.now();
     this.destructionEffects = this.destructionEffects.filter(effect => now - effect.start < effect.duration);
     for (const effect of this.destructionEffects) {
+      if (effect.mapId !== currentMapId) continue;
       const age = now - effect.start;
       const p = Math.max(0, Math.min(1, age / effect.duration));
       const fade = Math.pow(1 - p, 1.25);
@@ -847,7 +849,7 @@ class PublicNpcManager {
     // Check if player is shooting the station boss
     if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure <= 0 && !window.centralStationBoss._minispaceExplosionPlayed) {
       window.centralStationBoss._minispaceExplosionPlayed = true;
-      this.addDestructionExplosion(window.centralStationBoss.x, window.centralStationBoss.y, 5, 'station', 'epic', 'central-station-boss');
+      this.addDestructionExplosion(window.centralStationBoss.x, window.centralStationBoss.y, 5, 'station', 'epic', 'central-station-boss', 'public_space');
     }
     if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure > 0 && playerShip && !playerShip.docked) {
       let dist = Math.hypot(playerShip.x - window.centralStationBoss.x, playerShip.y - window.centralStationBoss.y);
@@ -872,7 +874,7 @@ class PublicNpcManager {
         npc.rewarded = true;
         if (!npc._explosionPlayed) {
           npc._explosionPlayed = true;
-          this.addDestructionExplosion(ship.x, ship.y, this.pirateExplosionSize(npc), 'ship', npc.rarity, 'pirate-' + currentMapId + '-' + npc.id);
+          this.addDestructionExplosion(ship.x, ship.y, this.pirateExplosionSize(npc), 'ship', npc.rarity, 'pirate-' + currentMapId + '-' + npc.id, currentMapId);
         }
         npc.isAlive = false;
         if (npc.stationGuard) this.scheduleFrontierGuardRespawn(npc);
