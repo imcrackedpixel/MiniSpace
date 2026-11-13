@@ -318,7 +318,7 @@ class CapitalShip {
 
  const isFull = (dr.cargo || 0) >= maxC;
 
- if (isFull || (entry.targetRock && entry.targetRock.oreYield <= 0)) {
+ if (!canMine || isFull || (entry.targetRock && entry.targetRock.oreYield <= 0)) {
  entry.targetRock = null;
  }
  if (!isFull && !entry.targetRock && mineable.length > 0) {
@@ -515,7 +515,7 @@ class CapitalShip {
 
  this.emitThrusters();
  this.updateParticles();
- this.updateDrones(rocks, !this.isAnchored || this.isAnchored);
+ this.updateDrones(rocks, !autoTargetStation);
  }
 
  draw(ctx, asteroidBeltRef) {
