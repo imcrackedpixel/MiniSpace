@@ -433,7 +433,7 @@
 
       this.lastEnemies = resolveEnemies(availableEnemies, this);
 
-      const target = this.getTarget();
+      const target = this.weaponsEnabled === false ? null : this.getTarget();
 
       if (this.cooldown > 0) {
         this.cooldown--;
@@ -442,6 +442,7 @@
         this.cooldown = VOLLEY.interval;
       }
 
+      if (this.weaponsEnabled === false) this.pendingLaunches.length = 0;
       if (this.pendingLaunches.length > 0) {
         const next = [];
         for (const l of this.pendingLaunches) {
