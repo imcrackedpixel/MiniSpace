@@ -313,30 +313,32 @@ window.toggleMiniSpaceHud = function(button) {
 
 
 <script>
-/* Desktop-style draggable panels: headers move windows; windows never resize. */
+/* Consistent draggable title bars, including dynamically-created chat. */
 (function(){
- if(window.__miniSpaceDragWindowsV2)return;
- window.__miniSpaceDragWindowsV2=true;
+ if(window.__miniSpaceDragWindowsV3)return;
+ window.__miniSpaceDragWindowsV3=true;
  const key='minispace_window_positions_v2';
  let saved={};
  try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{}}catch(_){}
  const save=()=>{try{localStorage.setItem(key,JSON.stringify(saved))}catch(_){}};
  const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+ function place(el,left,top,id){
+  el.style.setProperty('position','fixed','important');
+  el.style.setProperty('left',clamp(left,0,Math.max(0,innerWidth-70))+'px','important');
+  el.style.setProperty('top',clamp(top,0,Math.max(0,innerHeight-50))+'px','important');
+  el.style.setProperty('right','auto','important');
+  el.style.setProperty('bottom','auto','important');
+  el.style.setProperty('margin','0','important');
+  el.style.setProperty('transform','none','important');
+  el.style.setProperty('translate','none','important');
+ }
  function attach(el,handle,id){
   if(!el||!handle||handle.dataset.dragWindowReady)return;
   handle.dataset.dragWindowReady='1';
   handle.classList.add('desktop-drag-handle');
   handle.title='Drag this header to move the window';
-  const restore=()=>{
-   const p=saved[id];if(!p)return;
-   const r=el.getBoundingClientRect();
-   el.style.position='fixed';
-   el.style.left=clamp(p.left,0,Math.max(0,innerWidth-Math.min(70,r.width)))+'px';
-   el.style.top=clamp(p.top,0,Math.max(0,innerHeight-Math.min(50,r.height)))+'px';
-   el.style.right='auto';el.style.bottom='auto';el.style.margin='0';
-   if(id==='station'||id==='universe'){el.style.translate='none';el.style.transform='none'}
-  };
-  restore();
+  const p=saved[id];
+  if(p)place(el,p.left,p.top,id);
   let drag=null;
   handle.addEventListener('pointerdown',e=>{
    if(e.button!==0||e.target.closest('button,input,select,textarea,a'))return;
@@ -349,13 +351,7 @@ window.toggleMiniSpaceHud = function(button) {
    if(!drag)return;
    const dx=e.clientX-drag.x,dy=e.clientY-drag.y;
    if(Math.abs(dx)+Math.abs(dy)>3)drag.moved=true;
-   if(!drag.moved)return;
-   const r=el.getBoundingClientRect();
-   el.style.position='fixed';
-   el.style.left=clamp(drag.left+dx,0,Math.max(0,innerWidth-Math.min(70,r.width)))+'px';
-   el.style.top=clamp(drag.top+dy,0,Math.max(0,innerHeight-Math.min(50,r.height)))+'px';
-   el.style.right='auto';el.style.bottom='auto';el.style.margin='0';
-   if(id==='station'||id==='universe'){el.style.translate='none';el.style.transform='none'}
+   if(drag.moved)place(el,drag.left+dx,drag.top+dy,id);
   });
   const finish=()=>{
    if(!drag)return;
@@ -363,7 +359,7 @@ window.toggleMiniSpaceHud = function(button) {
     const r=el.getBoundingClientRect();
     saved[id]={left:r.left,top:r.top};save();
     el.dataset.justDragged='1';
-    setTimeout(()=>delete el.dataset.justDragged,100);
+    setTimeout(()=>delete el.dataset.justDragged,120);
    }
    drag=null;
   };
@@ -384,7 +380,8 @@ window.toggleMiniSpaceHud = function(button) {
   }
   attach(controls,document.getElementById('flight-controls-drag'),'controls');
   attach(document.getElementById('minimap-panel'),document.getElementById('minimap-heading'),'nearby');
-  attach(document.getElementById('online-panel'),document.querySelector('#online-panel header'),'chat');
+  const online=document.getElementById('online-panel');
+  attach(online,document.getElementById('online-header')||online?.querySelector('header'),'chat');
   attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');
   attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe');
  }
