@@ -1266,7 +1266,6 @@ html:fullscreen body, html:-webkit-full-screen body {
   transform: none !important;
 }
 #online-content { display: block; max-height: 40vh; overflow-y: auto; }
-#online-chat-content { display: block !important; }
 #online-chat-log { height: 72px !important; min-height: 48px !important; }
 @media (min-width: 701px) {
   #online-panel { left: 12px !important; bottom: 12px !important; width: 310px !important; max-height: 62vh !important; }
