@@ -2889,7 +2889,7 @@ function updateNearbySpacePanel(){
  const tab=window._miniSpaceNearbyTab||'tears',rows=g[tab]||[],targets=[],esc=v=>String(v).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
  rows.slice(0,20).forEach(o=>{const i=targets.push(o)-1;list.insertAdjacentHTML('beforeend','');});
  window._miniSpaceNearbyTargets=targets;
- list.innerHTML=rows.length?rows.slice(0,20).map(o=>{const i=targets.indexOf(o);return '<button type="button" class="nearby-entry" data-nearby-index="'+i+'"><span class="nearby-entry-name">'+esc(o.name)+'</span><span class="nearby-entry-distance">'+Math.round(o.distance).toLocaleString()+' m</span></button>';}).join(''):'<div class="nearby-empty">Nothing detected</div>';
+ list.innerHTML=rows.length?rows.slice(0,20).map(o=>{const i=targets.indexOf(o);const targetGate=o.kind==='gate'&&((o.extra&&o.extra.destinationId&&o.extra.destinationId===window._universeTargetNextHop)||(o.extra&&o.extra.return&&window._universeTargetNextHop==='private_highsec'));return '<button type="button" class="nearby-entry'+(targetGate?' nearby-target-gate':'')+'" data-nearby-index="'+i+'"><span class="nearby-entry-name">'+(targetGate?'★ TARGET · ':'')+esc(o.name)+'</span><span class="nearby-entry-distance">'+Math.round(o.distance).toLocaleString()+' m</span></button>';}).join(''):'<div class="nearby-empty">Nothing detected</div>';
  document.querySelectorAll('#nearby-space-tabs .nearby-tab').forEach(btn=>btn.classList.toggle('active',btn.dataset.nearbyTab===tab));
  try{updateCargoReadout();}catch(_){}
 }
