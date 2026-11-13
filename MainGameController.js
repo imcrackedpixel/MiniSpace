@@ -4473,7 +4473,7 @@ if (
   };
 })();
 
-/* TRADE HUB - SHOW THE UNIQUE TRADE STATION */
+/* TRADE HUB - DRAW THE HUB STATION IN THE WORLD RENDER */
 (function () {
   const previousRender = render;
 
@@ -4482,32 +4482,35 @@ if (
       mapManager &&
       mapManager.currentMapId === 'public_trade_hub';
 
-    const oldDraw = mainStation && mainStation.draw;
-
-    // Hide the normal High-Sec station in the Trade Hub
-    if (inHub && mainStation) {
-      mainStation.draw = function () {};
+    if (!inHub) {
+      return previousRender();
     }
-
-    try {
-      previousRender();
-    } finally {
-      if (inHub && mainStation) {
-        mainStation.draw = oldDraw;
-      }
-    }
-
-    if (!inHub || !playerShip || !ctx || !canvas) return;
 
     const station =
       window.MINISPACE_TRADE_HUB &&
       window.MINISPACE_TRADE_HUB.station;
 
-    if (!station || typeof station.draw !== 'function') return;
+    // Keep the normal High-Sec station hidden while rendering this map.
+    const oldMainDraw = mainStation && mainStation.draw;
+    if (mainStation) mainStation.draw = function () {};
 
+    // Prevent any legacy station hook from drawing the Trade Hub station twice.
+    const oldTradeDraw = station && station.draw;
+    if (station) station.draw = function () {};
+
+    try {
+      previousRender();
+    } finally {
+      if (mainStation) mainStation.draw = oldMainDraw;
+      if (station) station.draw = oldTradeDraw;
+    }
+
+    if (!station || !playerShip || !ctx || !canvas ||
+        typeof station.draw !== 'function') return;
+
+    // Draw the station using the same world-to-screen transform as the camera.
     const dpr = window.devicePixelRatio || 1;
     const z = cameraZoom * dpr;
-
     ctx.setTransform(
       z, 0, 0, z,
       canvas.width / 2 - playerShip.x * z,
@@ -4515,6 +4518,11 @@ if (
     );
 
     station.draw(ctx);
+
+    // Keep the player's ship in front of the station artwork.
+    if (!playerShip.docked && typeof playerShip.draw === 'function') {
+      playerShip.draw(ctx, null);
+    }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
@@ -4584,84 +4592,6 @@ if (
     }
   };
 })();
-
-/* TRADE HUB - DRAW STATION BEHIND SHIPS */
-(function () {
-  const previousRender = render;
-
-  render = function () {
-    const inHub =
-      mapManager &&
-      mapManager.currentMapId === 'public_trade_hub';
-
-    const station =
-      window.MINISPACE_TRADE_HUB &&
-      window.MINISPACE_TRADE_HUB.station;
-
-    if (!inHub || !station || !playerShip) {
-      return previousRender();
-    }
-
-    const oldDraw = station.draw;
-
-    const dpr = window.devicePixelRatio || 1;
-    const z = cameraZoom * dpr;
-
-    ctx.setTransform(
-      z, 0, 0, z,
-      canvas.width / 2 - playerShip.x * z,
-      canvas.height / 2 - playerShip.y * z
-    );
-
-    station.draw(ctx);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-
-    station.draw = function () {};
-
-    try {
-      previousRender();
-    } finally {
-      station.draw = oldDraw;
-    }
-  };
-})();
-
-/* TRADE HUB - RESTORE STATION AND KEEP PLAYER SHIP IN FRONT */
-(function () {
-  const previousRender = render;
-
-  render = function () {
-    previousRender();
-
-    if (
-      !mapManager ||
-      mapManager.currentMapId !== 'public_trade_hub' ||
-      !playerShip ||
-      !ctx ||
-      !canvas
-    ) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const z = cameraZoom * dpr;
-
-    ctx.setTransform(
-      z, 0, 0, z,
-      canvas.width / 2 - playerShip.x * z,
-      canvas.height / 2 - playerShip.y * z
-    );
-
-    // The station was already drawn behind ships by the preceding render wrapper.
-    // Redraw only the player's ship above it, avoiding a second station paint.
-    // Redraw the player's ship above the station image.
-    if (!playerShip.docked && typeof playerShip.draw === 'function') {
-      playerShip.draw(ctx, null);
-    }
-
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-  };
-})();
-
-
 
 /* RESTORE STATION UI FOR DOCKED SAVES */
 (function () {
