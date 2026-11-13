@@ -521,7 +521,9 @@ class ExplorationFrigate {
     const debrisTier = debris && debris.tier ? debris.tier : hk;
     this.lastHackedDebrisKey = 'debris_t' + debrisTier;
 
-    const baseLootYield = debrisTier === 1 ? 5 : (debrisTier === 2 ? 15 : (debrisTier === 3 ? 30 : (debrisTier === 4 ? 60 : 120)));
+    // Explorer relic scans are valuable, but must not skip the long carrier build.
+    // A successful top-tier scan now yields 25 Processors (12.5m value), not 120 (60m).
+    const baseLootYield = debrisTier === 1 ? 5 : (debrisTier === 2 ? 10 : (debrisTier === 3 ? 15 : (debrisTier === 4 ? 20 : 25)));
     const acquired = Math.min(baseLootYield, this.maxCargo - this.cargo);
 
     if (this.corpBot) {
