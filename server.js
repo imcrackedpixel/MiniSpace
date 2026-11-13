@@ -82,6 +82,7 @@ const wss = new WebSocket.Server({server});
 
 const players = new Map();
 const friends = new Map();
+const teams = new Map();
 const publicRooms = new Map();
 const frontierStationStates = new Map();
 const resumeTokens = new Map();
@@ -260,7 +261,8 @@ function publicPlayer(p) {
     pvp:p.pvp,
     shield:p.shield, armor:p.armor, structure:p.structure,
     maxShield:p.maxShield, maxArmor:p.maxArmor, maxStructure:p.maxStructure,
-    damageResistance:p.damageResistance, docked:p.docked
+    damageResistance:p.damageResistance, docked:p.docked,
+    teamId:p.teamId||null
   };
 }
 
@@ -278,6 +280,28 @@ function broadcastAll(obj,except) {
   for(const p of players.values()) {
     if(p.ws && p.ws!==except)send(p.ws,obj);
   }
+}
+function sendTeamState(teamId) {
+  const team=teams.get(teamId);if(!team)return;
+  const members=[...team].map(id=>players.get(id)).filter(Boolean);
+  const payload={type:'team-state',teamId,members:members.map(member=>({id:member.id,name:member.name}))};
+  members.forEach(member=>{
+    send(member.ws,payload);
+    if(member.roomId)broadcastRoom(member.roomId,{type:'player',player:publicPlayer(member)});
+  });
+}
+function removeFromTeam(p) {
+  if(!p.teamId)return;
+  const teamId=p.teamId,team=teams.get(teamId);
+  if(team)team.delete(p.id);
+  p.teamId=null;
+  if(team&&team.size<=1){
+    const lastId=[...team][0],last=players.get(lastId);
+    if(last)last.teamId=null;
+    teams.delete(teamId);
+    if(last&&last.ws)send(last.ws,{type:'team-state',teamId:null,members:[]});
+    if(last&&last.roomId)broadcastRoom(last.roomId,{type:'player',player:publicPlayer(last)});
+  }else if(team)sendTeamState(teamId);
 }
 
 wss.on('connection',ws=>{
@@ -305,7 +329,9 @@ wss.on('connection',ws=>{
     invisible:false,
     authenticated:false,
     isGM:false,
-    accountId:null
+    accountId:null,
+    teamId:null,
+    teamInvites:new Set()
   };
 
   players.set(p.id,p);
@@ -457,7 +483,7 @@ wss.on('connection',ws=>{
       const target=players.get(safeText(m.targetId,100));
       const allowedMap=mapId==='public_space'||mapId.indexOf('frontier_')===0;
       if(!allowedMap||!p.roomId||!['public','match'].includes(p.roomType)||p.mapId!==mapId||!p.pvp||p.docked||
-         !target||target.id===p.id||target.roomId!==p.roomId||target.roomType!==p.roomType||target.mapId!==mapId||!target.pvp||target.docked||
+         !target||target.id===p.id||(p.teamId&&target.teamId===p.teamId)||target.roomId!==p.roomId||target.roomType!==p.roomType||target.mapId!==mapId||!target.pvp||target.docked||
          target.structure<=0||p.structure<=0||Math.hypot(p.x-target.x,p.y-target.y)>1600)return;
       const now=Date.now();
       if(!p.pvpHitTimes)p.pvpHitTimes=new Map();
@@ -622,6 +648,38 @@ wss.on('connection',ws=>{
       return;
     }
 
+    if(m.type==='team-invite') {
+      const name=safeText(m.name,16).toLowerCase();
+      const target=[...players.values()].find(q=>q.name.toLowerCase()===name&&q.id!==p.id&&q.authenticated&&q.ws);
+      if(!target){send(ws,{type:'team-error',message:'That pilot is not online.'});return;}
+      if(p.teamId&&target.teamId&&p.teamId!==target.teamId){send(ws,{type:'team-error',message:'That pilot is already in another team.'});return;}
+      if(!p.teamId&&target.teamId){send(ws,{type:'team-error',message:'That pilot is already in a team.'});return;}
+      target.teamInvites.add(p.id);send(target.ws,{type:'team-invite',from:p.name});
+      send(ws,{type:'chat',channel:'system',from:'TEAM',text:'Invitation sent to '+target.name+'.'});return;
+    }
+    if(m.type==='team-accept') {
+      const inviterName=safeText(m.name,16).toLowerCase();
+      const inviter=[...players.values()].find(q=>q.name.toLowerCase()===inviterName&&p.teamInvites.has(q.id));
+      if(!inviter){send(ws,{type:'team-error',message:'That team invitation has expired.'});return;}
+      if(p.teamId&&p.teamId!==inviter.teamId){send(ws,{type:'team-error',message:'Leave your current team first.'});return;}
+      let teamId=inviter.teamId;
+      if(!teamId){teamId='team:'+crypto.randomUUID();teams.set(teamId,new Set([inviter.id]));inviter.teamId=teamId;}
+      const team=teams.get(teamId);
+      if(!team){send(ws,{type:'team-error',message:'That team no longer exists.'});return;}
+      if(team.size>=8){send(ws,{type:'team-error',message:'Teams can have up to 8 pilots.'});return;}
+      team.add(p.id);p.teamId=teamId;p.teamInvites.delete(inviter.id);sendTeamState(teamId);return;
+    }
+    if(m.type==='team-decline') {
+      const inviterName=safeText(m.name,16).toLowerCase();
+      const inviter=[...players.values()].find(q=>q.name.toLowerCase()===inviterName);
+      if(inviter&&p.teamInvites)p.teamInvites.delete(inviter.id);
+      if(inviter&&inviter.ws)send(inviter.ws,{type:'team-invite-declined',name:p.name});
+      return;
+    }
+    if(m.type==='team-leave') {
+      removeFromTeam(p);send(ws,{type:'team-state',teamId:null,members:[]});return;
+    }
+
     if(m.type==='friend-request') {
       const target=[...players.values()].find(q =>
         q.name.toLowerCase()===
@@ -670,6 +728,7 @@ wss.on('connection',ws=>{
       if(p.ws)return;
 
       leaveRoom(p);
+      removeFromTeam(p);
       players.delete(p.id);
       friends.delete(p.id);
 
@@ -715,7 +774,7 @@ setInterval(()=>{
   for(const viewer of players.values()) {
     const directory=[...players.values()]
       .filter(target=>target.ws && target.ws.readyState===WebSocket.OPEN && target.authenticated && (!target.invisible || viewer.isGM || target.id===viewer.id))
-      .map(target=>({id:target.id,name:target.name,ship:target.ship}));
+      .map(target=>({id:target.id,name:target.name,ship:target.ship,teamId:target.teamId||null}));
     send(viewer.ws,{type:'online-directory',players:directory});
   }
 },3000);
