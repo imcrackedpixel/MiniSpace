@@ -129,7 +129,7 @@ class BotManager {
   dispatchExplorerToFleet(sighting, system) {
     const bot = this.bots.find(entry => isExplorerBot(entry) && entry.ship);
     if (!bot) return { success: false, message: 'Your Corp Explorer is unavailable.' };
-    if (bot.explorerMission) return { success: false, message: 'Your Corp Explorer is already on a hot-drop mission.' };
+    if (bot.explorerMission) return { success: false, message: 'Your Corp Explorer is already assigned to a tactical reinforcement.' };
     const route = typeof window.findFrontierRoute === 'function'
       ? window.findFrontierRoute('private_highsec', system && system.id)
       : null;
@@ -236,7 +236,7 @@ class BotManager {
           bot.explorerMission = null;
           bot.explorerMapId = 'private_highsec';
           bot.target = null;
-          if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER RETURNED HOME · hot-drop mission complete.');
+          if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER RETURNED HOME · tactical reinforcement complete.');
           if (typeof window.saveGameSession === 'function') window.saveGameSession();
         }
         return;
