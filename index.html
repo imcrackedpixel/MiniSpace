@@ -312,5 +312,37 @@ window.toggleMiniSpaceHud = function(button) {
 
 
 
+<script>
+(function(){
+ if(window.__miniSpaceDesktopWindows)return;window.__miniSpaceDesktopWindows=true;
+ const desktop=()=>matchMedia('(min-width: 900px)').matches, key='minispace_desktop_window_layout_v1';
+ let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{}}catch(_){}
+ const save=()=>{try{localStorage.setItem(key,JSON.stringify(saved))}catch(_){}};
+ function attach(el,handle,id){
+  if(!el||!handle||handle.dataset.desktopDragReady)return;
+  handle.dataset.desktopDragReady='1';handle.classList.add('desktop-drag-handle');
+  handle.title='Drag to move · resize from the bottom-right corner';
+  const restore=()=>{if(!desktop()||!saved[id])return;const p=saved[id];el.style.position='fixed';el.style.left=Math.max(0,Math.min(innerWidth-80,p.left))+'px';el.style.top=Math.max(0,Math.min(innerHeight-60,p.top))+'px';el.style.right='auto';el.style.bottom='auto';if(p.width)el.style.width=Math.min(innerWidth*.96,Math.max(150,p.width))+'px';if(p.height)el.style.height=Math.min(innerHeight*.94,Math.max(70,p.height))+'px';if(id==='station'||id==='universe')el.style.translate='none'};
+  restore();let down=false,moved=false,x=0,y=0,l=0,t=0;
+  handle.addEventListener('pointerdown',e=>{if(!desktop()||e.button!==0||e.target.closest('button,input,select,textarea,a'))return;const r=el.getBoundingClientRect();down=true;moved=false;x=e.clientX;y=e.clientY;l=r.left;t=r.top;try{handle.setPointerCapture(e.pointerId)}catch(_){}e.preventDefault();e.stopPropagation()});
+  handle.addEventListener('pointermove',e=>{if(!down||!desktop())return;const dx=e.clientX-x,dy=e.clientY-y;if(Math.abs(dx)+Math.abs(dy)>3)moved=true;if(!moved)return;const r=el.getBoundingClientRect();el.style.position='fixed';el.style.left=Math.max(0,Math.min(innerWidth-Math.min(80,r.width),l+dx))+'px';el.style.top=Math.max(0,Math.min(innerHeight-Math.min(50,r.height),t+dy))+'px';el.style.right='auto';el.style.bottom='auto';if(id==='station'||id==='universe')el.style.translate='none'});
+  const finish=()=>{if(!down)return;down=false;if(moved){const r=el.getBoundingClientRect();saved[id]={left:r.left,top:r.top,width:r.width,height:r.height};save();el.dataset.justDragged='1';setTimeout(()=>delete el.dataset.justDragged,0)}};
+  handle.addEventListener('pointerup',finish);handle.addEventListener('pointercancel',finish);
+  el.addEventListener('click',e=>{if(el.dataset.justDragged){e.preventDefault();e.stopPropagation()}},true);
+  if(window.ResizeObserver){let timer;new ResizeObserver(()=>{if(!desktop())return;clearTimeout(timer);timer=setTimeout(()=>{const r=el.getBoundingClientRect();saved[id]=Object.assign({},saved[id],{left:r.left,top:r.top,width:r.width,height:r.height});save()},200)}).observe(el)}
+ }
+ function init(){if(!desktop())return;
+  const pilot=document.getElementById('pilot-panel');attach(pilot,document.getElementById('pilot-panel-heading'),'pilot');
+  const controls=document.getElementById('flight-controls');if(controls&&!document.getElementById('flight-controls-drag')){const b=document.createElement('div');b.id='flight-controls-drag';b.textContent='FLIGHT CONTROLS  ⠿';b.style.cssText='color:#9be7d4;font-size:10px;letter-spacing:1px;padding:2px 2px 6px;border-bottom:1px solid #34434c;margin-bottom:3px';controls.insertBefore(b,controls.firstChild)}attach(controls,document.getElementById('flight-controls-drag'),'controls');
+  attach(document.getElementById('minimap-panel'),document.getElementById('minimap-heading'),'nearby');
+  attach(document.getElementById('online-panel'),document.querySelector('#online-panel header'),'chat');
+  attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');
+  attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe');
+ }
+ init();window.addEventListener('resize',init);
+ const mo=new MutationObserver(()=>{if(desktop()){attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe')}});
+ mo.observe(document.body,{subtree:true,attributes:true,attributeFilter:['style','class']});
+})();
+</script>
 </body>
 </html>
