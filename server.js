@@ -213,7 +213,7 @@ function joinRoom(p,mapId) {
   }
   if(p.teamId&&teams.has(p.teamId)){
     const members=[...teams.get(p.teamId)].map(id=>players.get(id)).filter(Boolean);
-    send(p.ws,{type:'team-state',teamId:p.teamId,members:members.map(member=>({id:member.id,name:member.name,mapId:member.mapId,system:member.system,x:member.x,y:member.y,docked:member.docked}))});
+    send(p.ws,{type:'team-state',teamId:p.teamId,members:members.map(member=>({id:member.id,name:member.name,mapId:member.mapId,system:member.system,x:member.x,y:member.y,docked:member.docked,panicActive:!!member.panicActive}))});
   }
 }
 
@@ -272,7 +272,16 @@ function publicPlayer(p) {
 
 function sendTeamLocation(p) {
   if(!p.teamId||!teams.has(p.teamId))return;
-  const payload={type:'team-location',player:{id:p.id,name:p.name,mapId:p.mapId,system:p.system,x:p.x,y:p.y,docked:p.docked}};
+  const playerData={id:p.id,name:p.name,mapId:p.mapId,system:p.system,x:p.x,y:p.y,docked:p.docked,panicActive:!!p.panicActive};
+  const payload={type:'team-location',player:playerData};
+  if(p.panicActive&&!p._lastTeamPanicActive){
+    for(const id of teams.get(p.teamId)){
+      if(id===p.id)continue;
+      const teammate=players.get(id);
+      if(teammate&&teammate.ws)send(teammate.ws,{type:'team-panic',player:playerData});
+    }
+  }
+  p._lastTeamPanicActive=!!p.panicActive;
   for(const id of teams.get(p.teamId)){
     if(id===p.id)continue;
     const teammate=players.get(id);
@@ -573,6 +582,7 @@ wss.on('connection',ws=>{
       p.ship=safeText(m.ship,32);
       p.system=safeText(m.system,48);
       p.docked=!!m.docked;
+      p.panicActive=!!m.panicActive;
       for (const key of ['shield','armor','structure','maxShield','maxArmor','maxStructure','damageResistance']) {
         const value=Number(m[key]);
         if(Number.isFinite(value))p[key]=Math.max(0,Math.min(100000000,value));
