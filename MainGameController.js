@@ -744,6 +744,7 @@ window.jumpToFrontierSystem = function(id) {
     if (destination === id) { window._universeRouteDestination = null; window.showCorpNotification('Arrived at destination: ' + r.system.name + '.'); }
     else {
       const path = window.findFrontierRoute(id, destination), next = path && path[1];
+      window._universeTargetNextHop = next || null;
       const gate = next === 'private_highsec' ? mapManager.frontierReturnGate :
         (mapManager.frontierGates || []).find(v => v.destinationId === next);
       if (gate) { targetMovePos = { x: gate.x, y: gate.y }; }
