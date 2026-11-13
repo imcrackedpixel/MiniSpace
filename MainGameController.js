@@ -2782,9 +2782,18 @@ function updateCorpUI() {
 }
 
 function setText(id, text) { let el = document.getElementById(id); if (el) el.innerText = text; }
-function setBar(id, v, max) {
-  let el = document.getElementById(id);
-  if (el) el.style.width = (max > 0 ? Math.max(0, Math.min(100, (v / max) * 100)) : 0) + '%';
+function setBar(id, v, max, valueId) {
+  const current = Number(v) || 0;
+  const maximum = Math.max(0, Number(max) || 0);
+  const percent = maximum > 0 ? Math.max(0, Math.min(100, (current / maximum) * 100)) : 0;
+  const el = document.getElementById(id);
+  if (el) {
+    el.style.width = percent + '%';
+    el.setAttribute('aria-valuenow', String(Math.round(current)));
+    el.setAttribute('aria-valuemax', String(Math.round(maximum)));
+  }
+  const value = valueId && document.getElementById(valueId);
+  if (value) value.textContent = Math.ceil(current).toLocaleString() + ' / ' + Math.ceil(maximum).toLocaleString();
 }
 
 function syncAutoplayButton() {
@@ -2841,9 +2850,9 @@ function updateHUD() {
       sys.style.color = inPublicSpace() ? '#f85149' : '#3fb950';
     }
   }
-  setBar('shield-fill', s.shield, s.maxShield);
-  setBar('armor-fill', s.armor, s.maxArmor);
-  setBar('structure-fill', s.structure, s.maxStructure);
+  setBar('shield-fill', s.shield, s.maxShield, 'shield-value');
+  setBar('armor-fill', s.armor, s.maxArmor, 'armor-value');
+  setBar('structure-fill', s.structure, s.maxStructure, 'structure-value');
 
   const isExp = isExplorerClass(s.className);
   const isCap = s.className === 'Mining Capital';
