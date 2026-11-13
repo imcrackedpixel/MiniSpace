@@ -940,7 +940,7 @@ window.openUniverse = function() {
   const plottedEdges = new Set();
   if (plottedPath) for (let i = 1; i < plottedPath.length; i++) plottedEdges.add([plottedPath[i - 1], plottedPath[i]].sort().join('|'));
   systems.forEach(s => s.links.forEach(id => {
-    if (id === 'private_highsec' && s.id !== (mapManager && mapManager.frontierHomeGateSystemId)) return;
+    // Only region roots link to High-Sec; draw all four entrance routes.
     const key = [s.id,id].sort().join('|'); if (edges.has(key)) return; edges.add(key);
     const a = xy(s.id), b = xy(id), active = plottedEdges.has(key);
     routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="' + (active ? 'universe-route-line universe-route-active' : 'universe-route-line') + '"/>');
@@ -2928,7 +2928,7 @@ function updateNearbySpacePanel(){
  const g={tears:[],pirates:[],ore:[],players:[]},add=(k,n,o,t,x)=>{if(o&&Number.isFinite(Number(o.x))&&Number.isFinite(Number(o.y)))g[k].push({name:String(n||t),x:Number(o.x),y:Number(o.y),distance:dist(o),kind:t,ref:o,extra:x||null});};
  const id=String(mapManager.currentMapId||'');
  if(id==='public_trade_hub'&&window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station)add('tears','Trade Hub Station',window.MINISPACE_TRADE_HUB.station,'station','trade');
- else if(id.indexOf('frontier_')===0){if(mainStation)add('tears',(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===id)?.name+' Station',mainStation,'station','local');if(mapManager.frontierReturnGate)add('tears','High-Sec Station · return tear',mapManager.frontierReturnGate,'station','return');}
+ else if(id.indexOf('frontier_')===0){const frontierSystems=window.MINISPACE_UNIVERSE_SYSTEMS||[];const currentSystem=frontierSystems.find(s=>s.id===id);const parentName=currentSystem&&currentSystem.parentId==='private_highsec'?'High-Sec 1.0':((frontierSystems.find(s=>s.id===(currentSystem&&currentSystem.parentId))||{}).name||'Previous System');if(mainStation)add('tears',(currentSystem&&currentSystem.name||'Frontier')+' Station',mainStation,'station','local');if(mapManager.frontierReturnGate)add('tears',parentName+' · return tear',mapManager.frontierReturnGate,'station','return');}
  else if(id.indexOf('mission_')===0&&mapManager.missionReturnGate)add('tears','High-Sec Station · return tear',mapManager.missionReturnGate,'station','return');
  /* 3v3 High-Sec exit gates are hidden from Nearby. */
  else if(mainStation)add('tears','High-Sec Station',mainStation,'station','home');
@@ -4429,7 +4429,7 @@ if (
       const id=mapManager&&mapManager.currentMapId;
       if(id==='private_highsec')plot(4200,2500,'#36b99a',4);
       if(id==='public_trade_hub'){const h=window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station;if(h)plot(h.x,h.y,'#58a6ff',4);plot(700,3500,'#36b99a',4);}
-      else{if(mainStation)plot(mainStation.x,mainStation.y,'#58a6ff',4);if(mapManager){['publicGate','frontierEntryGate','frontierReturnGate','missionEntryGate','missionReturnGate'].forEach(k=>{const g=mapManager[k];if(g)plot(g.x,g.y,k==='frontierEntryGate'?'#fb923c':'#36b99a',3);});(mapManager.playerGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#3fb950',3);});(mapManager.frontierGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});}}
+      else{if(mainStation)plot(mainStation.x,mainStation.y,'#58a6ff',4);if(mapManager){['publicGate','frontierReturnGate','missionEntryGate','missionReturnGate'].forEach(k=>{const g=mapManager[k];if(g)plot(g.x,g.y,'#36b99a',3);});if(id==='private_highsec')(mapManager.frontierEntryGates||[mapManager.frontierEntryGate]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});(mapManager.playerGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#3fb950',3);});(mapManager.frontierGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});}}
     }catch(_){}
     try{
       if(publicNpcManager&&Array.isArray(publicNpcManager.publicNpcMiners))publicNpcManager.publicNpcMiners.forEach(n=>{if(n&&n.isAlive&&n.ship)plot(n.ship.x,n.ship.y,n.faction==='miners'?'#e3b341':'#f85149',3);});
