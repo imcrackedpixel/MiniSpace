@@ -155,6 +155,7 @@ class PublicNpcManager {
     this.CARRIER_IDEAL_DIST = 320;
     this._dbgFrame = 0;
     this._frontierStates = Object.create(null);
+    this._mapAggroTargets = Object.create(null);
     if (typeof window !== 'undefined' && window.addEventListener) {
       window.addEventListener('minispace-frontier-npc-state', e => this.applyFrontierNpcState(e && e.detail));
       window.addEventListener('minispace-frontier-npc-killed', e => this.applyFrontierNpcKilled(e && e.detail));
@@ -735,6 +736,13 @@ class PublicNpcManager {
       this.initFrontierSystem(system, window.MINISPACE_FRONTIER_STATION);
     }
 
+    // A player hit alerts every pirate in the same system.
+    if (!this._mapAggroTargets) this._mapAggroTargets = Object.create(null);
+    if (this.publicNpcMiners.some(n => n && n.isAlive &&
+      (n.mapId ? n.mapId === currentMapId : currentMapId === 'public_space') &&
+      n.ship && n.ship._minispacePlayerTagged)) this._mapAggroTargets[currentMapId] = true;
+    const mapWideAggro = !!this._mapAggroTargets[currentMapId];
+
     // Check if player is shooting the station boss
     if (currentMapId === 'public_space' && window.centralStationBoss && window.centralStationBoss.structure > 0 && playerShip && !playerShip.docked) {
       let dist = Math.hypot(playerShip.x - window.centralStationBoss.x, playerShip.y - window.centralStationBoss.y);
@@ -844,7 +852,7 @@ class PublicNpcManager {
         : Infinity;
 
       // Engaged = attacking the player: close enough, or an auto-aggro combat hull hunting them across the belt
-      const hunting = npc.autoAggro && playerPresent;
+      const hunting = (npc.autoAggro || mapWideAggro) && playerPresent;
       const engaged = playerPresent && (distToPlayer < PEACE_RANGE || hunting);
       if(npc.combat||engaged){
         const keepX=ship.x,keepY=ship.y;
