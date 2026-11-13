@@ -3191,6 +3191,32 @@ function gameLoop(timestamp) {
 }
 
 // Do not load or start a pilot until the email/password account has been verified.
+function restoreSavedFrontierLocation() {
+  const saved = window.MINISPACE_SAVED_POSITION || playerData.lastKnownLocation;
+  if (!saved || !String(saved.mapId || '').startsWith('frontier_')) return false;
+  const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === saved.mapId);
+  if (!system || !playerShip || !mapManager) return false;
+  const result = mapManager.jumpToFrontierSystem(playerShip, system.id);
+  if (!result) return false;
+  asteroidBelt = result.asteroidBelt;
+  debrisField = result.debrisField;
+  mainStation = result.station || mapManager.frontierStation || homeStation;
+  window.MINISPACE_FRONTIER_STATION = mainStation;
+  if (publicNpcManager) publicNpcManager.initFrontierSystem(system, mainStation);
+  playerShip.x = Number.isFinite(Number(saved.x)) ? Number(saved.x) : playerShip.x;
+  playerShip.y = Number.isFinite(Number(saved.y)) ? Number(saved.y) : playerShip.y;
+  playerShip.vx = 0;
+  playerShip.vy = 0;
+  playerShip.angle = Number(saved.angle) || playerShip.angle || 0;
+  playerShip.docked = false;
+  targetMovePos = null;
+  lockedTarget = null;
+  isDockingRequested = false;
+  gateCooldown = 180;
+  window.showCorpNotification('LOCATION RESTORED · ' + system.name + ' · your last frontier position.');
+  return true;
+}
+
 Promise.resolve(window.MINISPACE_AUTH_READY).then(async function () {
   loadGameSession();
 
@@ -3207,12 +3233,13 @@ Promise.resolve(window.MINISPACE_AUTH_READY).then(async function () {
     console.warn('Shared economy is not ready yet; keeping the local pilot save:', marketError.message || marketError);
   }
 
+  const restoredFrontierLocation = restoreSavedFrontierLocation();
   const _setupModal = document.getElementById('setup-modal');
   if (_setupModal && playerData.pilotName && playerData.race) _setupModal.style.display = 'none';
 
   let _stationUi = document.getElementById('station-ui');
   if (_stationUi) _stationUi.style.display = 'none';
-  if (playerShip) {
+  if (playerShip && !restoredFrontierLocation) {
     playerShip.x = mainStation.x + 250;
     playerShip.y = mainStation.y + 250;
   }
