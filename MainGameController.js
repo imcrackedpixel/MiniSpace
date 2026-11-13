@@ -769,6 +769,18 @@ window.findFrontierRoute = function(from, to) {
   }
   return null;
 };
+window.setUniverseTargetSystem = function(destinationId) {
+  const valid = destinationId === 'private_highsec' || (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === destinationId);
+  if (!valid) return;
+  if (window._universeTargetSystemId === destinationId) {
+    window._universeTargetSystemId = null; window._universeRouteDestination = null; targetMovePos = null;
+    if (typeof window.showCorpNotification === 'function') window.showCorpNotification('SYSTEM TARGET CLEARED');
+    if (typeof window.openUniverse === 'function') window.openUniverse();
+    updateNearbySpacePanel(); return;
+  }
+  window._universeTargetSystemId = destinationId; window._universeRouteDestination = destinationId;
+  window.flyToFrontierGate(destinationId);
+};
 window.flyToFrontierGate = function(destinationId) {
   if (!playerShip || !mapManager) return;
   const current = mapManager.currentMapId, systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
@@ -907,15 +919,19 @@ window.openUniverse = function() {
   const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : '#38bdf8') + ';background:' + (homeHere ? '#854d0e' : '#12354a') + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 12px #38bdf8') + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
     const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
-    const here = current === s.id;
-    return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (here ? '' : 'reachable') +
+    const here = current === s.id, targeted = window._universeTargetSystemId === s.id;
+    return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (targeted ? 'targeted ' : '') + (here ? '' : 'reachable') +
       '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
       '" aria-label="' + (here ? 'Your current system: ' : 'Fly to ') + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
-      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : '2px solid ' + color) + ';background:' + (here ? '#854d0e' : color) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 9px ' + color) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : s.ring) + '</button>';
+      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 9px ' + color) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : s.ring) + '</button>';
   }).join('');
-  const list = systems.map(s => '<button type="button" data-system-id="' + s.id + '" style="display:inline-block;margin:3px;padding:5px 7px;background:' +
-    (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025') + ';color:#e6edf3;border:1px solid ' +
-    (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171') + ';border-radius:5px;font-size:11px">' + s.name + ' · ' + s.ring + '</button>').join('');
+  const list = systems.map(s => {
+    const targeted = window._universeTargetSystemId === s.id;
+    return '<button type="button" data-system-id="' + s.id + '" style="display:inline-block;margin:3px;padding:5px 7px;background:' +
+      (targeted ? '#713f12' : (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025')) + ';color:' + (targeted ? '#fde68a' : '#e6edf3') + ';border:1px solid ' +
+      (targeted ? '#fbbf24' : (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171')) + ';border-radius:5px;font-size:11px;font-weight:' + (targeted ? '900' : '600') + '">' +
+      (targeted ? '★ ' : '') + s.name + ' · ' + s.ring + '</button>';
+  }).join('');
   host.innerHTML = '<div class="universe-starchart" style="position:relative;min-height:430px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
     routes.join('') + '</svg>' + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
     '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; 🚀 TEAL · CORP EXPLORER &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
@@ -926,7 +942,7 @@ window.openUniverse = function() {
       const fleet = event.target.closest('button[data-fleet-system]');
       if (fleet) { window.hotDropMiningFleet(fleet.getAttribute('data-sighting-id')); return; }
       const node = event.target.closest('button[data-system-id]');
-      if (node) window.flyToFrontierGate(node.getAttribute('data-system-id'));
+      if (node) window.setUniverseTargetSystem(node.getAttribute('data-system-id'));
     });
     host.dataset.navigationBound = '1';
   }
