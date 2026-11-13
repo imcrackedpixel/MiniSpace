@@ -2460,7 +2460,7 @@ function handleCanvasTouch(clientX, clientY) {
 function isUiTarget(e) {
   return e.target && e.target.closest &&
     (e.target.closest('#ui-layer') || e.target.closest('#station-ui') ||
-     e.target.closest('#setup-modal') || e.target.closest('#autoplay-btn'));
+     e.target.closest('#setup-modal') || e.target.closest('#autoplay-btn') || e.target.closest('#minispace-autoplay-modal'));
 }
 
 
@@ -3313,7 +3313,7 @@ function ensureAutoplayButton() {
   btn.addEventListener('click',function(e){e.stopPropagation();if(autoplayManager&&autoplayManager.isAutoplay){window.toggleAutoplay();return;}window.openAutoplaySettings();});
   document.body.appendChild(btn);
   const stationBtn=document.getElementById('station-autoplay-btn');
-  if(stationBtn)stationBtn.addEventListener('click',function(e){e.stopPropagation();if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();else window.openAutoplaySettings();});
+  if(stationBtn){stationBtn.onclick=null;if(!stationBtn.dataset.autoplaySettingsBound){stationBtn.dataset.autoplaySettingsBound='1';stationBtn.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(autoplayManager&&autoplayManager.isAutoplay)window.toggleAutoplay();else window.openAutoplaySettings();});}}
 }
 window.openAutoplaySettings=function(){
   if(!autoplayManager)return;
