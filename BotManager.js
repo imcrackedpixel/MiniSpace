@@ -130,6 +130,9 @@ class BotManager {
     const bot = this.bots.find(entry => isExplorerBot(entry) && entry.ship);
     if (!bot) return { success: false, message: 'Your Corp Explorer is unavailable.' };
     if (bot.explorerMission) return { success: false, message: 'Your Corp Explorer is already assigned to a tactical reinforcement.' };
+    if (sighting && (sighting.dispatched || sighting.spawned)) return { success: false, message: 'That fleet intel has already been used. Wait for a fresh scan.' };
+    const cooldown = Math.max(0, Number(bot.explorerCooldownUntil) - Date.now());
+    if (cooldown > 0) return { success: false, message: 'Corp Explorer redeployment cooldown · ' + Math.ceil(cooldown / 1000) + ' seconds remaining.' };
     const route = typeof window.findFrontierRoute === 'function'
       ? window.findFrontierRoute('private_highsec', system && system.id)
       : null;
@@ -152,7 +155,9 @@ class BotManager {
       routeIndex: 0,
       phase: 'outbound',
       panicUntil: 0,
-      startedAt: Date.now()
+      startedAt: Date.now(),
+      counterDropRisk: Number(sighting.intelConfidence) < 82 || (Number(system.ring) >= 7 && Math.random() < 0.12),
+      counterDropSpawned: false
     };
     if (typeof window.showCorpNotification === 'function') {
       window.showCorpNotification('CORP EXPLORER DISPATCHED · cloaked gate transit to ' + system.name + '.');
@@ -235,6 +240,7 @@ class BotManager {
           ship.x = this.station.x; ship.y = this.station.y; ship.vx = 0; ship.vy = 0; ship.docked = true;
           bot.explorerMission = null;
           bot.explorerMapId = 'private_highsec';
+          bot.explorerCooldownUntil = Date.now() + 180000;
           bot.target = null;
           if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER RETURNED HOME · tactical reinforcement complete.');
           if (typeof window.saveGameSession === 'function') window.saveGameSession();
@@ -339,7 +345,8 @@ class BotManager {
         transportBuildQueue: Array.isArray(b.transportBuildQueue) ? JSON.parse(JSON.stringify(b.transportBuildQueue)) : [],
         x: Number(ship.x) || 0, y: Number(ship.y) || 0, angle: Number(ship.angle) || 0,
         isCloaked: !!ship.isCloaked, explorerMapId: b.explorerMapId || null,
-        explorerMission: b.explorerMission ? JSON.parse(JSON.stringify(b.explorerMission)) : null
+        explorerMission: b.explorerMission ? JSON.parse(JSON.stringify(b.explorerMission)) : null,
+        explorerCooldownUntil: Number(b.explorerCooldownUntil) || 0
       };
     });
   }
@@ -378,6 +385,7 @@ class BotManager {
       bot.transportBuildQueue = Array.isArray(s.transportBuildQueue) ? JSON.parse(JSON.stringify(s.transportBuildQueue)) : [];
       bot.explorerMapId = s.explorerMapId || null;
       bot.explorerMission = s.explorerMission ? JSON.parse(JSON.stringify(s.explorerMission)) : null;
+      bot.explorerCooldownUntil = Number(s.explorerCooldownUntil) || 0;
       bot._corpMarketSupplyPending = false;
       const ship = bot.ship;
       if (ship && ship.moduleLevels && s.moduleLevels) {
