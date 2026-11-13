@@ -902,3 +902,65 @@ html:fullscreen body, html:-webkit-full-screen body {
 .hangar-fitting-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0 8px}
 .hangar-fitting-actions .hangar-quick-equip-btn,.hangar-fitting-actions .hangar-quick-sell-btn{margin:0;flex:0 1 auto}
 .hangar-quick-sell-btn{display:inline-flex!important;align-items:center;justify-content:center;width:auto!important;max-width:100%;min-height:34px;padding:7px 12px!important;white-space:normal;text-align:center;line-height:1.25;font-size:10px!important;font-weight:900;border-color:#b8955a!important;color:#f2d9a7!important}
+
+
+/* ===== Desktop movable + resizable interface ===== */
+@media (min-width: 900px) {
+  #ui-layer { display: contents !important; }
+  #ui-layer > div { display: contents !important; }
+  #pilot-panel, #flight-controls, #minimap-panel, #online-panel {
+    position: fixed !important;
+    z-index: 1200;
+    box-sizing: border-box;
+    resize: both;
+    overflow: auto;
+    min-width: 150px;
+    min-height: 70px;
+    max-width: 48vw;
+    max-height: 82vh;
+  }
+  #pilot-panel { top: 18px; left: 18px; width: 300px; }
+  #flight-controls { top: 285px; left: 18px; width: 190px; }
+  #minimap-panel { top: 18px; right: 18px; width: 300px; max-height: 65vh; }
+  #online-panel { top: auto !important; left: 18px !important; right: auto !important; bottom: 18px; width: 310px; max-height: 55vh; }
+  #station-ui {
+    resize: both;
+    min-width: 520px;
+    min-height: 420px;
+    max-width: 96vw;
+    max-height: 94vh;
+    transform: none !important;
+    top: 3vh !important;
+    left: 50% !important;
+    translate: -50% 0;
+  }
+  .station-header, .universe-window > header {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  .station-header:active, .universe-window > header:active { cursor: grabbing; }
+  .universe-window {
+    resize: both;
+    min-width: 560px;
+    min-height: 420px;
+    max-width: 96vw;
+    max-height: 94vh;
+    overflow: auto;
+  }
+  .desktop-drag-handle {
+    cursor: grab !important;
+    user-select: none !important;
+    touch-action: none !important;
+  }
+  .desktop-drag-handle:active { cursor: grabbing !important; }
+  .desktop-window-hint {
+    display: block;
+    color: #718b98;
+    font: 10px system-ui, sans-serif;
+    padding: 2px 0 0;
+  }
+}
+@media (max-width: 899px) {
+  .desktop-window-hint { display: none !important; }
+}
