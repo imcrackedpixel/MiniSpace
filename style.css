@@ -964,3 +964,135 @@ html:fullscreen body, html:-webkit-full-screen body {
 @media (max-width: 899px) {
   .desktop-window-hint { display: none !important; }
 }
+
+
+/* ===== Desktop popup readability and properly spaced tabs ===== */
+@media (min-width: 900px) {
+  #station-ui,
+  #universe-modal,
+  .universe-window,
+  #setup-modal .setup-box,
+  #online-team-window {
+    color: #e4edf2;
+    font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.55;
+    letter-spacing: .01em;
+  }
+
+  #station-ui .station-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #0a1118;
+  }
+  #station-ui .station-tabs .tab-btn {
+    flex: 1 1 118px;
+    min-width: 105px;
+    min-height: 44px;
+    padding: 10px 14px;
+    border: 1px solid #344d59;
+    border-bottom: 2px solid #344d59;
+    border-radius: 6px;
+    background: #14232d;
+    color: #c5d4dc;
+    font: 600 13px/1.25 Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+  }
+  #station-ui .station-tabs .tab-btn:hover {
+    background: #1b3540;
+    border-color: #527b88;
+    color: #f0f8fb;
+  }
+  #station-ui .station-tabs .tab-btn.active {
+    background: #17433e;
+    border-color: #55b99d;
+    border-bottom-color: #55d6b1;
+    color: #c8ffed;
+    box-shadow: inset 0 0 0 1px rgba(85,214,177,.12);
+  }
+
+  #station-ui .station-content {
+    padding: 20px 22px;
+    color: #dce6eb;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  #station-ui .section-title {
+    margin: 0 0 12px;
+    color: #b8d0da;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  #station-ui .station-content p,
+  #station-ui .station-content label,
+  #station-ui .station-content small {
+    line-height: 1.55;
+  }
+  #station-ui .station-content button,
+  #station-ui .station-footer button,
+  .universe-window button,
+  #setup-modal .setup-box button {
+    min-height: 38px;
+    padding: 9px 13px;
+    font-size: 13px;
+    line-height: 1.3;
+    white-space: normal;
+  }
+  #station-ui input,
+  #station-ui select,
+  #station-ui textarea,
+  .universe-window input,
+  .universe-window select,
+  #setup-modal .setup-box input {
+    min-height: 38px;
+    padding: 8px 10px;
+    font: 13px/1.4 Inter, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #edf5f8;
+    background: #0c1720;
+    border: 1px solid #405d6a;
+    border-radius: 5px;
+    box-sizing: border-box;
+  }
+
+  #station-ui .station-table tbody { gap: 11px; }
+  #station-ui .station-table tr {
+    gap: 9px 14px;
+    padding: 13px 15px;
+    border-radius: 6px;
+  }
+  #station-ui .station-table td { line-height: 1.5; }
+  #station-ui .station-table td .sub {
+    color: #aebdc5;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .universe-window { padding: 18px 20px; }
+  .universe-window header {
+    min-height: 56px;
+    gap: 16px;
+    padding: 8px 4px 12px;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  .universe-map-note { font-size: 13px; line-height: 1.6; }
+  .hangar-side-tabs { gap: 9px; padding: 7px 3px; }
+  .hangar-side-btn {
+    min-height: 48px;
+    padding: 9px 10px;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+  #nearby-space-tabs { gap: 7px; }
+  #nearby-space-tabs .nearby-tab {
+    min-height: 34px;
+    padding: 7px 10px;
+    font-size: 11px;
+    line-height: 1.25;
+  }
+}
