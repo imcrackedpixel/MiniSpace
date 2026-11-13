@@ -4277,7 +4277,7 @@ if (
   window.MINISPACE_MARKET_GATE = tradeGate;
 
   const hubReturnGate = {
-    x: 700,
+    x: 2420,
     y: 3500,
     radius: 100,
     draw(ctx) {
@@ -4317,7 +4317,7 @@ if (
     asteroidBelt = world.asteroidBelt;
     debrisField = world.debrisField;
 
-    playerShip.x = hubReturnGate.x + 180;
+    playerShip.x = hubReturnGate.x + 1080;
     playerShip.y = hubReturnGate.y;
     playerShip.vx = 0;
     playerShip.vy = 0;
@@ -4967,7 +4967,7 @@ if (
     try{
       const id=mapManager&&mapManager.currentMapId;
       if(id==='private_highsec'&&window.MINISPACE_MARKET_GATE)plot(window.MINISPACE_MARKET_GATE.x,window.MINISPACE_MARKET_GATE.y,'#36b99a',4);
-      if(id==='public_trade_hub'){const h=window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station;if(h)plot(h.x,h.y,'#58a6ff',4);plot(700,3500,'#36b99a',4);}
+      if(id==='public_trade_hub'){const h=window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station;if(h)plot(h.x,h.y,'#58a6ff',4);plot(2420,3500,'#36b99a',4);}
       else{if(mainStation)plot(mainStation.x,mainStation.y,'#58a6ff',4);if(mapManager){['publicGate','frontierReturnGate','missionEntryGate','missionReturnGate'].forEach(k=>{const g=mapManager[k];if(g)plot(g.x,g.y,'#36b99a',3);});if(id==='private_highsec')(mapManager.frontierEntryGates||[mapManager.frontierEntryGate]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});(mapManager.playerGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#3fb950',3);});(mapManager.frontierGates||[]).forEach(g=>{if(g)plot(g.x,g.y,'#fb923c',3);});}}
     }catch(_){}
     try{
