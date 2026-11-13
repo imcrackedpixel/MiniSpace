@@ -45,8 +45,8 @@
         <label for="gm-scrap-amount">Scrap Metals amount</label>
         <input id="gm-scrap-amount" type="number" min="1" max="1000000000000" value="1000000" inputmode="numeric">
         <div class="gm-row"><button id="gm-give-scrap">GIVE SCRAP METALS</button></div>
-        <div class="gm-row"><button id="gm-give-target-isk">GIVE ISK TO PILOT</button><button id="gm-remove-target-isk">REMOVE ISK</button></div>
-        <label for="gm-item">Give items to Private High-Sec hangar</label>
+        <div class="gm-row"><button id="gm-give-target-isk">GIVE SCRAP METALS</button><button id="gm-remove-target-isk">REMOVE SCRAP METALS</button></div>
+        <label for="gm-item">Give items to Private Station Hangar</label>
         <select id="gm-item"></select>
         <input id="gm-item-amount" type="number" min="1" max="1000000000" value="100" inputmode="numeric" style="margin-top:7px">
         <div class="gm-row"><button id="gm-give-item">GIVE ITEM</button></div>
@@ -88,7 +88,7 @@
     const targetDetails=document.getElementById('gm-target-details');
     document.getElementById('gm-inspect-target').onclick=async()=>{
       if(!targetName())return status('Enter the exact pilot callsign first.');
-      try{const info=await window.MINISPACE_GM.inspectPilot(targetName());targetDetails.textContent='PILOT: '+info.pilotName+'\nWALLET: '+Number(info.wallet||0).toLocaleString()+' ISK\nBAN: '+(info.banned?'YES — '+info.banReason:'No')+'\nPLAYER DATA: '+JSON.stringify(info.playerData||{})+'\nHANGARS: '+JSON.stringify(info.hangars||[]);status('Pilot inspection complete.');}
+      try{const info=await window.MINISPACE_GM.inspectPilot(targetName());targetDetails.textContent='PILOT: '+info.pilotName+'\nSCRAP METALS: '+Number(info.wallet||0).toLocaleString()+'\nBAN: '+(info.banned?'YES — '+info.banReason:'No')+'\nPLAYER DATA: '+JSON.stringify(info.playerData||{})+'\nHANGARS: '+JSON.stringify(info.hangars||[]);status('Pilot inspection complete.');}
       catch(error){status(error.message||'Could not inspect pilot.');}
     };
     document.getElementById('gm-ban-target').onclick=async()=>{
