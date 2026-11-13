@@ -371,8 +371,6 @@ class MapManager {
 
  jumpToFrontierSystem(playerShip,systemId){
   const system=FRONTIER_SYSTEMS.find(s=>s.id===systemId);if(!system||!playerShip)return null;
-  const previousMapId=this.currentMapId;
-  if(previousMapId==='private_highsec')this.frontierHomeGateSystemId=system.id;
   this.currentMapId=system.id;const size=9000,cx=size/2,cy=size/2;
   // Gate positions are seeded by system ID: every pilot sees the same exits in
   // a given system, but different systems have different gate layouts.
