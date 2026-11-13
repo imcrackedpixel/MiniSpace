@@ -737,7 +737,17 @@ class PublicNpcManager {
     opts = opts || {};
     const rarity = PIRATE_RARITY_POWER[opts.rarity] ? opts.rarity : 'common';
     const rarityPower = PIRATE_RARITY_POWER[rarity];
-    const scale = (opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1)) * (opts.elite ? 1.5 : 1) * rarityPower.damage;
+    let scale = (opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1)) * (opts.elite ? 1.5 : 1) * rarityPower.damage;
+    const systemRing = opts.mapId
+      ? Math.max(0, Number(((window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === opts.mapId) || {}).ring) || 0)
+      : 0;
+    // Red-space defenders scale up by ring: deep systems should challenge a coordinated pair.
+    if (systemRing >= 7) {
+      const hpMultiplier = systemRing >= 10 ? 2.1 : systemRing >= 9 ? 1.8 : systemRing >= 8 ? 1.55 : 1.35;
+      const damageMultiplier = systemRing >= 10 ? 2.0 : systemRing >= 9 ? 1.7 : systemRing >= 8 ? 1.45 : 1.25;
+      scale *= damageMultiplier;
+      opts = Object.assign({}, opts, { hpScale: (Number(opts.hpScale) || NPC_HP_SCALE) * hpMultiplier });
+    }
     // Instant aggro only for combat-capable hulls that belong to the player's own belt
     const autoAggro = !!opts.aggro && opts.slot === this.playerSlot;
     const shipObj = cfg.makeShip(x, y);
@@ -1240,8 +1250,11 @@ class PublicNpcManager {
           const spawnPower = npc.rarityPower || PIRATE_RARITY_POWER.common;
           // NPCs outside the generated frontier map use the same modest baseline
           // as a ring-0 system; a missing map lookup must never mean a guaranteed drop.
-          const baseDropChance = npc.elite ? 0.75 : (system ? Math.min(0.52, 0.16 + system.ring * 0.036) : 0.16);
-          const dropChance = Math.min(0.98, baseDropChance + spawnPower.loot);
+          // Module drops are intentionally scarce: even ring 10 ordinary pirates
+          // stay around 16% before a small rarity bonus.
+          const baseDropChance = npc.elite ? 0.20 : (system ? Math.min(0.16, 0.04 + system.ring * 0.012) : 0.04);
+          const rarityDropBonus = spawnPower.rank >= 3 ? 0.12 : spawnPower.rank === 2 ? 0.07 : spawnPower.rank === 1 ? 0.03 : 0;
+          const dropChance = Math.min(0.28, baseDropChance + rarityDropBonus);
           const lootRank = { white: 0, green: 1, blue: 2, purple: 3 };
           const spawnLootRank = spawnPower.rank || 0;
           if (Math.random() < dropChance) {
@@ -1272,7 +1285,7 @@ class PublicNpcManager {
             }
             if(typeof window.showCorpNotification==='function')window.showCorpNotification(primaryLoaded?'LOOT SECURED IN CARGO: '+primaryDrop.name:'CARGO FULL · '+primaryDrop.name+' secured in station hangar.');
             // Blue and purple spawns can drop an extra module, with purple being more generous.
-            const bonusChance = npc.rarity === 'epic' ? 0.65 : (npc.rarity === 'rare' ? 0.30 : 0);
+            const bonusChance = npc.rarity === 'epic' ? 0.18 : (npc.rarity === 'rare' ? 0.06 : 0);
             if (bonusChance && Math.random() < bonusChance) {
               const bonusModule=mods[Math.floor(Math.random()*mods.length)];
               const bonusDrop={id:'mod-'+npc.id+'-bonus-'+Date.now(),rarity:rarity,hull:hull,module:bonusModule,name:rarity.toUpperCase()+' '+bonusModule+' Module',level:1};
