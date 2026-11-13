@@ -15,14 +15,14 @@
     for (const r of ROWS) {
       const el = document.getElementById(r.value);
       if (!el) continue;
-      const v = Math.max(0, Math.floor(Number(s[r.key]) || 0));
-      const m = Math.max(0, Math.floor(Number(s[r.max]) || 0));
+      const v = Math.max(0, Math.round(Number(s[r.key]) || 0));
+      const m = Math.max(0, Math.round(Number(s[r.max]) || 0));
       el.textContent = v.toLocaleString() + ' / ' + m.toLocaleString();
     }
   }
 
   // MainGameController owns the bars; this only keeps their existing number labels current.
-  setInterval(tick, 200);
+  // MainGameController is the single live HUD writer; avoid a second timer racing it.
   tick();
 })();
 
