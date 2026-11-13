@@ -1,14 +1,15 @@
 // Market.js - THE single price list for the whole game.
 const ITEM_PRICES = {
- veldspar: 2,
- scordite: 4,
- pyroxeres: 7,
- omber: 10,
- debris_t1: 15,
- debris_t2: 30,
- debris_t3: 50,
- debris_t4: 80,
- debris_t5: 120
+ // Market values scale from common mining ore to end-game frontier components.
+ veldspar: 100,
+ scordite: 250,
+ pyroxeres: 500,
+ omber: 1000,
+ debris_t1: 2500,
+ debris_t2: 10000,
+ debris_t3: 40000,
+ debris_t4: 150000,
+ debris_t5: 500000
 };
 
 // Ship values. Ships are no longer bought with Scrap Metals: these prices set the
