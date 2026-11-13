@@ -2512,11 +2512,12 @@ function renderTradeMarket() {
     const qty = tradeQuantity('trade_hub', key, state);
     const price = Number(item.unit_price) || 0;
     const stock = Number(item.stock) || 0;
+    const fittingSalvage = key.indexOf('fitting_') === 0;
     return '<tr><td>' + tradeEsc(label) + '<br><small>Trade Hub hangar: ' + qty.toLocaleString() + '</small></td>' +
       '<td>' + fmtISK(price) + ' Scrap Metals</td><td>' + stock.toLocaleString() + '</td>' +
-      '<td><button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1)" ' + (stock < 1 ? 'disabled' : '') + '>Buy 1</button> ' +
-      '<button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',100)" ' + (stock < 100 ? 'disabled' : '') + '>Buy 100</button> ' +
-      '<button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1000)" ' + (stock < 1000 ? 'disabled' : '') + '>Buy 1k</button> ' +
+      '<td><button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1)" ' + (fittingSalvage || stock < 1 ? 'disabled' : '') + '>Buy 1</button> ' +
+      '<button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',100)" ' + (fittingSalvage || stock < 100 ? 'disabled' : '') + '>Buy 100</button> ' +
+      '<button onclick="window.tradeMarketBuy(\'' + tradeEsc(key) + '\',1000)" ' + (fittingSalvage || stock < 1000 ? 'disabled' : '') + '>Buy 1k</button> ' +
       '<button onclick="window.tradeMarketSellAll(\'' + tradeEsc(key) + '\')" ' + (qty < 1 ? 'disabled' : '') + '>Sell all</button></td></tr>';
   });
   body.innerHTML = rows.join('') || '<tr><td colspan="4">No market items available.</td></tr>';
@@ -2529,7 +2530,7 @@ function renderTradeHangars() {
     const id = station === 'private_highsec' ? 'private-hangar-list' : 'trade-hangar-list';
     const body = document.getElementById(id);
     if (!body) return;
-    const items = Object.keys(TRADE_ITEM_LABELS);
+    const items = Object.keys(TRADE_ITEM_LABELS).filter(function(key) { return key.indexOf('fitting_') !== 0; });
     body.innerHTML = items.map(function(key) {
       const qty = tradeQuantity(station,key,state);
       const action = station === 'private_highsec'
