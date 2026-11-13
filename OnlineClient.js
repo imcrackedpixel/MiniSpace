@@ -446,6 +446,14 @@
     renderTeam();window.dispatchEvent(new CustomEvent('minispace-team-state',{detail:{teamId:state.teamId,members:state.teamMembers}}));
     log(state.teamId?'Team updated · '+state.teamMembers.length+' pilots.':'You are no longer in a team.');
    }
+   if(message.type==='team-panic'&&message.player&&message.player.id){
+    const member=message.player;
+    const index=state.teamLocations.findIndex(entry=>entry.id===member.id);
+    if(index>=0)state.teamLocations[index]={...state.teamLocations[index],...member};
+    else state.teamLocations.push(member);
+    state.teamMembers=state.teamLocations.map(entry=>({...entry}));
+    window.dispatchEvent(new CustomEvent('minispace-team-panic',{detail:member}));
+   }
    if(message.type==='team-location'&&message.player&&message.player.id){
     const incoming=message.player;
     const index=state.teamLocations.findIndex(member=>member.id===incoming.id);
@@ -499,6 +507,7 @@ if(message.type==='chat'){
     shield:Number(ship.shield)||0, armor:Number(ship.armor)||0, structure:Number(ship.structure)||0,
     maxShield:Number(ship.maxShield)||0, maxArmor:Number(ship.maxArmor)||0, maxStructure:Number(ship.maxStructure)||0,
     damageResistance:Number(ship.damageResistance)||Number(ship.resist)||0,
+    panicActive:!!ship.isPanicButtonActive,
     docked:!!ship.docked
    });
   }
