@@ -839,8 +839,8 @@ html:fullscreen body, html:-webkit-full-screen body {
   scrollbar-width:thin;
 }
 .universe-chart-scroll:active{cursor:grabbing}
-.universe-map-zoom-space{position:relative;flex:none}
-.universe-map-zoom-space .universe-starchart{width:760px;height:480px;min-width:760px;min-height:480px;aspect-ratio:auto}
+.universe-map-zoom-space{position:relative;flex:none;min-width:1600px;min-height:960px}
+.universe-map-zoom-space .universe-starchart{width:1600px;height:960px;min-width:1600px;min-height:960px;aspect-ratio:auto}
 .universe-map-controls{
   position:sticky;
   left:calc(100% - 112px);
