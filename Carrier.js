@@ -196,7 +196,7 @@ class Carrier {
       
       if (targetEnemy && targetEnemy.structure > 0 && Math.hypot(targetEnemy.x - this.x, targetEnemy.y - this.y) <= this.weaponRange) {
         inCombat = true;
-      } else if (window.centralStationBoss && window.centralStationBoss.structure > 0 && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
+      } else if (window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
         inCombat = true; 
       } else if (enemyListRef && enemyListRef.length > 0) {
         for (let e of enemyListRef) {
@@ -245,7 +245,7 @@ class Carrier {
                 
               if (targetEnemy && targetEnemy.structure > 0) {
                 entry.targetEnemy = targetEnemy;
-              } else if (window.centralStationBoss && window.centralStationBoss.structure > 0 && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
+              } else if (window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
                 entry.targetEnemy = window.centralStationBoss;
               } else if (enemyListRef && enemyListRef.length > 0) {
                 let valid = enemyListRef.filter(e => {
@@ -366,7 +366,7 @@ class Carrier {
           if (inCombat) {
             combatEnemies = enemyListRef.map(e => e.ship || e).filter(near);
             if (near(targetEnemy) && !combatEnemies.includes(targetEnemy)) combatEnemies.push(targetEnemy);
-            if (near(window.centralStationBoss)) combatEnemies.push(window.centralStationBoss);
+            if (typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && near(window.centralStationBoss)) combatEnemies.push(window.centralStationBoss);
           }
           drone.update(null, inCombat ? entry.targetEnemy : null, false, combatEnemies);
         }
