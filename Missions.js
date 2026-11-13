@@ -53,7 +53,7 @@ class MissionManager {
     this.activeMission=Object.assign({},source,{
       accepted:true, spawnedFleet:false, fleet:[], completed:false, returned:false, kills:0,
       shipClass:ship&&ship.className||'Combat Frigate', shipRating:rating,
-      shipTier:profile.tier, enemyClass:profile.name, targetCount:Math.max(1,source.targetCount-profile.tier), difficultyScale:scale,
+      shipTier:profile.tier, enemyClass:profile.name, targetCount:(source.type==='salvage'||source.type==='recon')?source.targetCount:Math.max(1,source.targetCount-profile.tier), difficultyScale:scale,
       rewardIsk:Math.round(source.rewardIsk*rewardScale),
       enemyShield:Math.round(source.enemyShield*scale), enemyArmor:Math.round(source.enemyArmor*scale),
       enemyStructure:Math.round(source.enemyStructure*scale), enemyDamage:source.enemyDamage*scale
