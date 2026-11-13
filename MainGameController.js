@@ -1566,7 +1566,7 @@ window.applySkillChip=function(id){
 };
 
 function moduleDropSaleValue(drop) {
-  const values = { white: 250000, green: 600000, blue: 1500000, purple: 4000000 };
+  const values = { white: 250000, green: 1250000, blue: 6000000, purple: 25000000 };
   return values[String(drop && drop.rarity || 'white').toLowerCase()] || values.white;
 }
 function ensureFittedModules(ship) {
@@ -2929,14 +2929,14 @@ function updateStationUI() {
   const hasHangarGoods = Object.keys(GAME_ITEM_LABELS).some(function(key) {
     return Math.max(0, Math.floor(Number(playerData.stationOre && playerData.stationOre[key]) || 0)) > 0;
   });
-  hangarHtml = '<tr data-hangar-group="ore"><td colspan="3" style="padding:6px 2px;"><button onclick="window.sellAllHangarViaTransport()" ' +
+  hangarHtml = '<tr data-hangar-group="ore"><td colspan="3" style="padding:6px 2px;text-align:left;"><button class="hangar-sell-all-btn" onclick="window.sellAllHangarViaTransport()" ' +
     (!canSellAllHangar || !hasHangarGoods || !playerShip || !playerShip.docked || inTradeHub ? 'disabled' : '') +
-    ' style="width:100%;font-weight:bold;">SELL ALL TO TRANSPORT</button></td></tr>' + hangarHtml;
+    ' title="Send all station ore and components to your Transport Manager">⇧ SELL ALL ORE + COMPONENTS</button></td></tr>' + hangarHtml;
   let hangarEl = document.getElementById('items-hanger-list');
   if (hangarEl) { hangarEl.innerHTML = hangarHtml; window.setHangarView(window._miniHangarView || 'items'); }
   const fittingEl=document.getElementById('hangar-fitting-panel');
   if(fittingEl){
-    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div><button onclick="window.quickEquipBestShips()" '+(!playerShip||!playerShip.docked?'disabled':'')+' style="width:100%;margin:6px 0;font-weight:900;">✦ QUICK-EQUIP BEST MODULES TO ALL STORED SHIPS</button>';
+    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div><button class="hangar-quick-equip-btn" onclick="window.quickEquipBestShips()" '+(!playerShip||!playerShip.docked?'disabled':'')+' title="Fit the highest-rarity compatible modules to every owned ship">✦ QUICK-EQUIP ALL SHIPS</button>';
     if(playerShip){
       const slots=ensureFittedModules(playerShip);
       fit+='<div class="fitting-module-grid">';
