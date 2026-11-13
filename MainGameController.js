@@ -1098,7 +1098,7 @@ window.openUniverse = function() {
     '<div class="universe-chart-key">★ YOUR LOCATION · SOLID LINES = GATES · BLUE NO-LOSS · RED FULL-LOOT</div></div></div><div class="universe-map-controls"><button type="button" data-map-zoom="out" aria-label="Zoom out">−</button><button type="button" data-map-zoom="reset" aria-label="Reset zoom">100%</button><button type="button" data-map-zoom="in" aria-label="Zoom in">+</button></div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
     (teamLocationsSummary ? '<p class="universe-map-note" style="color:#86efac">TEAM LOCATIONS · ' + teamLocationsSummary + '</p>' : '') +
-    '<p class="universe-map-note">Tap a system to auto-fly to the next gate on your route. You still need to enter the gate. Pinch to zoom and drag to pan.</p>';
+    '<p class="universe-map-note">Tap a system to auto-route through connected gates. Your ship will keep following the route until it reaches the selected system. Pinch to zoom and drag to pan.</p>';
   if (!host.dataset.navigationBound) {
     const getMapParts = () => ({
       viewport: host.querySelector('.universe-chart-scroll'),
