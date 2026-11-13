@@ -369,7 +369,18 @@ function removeFromTeam(p) {
 }
 
 wss.on('connection',ws=>{
+  const connectionId=crypto.randomUUID().slice(0,8);
   let helloProcessed=false;
+  console.log('Pilot websocket connected:', { connectionId });
+  ws.on('close',(code,reason)=>{
+    console.log('Pilot websocket closed:', {
+      connectionId,
+      code,
+      reason: String(reason || '').slice(0,100),
+      authenticated: !!p.authenticated,
+      helloProcessed
+    });
+  });
 
   let p={
     id:crypto.randomUUID(),
@@ -429,6 +440,7 @@ wss.on('connection',ws=>{
       // must never carry another pilot's name, ship or combat stats into this account.
       const receivedToken = m.accessToken;
       console.log('Pilot hello received:', {
+        connectionId,
         hasAccessToken: typeof receivedToken === 'string' && receivedToken.length > 0,
         accessTokenType: typeof receivedToken,
         accessTokenLength: typeof receivedToken === 'string' ? receivedToken.length : 0,
@@ -441,6 +453,7 @@ wss.on('connection',ws=>{
         return;
       }
       if(!identity){
+        console.warn('Pilot authentication failed:', { connectionId, reason: 'Supabase token verification returned no identity' });
         send(ws,{type:'auth-status',authenticated:false,isGM:false});
         try{ws.close(4001,'Pilot authentication required');}catch(error){}
         return;
@@ -471,6 +484,7 @@ wss.on('connection',ws=>{
       }
 
       helloProcessed=true;
+      console.log('Pilot authentication accepted:', { connectionId, accountId: identity.accountId });
       p.name=safeText(m.name,16)||p.name||'Pilot';
       p.accountId=identity.accountId;
       p.accessToken=m.accessToken;
