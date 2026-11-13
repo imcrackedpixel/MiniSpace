@@ -909,24 +909,35 @@ window.openUniverse = function() {
   else window._universeTargetNextHop = null;
   const fleetSightings = publicNpcManager && typeof publicNpcManager.getExplorerFleetSightings === 'function'
     ? publicNpcManager.getExplorerFleetSightings((Number(playerData.explorationCorpPurchased) || 0) > 0) : [];
-  // Stable, organic three-arm starfield layout: systems keep their positions between map opens,
-  // but no longer sit on perfect concentric circles.
-  const xy = id => {
-    if (id === 'private_highsec') return [380,240];
-    const s = systems.find(v => v.id === id); if (!s) return [380,240];
+  // Four readable map regions. System placement is stable and independent of
+  // render order, while the gates still connect the exact same system IDs.
+  const regionMembers = [[], [], [], []];
+  systems.forEach(system => {
     let hash = 2166136261;
-    const key = String(id);
-    for (let i = 0; i < key.length; i++) hash = Math.imul(hash ^ key.charCodeAt(i), 16777619) >>> 0;
-    const randA = (hash & 0xffff) / 65535;
-    const randB = ((hash >>> 16) & 0xffff) / 65535;
-    const arm = hash % 3;
-    const ring = Number(s.ring) || 1;
-    const angle = arm * (Math.PI * 2 / 3) + ring * 0.31 + (randA - 0.5) * 1.05;
-    const radius = 28 + ring * 23 + (randB - 0.5) * 34;
-    const x = 380 + Math.cos(angle) * radius * 1.08;
-    const y = 240 + Math.sin(angle) * radius * 0.69;
-    return [Math.max(24, Math.min(736, x)), Math.max(30, Math.min(450, y))];
-  };
+    for (const ch of String(system.id)) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619) >>> 0;
+    regionMembers[hash % 4].push(system);
+  });
+  const systemPositions = new Map();
+  regionMembers.forEach((members, region) => members.forEach((system, index) => {
+    let x, y;
+    if (region === 0 || region === 2) {
+      const col = index % 4, row = Math.floor(index / 4);
+      x = 95 + col * 190 + ((index * 13) % 17 - 8);
+      y = (region === 0 ? 55 : 326) + row * 36 + ((index * 7) % 9 - 4);
+    } else {
+      const col = index % 2, row = Math.floor(index / 2);
+      x = (region === 3 ? 78 : 582) + col * 112 + ((index * 11) % 13 - 6);
+      y = 178 + row * 39 + ((index * 5) % 9 - 4);
+    }
+    systemPositions.set(system.id, [x, y]);
+  }));
+  const xy = id => id === 'private_highsec' ? [380, 240] : (systemPositions.get(id) || [380, 240]);
+  const regionPanels = [
+    '<div class="universe-region universe-region-top">TOP REGION</div>',
+    '<div class="universe-region universe-region-right">RIGHT REGION</div>',
+    '<div class="universe-region universe-region-bottom">BOTTOM REGION</div>',
+    '<div class="universe-region universe-region-left">LEFT REGION</div>'
+  ].join('');
   const edges = new Set(), routes = [];
   const plottedPath = window._universeTargetSystemId
     ? window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, window._universeTargetSystemId)
@@ -975,9 +986,9 @@ window.openUniverse = function() {
       (targeted ? '#fbbf24' : (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171')) + ';border-radius:5px;font-size:11px;font-weight:' + (targeted ? '900' : '600') + '">' +
       (targeted ? '★ ' : '') + s.name + ' · ' + s.ring + '</button>';
   }).join('');
-  host.innerHTML = '<div class="universe-starchart" style="position:relative;min-height:430px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
-    routes.join('') + '</svg>' + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
-    '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; 🚀 TEAL · CORP EXPLORER &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
+  host.innerHTML = '<div class="universe-chart-scroll"><div class="universe-starchart" style="position:relative;min-height:480px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
+    routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
+    '<div class="universe-chart-key">★ YOUR LOCATION · 🚀 CORP EXPLORER · BLUE NO-LOSS · RED FULL-LOOT</div></div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
     '<p class="universe-map-note">Tap a system to set or clear your saved destination. The amber route and highlighted tear show your next gate; fly there to continue. Gold ⛏ markers are mining fleet pings. The teal 🚀 marker shows the Corp Explorer live system and mission status.</p>';
   if (!host.dataset.navigationBound) {
