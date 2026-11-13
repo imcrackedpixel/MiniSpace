@@ -158,6 +158,7 @@ class PublicNpcManager {
     this._frontierStates = Object.create(null);
     this._mapAggroTargets = Object.create(null);
     this.destructionEffects = [];
+    this.capitalDropEffects = [];
     this._playedDestructionIds = Object.create(null);
     this.explorerFleetSightings = [];
     this._lastExplorerFleetPing = 0;
@@ -194,6 +195,84 @@ class PublicNpcManager {
     return this.explorerFleetSightings.slice();
   }
 
+  addCapitalDropEffect(mapId, x, y) {
+    this.capitalDropEffects.push({ mapId, x, y, start: Date.now(), duration: 4200 });
+  }
+
+  drawCapitalDropEffects(ctx, currentMapId) {
+    const now = Date.now();
+    this.capitalDropEffects = this.capitalDropEffects.filter(e => now - e.start < e.duration);
+    for (const effect of this.capitalDropEffects) {
+      if (effect.mapId !== currentMapId) continue;
+      const age = now - effect.start;
+      const p = Math.max(0, Math.min(1, age / effect.duration));
+      const fade = Math.pow(1 - p, 0.8);
+      const pulse = Math.sin(Math.min(1, age / 900) * Math.PI);
+      ctx.save();
+      ctx.translate(effect.x, effect.y);
+      ctx.globalCompositeOperation = 'lighter';
+      // A massive blue-white arrival column makes the capital feel much larger than a normal ship.
+      const column = ctx.createRadialGradient(0, -20, 4, 0, -20, 330);
+      column.addColorStop(0, 'rgba(230,250,255,' + (0.72 * fade) + ')');
+      column.addColorStop(0.18, 'rgba(76,205,255,' + (0.42 * fade) + ')');
+      column.addColorStop(0.55, 'rgba(35,115,255,' + (0.14 * fade) + ')');
+      column.addColorStop(1, 'rgba(20,70,180,0)');
+      ctx.fillStyle = column;
+      ctx.fillRect(-340, -360, 680, 680);
+      // Three enormous shock rings expand out from the drop point.
+      for (let i = 0; i < 3; i++) {
+        const delay = i * 260;
+        const rp = Math.max(0, Math.min(1, (age - delay) / 2100));
+        if (rp <= 0) continue;
+        ctx.globalAlpha = (1 - rp) * fade * 0.9;
+        ctx.strokeStyle = i === 0 ? '#f0fdff' : (i === 1 ? '#38d9ff' : '#638cff');
+        ctx.lineWidth = (9 - i * 2) * (1 - rp * 0.65);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 55 + rp * 620, 28 + rp * 360, 0, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      // Rotating containment rings converge around the arriving hull.
+      for (let i = 0; i < 4; i++) {
+        const rotation = age * (i % 2 ? -0.0014 : 0.0014) + i * Math.PI / 4;
+        ctx.save();
+        ctx.rotate(rotation);
+        ctx.globalAlpha = fade * (0.58 + pulse * 0.3);
+        ctx.strokeStyle = i % 2 ? '#54dfff' : '#d8faff';
+        ctx.lineWidth = 3 + (i === 0 ? 2 : 0);
+        ctx.setLineDash([32 + i * 8, 18 + i * 4]);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, 170 + i * 34, 76 + i * 18, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
+      // Arrival sparks shoot outward from the centre.
+      for (let i = 0; i < 36; i++) {
+        const angle = i * Math.PI * 2 / 36 + (i % 2) * 0.08;
+        const distance = 40 + p * (220 + (i % 5) * 32);
+        ctx.globalAlpha = fade * (0.35 + (i % 4) * 0.12);
+        ctx.strokeStyle = i % 3 ? '#5adfff' : '#ffffff';
+        ctx.lineWidth = 2 + (i % 3);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * distance, Math.sin(angle) * distance * 0.58);
+        ctx.lineTo(Math.cos(angle) * (distance + 30), Math.sin(angle) * (distance + 30) * 0.58);
+        ctx.stroke();
+      }
+      if (p < 0.86) {
+        ctx.globalAlpha = fade;
+        ctx.textAlign = 'center';
+        ctx.font = '900 30px system-ui,sans-serif';
+        ctx.shadowColor = '#39cfff';
+        ctx.shadowBlur = 24;
+        ctx.fillStyle = '#e8fbff';
+        ctx.fillText('CAPITAL HOT DROP', 0, -265);
+        ctx.font = 'bold 15px system-ui,sans-serif';
+        ctx.fillStyle = '#8ceaff';
+        ctx.fillText('HEAVY HULL ARRIVAL', 0, -238);
+      }
+      ctx.restore();
+    }
+  }
+
   spawnExplorerMiningFleet(system, sighting) {
     if (!system || !sighting || sighting.spawned) return false;
     const count = Math.max(3, Math.min(5, Number(sighting.ships) || 3));
@@ -212,6 +291,11 @@ class PublicNpcManager {
       });
       const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
       if (npc) {
+        if (type === 'miningCapital') {
+          npc.ship.className = 'Mining Capital';
+          npc.className = 'Mining Capital';
+          this.addCapitalDropEffect(system.id, sighting.x + Math.cos(angle) * radius, sighting.y + Math.sin(angle) * radius);
+        }
         npc.role = 'miner';
         npc.explorerFleetId = sighting.id;
         npc.autoAggro = false;
@@ -1192,5 +1276,6 @@ class PublicNpcManager {
       }
     });
     this.drawDestructionEffects(ctx, currentMapId);
+    this.drawCapitalDropEffects(ctx, currentMapId);
   }
 }
