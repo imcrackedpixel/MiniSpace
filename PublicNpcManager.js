@@ -1185,14 +1185,22 @@ class PublicNpcManager {
             const module=mods[Math.floor(Math.random()*mods.length)];
             const primaryDrop={id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1};
             const primaryLoaded=typeof window.addModuleToCargo==='function'&&window.addModuleToCargo(playerShip,primaryDrop);
-            if(typeof window.showCorpNotification==='function')window.showCorpNotification(primaryLoaded?'LOOT SECURED IN CARGO: '+primaryDrop.name:'CARGO FULL · '+primaryDrop.name+' could not be collected.');
+            if(!primaryLoaded){
+              if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
+              playerData.moduleDrops.push(Object.assign({},primaryDrop));
+            }
+            if(typeof window.showCorpNotification==='function')window.showCorpNotification(primaryLoaded?'LOOT SECURED IN CARGO: '+primaryDrop.name:'CARGO FULL · '+primaryDrop.name+' secured in station hangar.');
             // Blue and purple spawns can drop an extra module, with purple being more generous.
             const bonusChance = npc.rarity === 'epic' ? 0.65 : (npc.rarity === 'rare' ? 0.30 : 0);
             if (bonusChance && Math.random() < bonusChance) {
               const bonusModule=mods[Math.floor(Math.random()*mods.length)];
               const bonusDrop={id:'mod-'+npc.id+'-bonus-'+Date.now(),rarity:rarity,hull:hull,module:bonusModule,name:rarity.toUpperCase()+' '+bonusModule+' Module',level:1};
               const bonusLoaded=typeof window.addModuleToCargo==='function'&&window.addModuleToCargo(playerShip,bonusDrop);
-              if(typeof window.showCorpNotification==='function')window.showCorpNotification(bonusLoaded?'BONUS LOOT IN CARGO: '+bonusDrop.name:'CARGO FULL · bonus loot could not be collected.');
+              if(!bonusLoaded){
+                if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
+                playerData.moduleDrops.push(Object.assign({},bonusDrop));
+              }
+              if(typeof window.showCorpNotification==='function')window.showCorpNotification(bonusLoaded?'BONUS LOOT IN CARGO: '+bonusDrop.name:'CARGO FULL · bonus loot secured in station hangar.');
             }
           }
         }
