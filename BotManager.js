@@ -137,6 +137,7 @@ class BotManager {
     const ship = bot.ship;
     if (ship.isPanicButtonActive && typeof ship.togglePanicButton === 'function') ship.togglePanicButton();
     if (!ship.isCloaked && typeof ship.toggleCloak === 'function') ship.toggleCloak();
+    ship.x = this.station.x + 90; ship.y = this.station.y + 90;
     ship.docked = false;
     ship.vx = 0; ship.vy = 0;
     bot.target = null;
@@ -293,7 +294,7 @@ class BotManager {
 
   // Keep corporation logistics moving while the pilot is visiting the public Trade Hub,
   // without advancing private corporation miners in the public map.
-  updateTransportOnly(player, asteroidBelt, debrisField) {
+  updateTransportOnly(player, asteroidBelt, debrisField, currentMapId) {
     const allBots = this.bots;
     this.bots = allBots.filter(function (bot) {
       const name = bot && bot.ship && bot.ship.className;
@@ -302,7 +303,7 @@ class BotManager {
         name === 'Freighter';
     });
     try {
-      return this.update(player, asteroidBelt, debrisField);
+      return this.update(player, asteroidBelt, debrisField, currentMapId);
     } finally {
       this.bots = allBots;
     }
@@ -1023,7 +1024,7 @@ class BotManager {
     return list[0] || null;
   }
 
-  update(playerShip, asteroidBelt, debrisField) {
+  update(playerShip, asteroidBelt, debrisField, currentMapId) {
     // Fleet snapshots are captured by MainGameController.saveGameSession().
     // Do not serialize every bot, inventory and cargo record on every animation frame.
 
@@ -1042,6 +1043,7 @@ class BotManager {
       const ship = bot.ship;
       if (!ship) return;
       if (bot.explorerMission) return;
+      if (isExplorerBot(bot) && bot.explorerMapId && currentMapId && bot.explorerMapId !== currentMapId) return;
 
       if (
         ship.className === 'Transport Capital' ||
@@ -1557,7 +1559,7 @@ class BotManager {
     this.bots.forEach(function(bot) {
       const ship = bot.ship;
       if (!ship) return;
-      if (bot.explorerMission && bot.explorerMapId !== currentMapId) return;
+      if (isExplorerBot(bot) && bot.explorerMapId && currentMapId && bot.explorerMapId !== currentMapId) return;
       if (typeof ship.draw === 'function') {
         ship.draw(ctx, asteroidBelt, debrisField);
       } else {
