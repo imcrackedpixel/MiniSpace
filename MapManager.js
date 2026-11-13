@@ -314,6 +314,7 @@ class MapManager {
  this.currentMapId = 'private_highsec';  
  this.missionReturnGate = null;
  this.frontierReturnGate = null;
+ this.frontierHomeGateSystemId = null;
  this.frontierGates = [];
  this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.ring === 1).map((system, i) => {
    const spots = [[500,500],[2500,1500],[4500,500],[4500,2500],[4500,3900],[500,2500]];
@@ -370,24 +371,34 @@ class MapManager {
 
  jumpToFrontierSystem(playerShip,systemId){
   const system=FRONTIER_SYSTEMS.find(s=>s.id===systemId);if(!system||!playerShip)return null;
+  const previousMapId=this.currentMapId;
+  if(previousMapId==='private_highsec')this.frontierHomeGateSystemId=system.id;
   this.currentMapId=system.id;const size=9000,cx=size/2,cy=size/2;
   // Gate positions are seeded by system ID: every pilot sees the same exits in
   // a given system, but different systems have different gate layouts.
   let gateSeed=0;for(let k=0;k<system.id.length;k++)gateSeed=(gateSeed*33+system.id.charCodeAt(k))>>>0;
   let gateRng=gateSeed||1;
   const gateRandom=()=>{gateRng=(gateRng*1664525+1013904223)>>>0;return gateRng/4294967296;};
-  const gateCount=system.links.filter(id=>id!=='private_highsec').length;
+  // Only the system used to enter this expedition has a physical High-Sec exit.
+  // Every other system exposes only neighbouring frontier gates.
+  const hasHomeExit=this.frontierHomeGateSystemId===system.id;
+  const gateDestinations=system.links.filter(id=>id!=='private_highsec'||hasHomeExit);
   const gateRotation=gateRandom()*Math.PI*2;
   const gateRadius=2750+gateRandom()*550;
-  const returnAngle=gateRotation;
-  this.frontierReturnGate={x:cx+Math.cos(returnAngle)*gateRadius,y:cy+Math.sin(returnAngle)*gateRadius,radius:105,draw(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.ret,31);drawPortalLabel(ctx,this.x,this.y,this.radius,'UNIVERSE RIFT','RETURN TO HIGH-SEC','#34d399');}};
-  this.frontierGates=system.links.filter(id=>id!=='private_highsec').map((id,i,all)=>{
+  const allGates=gateDestinations.map((id,i,all)=>{
     const a=gateRotation+(2*Math.PI*(i+1)/(all.length+1))+(gateRandom()-0.5)*0.16;
     const distance=gateRadius+(gateRandom()-0.5)*420;
-    const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:90,destinationId:id};
-    g.draw=function(ctx){drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,40+i);const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER ROUTE',d?d.name:'UNKNOWN','#fb923c');};
+    const isHome=id==='private_highsec';
+    const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:isHome?105:90,destinationId:id};
+    g.draw=function(ctx){
+      drawSpaceRift(ctx,this.x,this.y,this.radius,isHome?RIFT_PALETTES.ret:RIFT_PALETTES.pvp,40+i);
+      const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);
+      drawPortalLabel(ctx,this.x,this.y,this.radius,isHome?'RETURN RIFT':'FRONTIER ROUTE',isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),isHome?'#34d399':'#fb923c');
+    };
     return g;
   });
+  this.frontierReturnGate=allGates.find(g=>g.destinationId==='private_highsec')||null;
+  this.frontierGates=allGates.filter(g=>g.destinationId!=='private_highsec');
   this.frontierStation=new SpaceStation(cx,cy,system.name+' Station');
   this.frontierStation.isFrontierStation = true;
   let seed=0;for(let k=0;k<system.id.length;k++)seed=(seed*33+system.id.charCodeAt(k))>>>0;const oldRandom=Math.random;let rng=seed||1;Math.random=function(){rng=(rng*1664525+1013904223)>>>0;return rng/4294967296;};
@@ -486,7 +497,10 @@ class MapManager {
  }  
   
  jumpToPrivateSec(playerShip, mainStation) {  
- this.currentMapId = 'private_highsec';  
+ this.currentMapId = 'private_highsec';
+ this.frontierHomeGateSystemId = null;
+ this.frontierReturnGate = null;
+ this.frontierGates = [];  
  this.missionReturnGate = null;
  if (window.showCorpNotification) window.showCorpNotification('Returned through the mission tear to High-Sec 1.0. Your ship remains at the return tear; fly back to the station.');  
  this.publicGate.x = 2500;  
