@@ -214,7 +214,7 @@ class PublicNpcManager {
   frontierState(systemId) {
     return this._frontierStates[systemId] || (this._frontierStates[systemId] = {
       spawned: false, guardDefs: [], guardRespawns: Object.create(null),
-      stationHp: null, stationMaxHp: 0, wavesSpawned: [], stationDestroyed: false, destroyNotified: false
+      stationHp: null, stationMaxHp: 0, wavesSpawned: [], wavesMaterialized: [], stationDestroyed: false, destroyNotified: false
     });
   }
 
@@ -236,6 +236,10 @@ class PublicNpcManager {
       station.maxStructure = state.stationMaxHp;
       station.structure = state.stationHp;
       this.checkFrontierStationWaves(message.mapId, station);
+    }
+    if (state.stationDestroyed && !state.destroyNotified) {
+      state.destroyNotified = true;
+      if (typeof window.showCorpNotification === 'function') window.showCorpNotification('FRONTIER STATION DESTROYED · SYSTEM STRONGHOLD ELIMINATED');
     }
   }
 
@@ -259,10 +263,14 @@ class PublicNpcManager {
     const state = this.frontierState(systemId);
     const fraction = Math.max(0, Number(station.structure) || 0) / station.maxStructure;
     [0.75, 0.50, 0.25].forEach((threshold, waveIndex) => {
-      if (fraction <= threshold && !state.wavesSpawned.includes(waveIndex)) {
-        state.wavesSpawned.push(waveIndex);
-        const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
-        if (system) this.spawnFrontierStationWave(system, station, waveIndex);
+      const alreadyRecorded = state.wavesSpawned.includes(waveIndex);
+      if (fraction <= threshold || alreadyRecorded) {
+        if (!alreadyRecorded) state.wavesSpawned.push(waveIndex);
+        if (!state.wavesMaterialized.includes(waveIndex)) {
+          state.wavesMaterialized.push(waveIndex);
+          const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
+          if (system) this.spawnFrontierStationWave(system, station, waveIndex);
+        }
       }
     });
   }
