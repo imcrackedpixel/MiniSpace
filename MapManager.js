@@ -389,6 +389,7 @@ class MapManager {
     return g;
   });
   this.frontierStation=new SpaceStation(cx,cy,system.name+' Station');
+  this.frontierStation.isFrontierStation = true;
   let seed=0;for(let k=0;k<system.id.length;k++)seed=(seed*33+system.id.charCodeAt(k))>>>0;const oldRandom=Math.random;let rng=seed||1;Math.random=function(){rng=(rng*1664525+1013904223)>>>0;return rng/4294967296;};
   let belt,debris;
   try{belt=new AsteroidBelt(cx,cy,0,size);belt.generate(75+system.level*12,system.level>=4?['pyroxeres','omber','scordite']:['veldspar','scordite','pyroxeres']);
