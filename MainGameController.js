@@ -1110,10 +1110,9 @@ window.openUniverse = function() {
   }));
   const fleetMarkers = fleetSightings.map(sighting => {
     const p = xy(sighting.systemId);
-    const ambush = !!sighting.ambush;
     return '<button type="button" data-fleet-system="' + sighting.systemId + '" data-sighting-id="' + sighting.id +
-      '" title="' + (ambush ? 'Unusual hostile signal · high-risk Explorer hot drop' : 'Explorer ping · ' + sighting.ships + ' mining ships · intel confidence ' + (sighting.intelConfidence || 0) + '% · dispatch Corp Explorer') + '" style="position:absolute;left:' + (p[0] / 16) +
-      '%;top:' + (p[1] / 11.2) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid ' + (ambush ? '#ef4444' : '#fbbf24') + ';background:' + (ambush ? '#450a0a' : '#422006') + ';color:' + (ambush ? '#fecaca' : '#fde68a') + ';font-size:11px;font-weight:900;box-shadow:0 0 12px ' + (ambush ? 'rgba(239,68,68,.7)' : 'rgba(251,191,36,.55)') + '">' + (ambush ? '☠ ' : (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ')) + sighting.ships + '</button>';
+      '" title="Explorer ping · ' + sighting.ships + ' mining ships · intel confidence ' + (sighting.intelConfidence || 0) + '% · dispatch Corp Explorer" style="position:absolute;left:' + (p[0] / 16) +
+      '%;top:' + (p[1] / 11.2) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">' + (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ') + sighting.ships + '</button>';
   }).join('');
   const corpExplorer = botManager && botManager.bots
     ? botManager.bots.find(entry => entry && entry.ship && ['Exploration Frigate','Improved Explorer Frigate','Explorer Cruiser'].includes(entry.className))
