@@ -645,7 +645,7 @@ window.jumpToFrontierSystem = function(id) {
 window.findFrontierRoute = function(from, to) {
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
   const homeGateSystemId = mapManager && mapManager.frontierHomeGateSystemId;
-  const linksFor = id => id === 'private_highsec' ? systems.filter(s => s.ring === 1).map(s => s.id) :
+  const linksFor = id => id === 'private_highsec' ? (homeGateSystemId ? [homeGateSystemId] : []) :
     (((systems.find(s => s.id === id) || {}).links || []).filter(next => next !== 'private_highsec' || id === homeGateSystemId));
   const queue = [[from]], seen = new Set([from]);
   while (queue.length) {
