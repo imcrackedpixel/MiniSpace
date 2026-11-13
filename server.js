@@ -381,41 +381,10 @@ wss.on('connection',ws=>{
         if (p.roomId && !p.invisible) broadcastRoom(p.roomId,{type:'player',player:publicPlayer(p)},ws);
         return;
       }
-      const token=safeText(m.resumeToken,100);
 
-      if(!helloProcessed && token) {
-        const oldId=resumeTokens.get(token);
-        const oldPlayer=oldId ? players.get(oldId) : null;
-
-        if(
-          oldPlayer &&
-          oldPlayer!==p &&
-          !oldPlayer.ws &&
-          oldPlayer.graceTimer
-        ) {
-          clearTimeout(oldPlayer.graceTimer);
-
-          players.delete(p.id);
-          friends.delete(p.id);
-
-          p=oldPlayer;
-          p.ws=ws;
-          p.graceTimer=null;
-          p.last=Date.now();
-        }
-      }
-
-      if(token) {
-        if(p.resumeToken && p.resumeToken!==token) {
-          resumeTokens.delete(p.resumeToken);
-        }
-
-        p.resumeToken=token;
-        resumeTokens.set(token,p.id);
-      }
-
-      helloProcessed=true;
-      p.name=safeText(m.name,16)||p.name||'Pilot';
+      // Authenticate first, then resume only a session owned by this exact account.
+      // Browser localStorage can survive an account switch, so a shared resume token
+      // must never carry another pilot's name, ship or combat stats into this account.
       const identity=await verifyPilotToken(m.accessToken);
       if(identity&&identity.banned){
         send(ws,{type:'auth-status',authenticated:false,isGM:false,banned:true,reason:identity.banReason});
@@ -427,6 +396,33 @@ wss.on('connection',ws=>{
         try{ws.close(4001,'Pilot authentication required');}catch(error){}
         return;
       }
+
+      const token=safeText(m.resumeToken,100);
+      if(token) {
+        const oldId=resumeTokens.get(token);
+        const oldPlayer=oldId ? players.get(oldId) : null;
+        if(oldPlayer && oldPlayer!==p && !oldPlayer.ws && oldPlayer.graceTimer &&
+           oldPlayer.accountId===identity.accountId) {
+          clearTimeout(oldPlayer.graceTimer);
+          players.delete(p.id);
+          friends.delete(p.id);
+          p=oldPlayer;
+          p.ws=ws;
+          p.graceTimer=null;
+          p.last=Date.now();
+        } else if(oldPlayer && oldPlayer!==p && oldPlayer.accountId!==identity.accountId) {
+          // Detach the token from the previous account before assigning it below.
+          // Its grace cleanup must not delete the new account's token mapping.
+          if(oldPlayer.resumeToken===token) oldPlayer.resumeToken=null;
+          resumeTokens.delete(token);
+        }
+        if(p.resumeToken && p.resumeToken!==token) resumeTokens.delete(p.resumeToken);
+        p.resumeToken=token;
+        resumeTokens.set(token,p.id);
+      }
+
+      helloProcessed=true;
+      p.name=safeText(m.name,16)||p.name||'Pilot';
       p.accountId=identity.accountId;
       p.accessToken=m.accessToken;
       p.isGM=!!identity.isGM;
