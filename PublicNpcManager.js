@@ -280,9 +280,12 @@ class PublicNpcManager {
     if (!system || !sighting || sighting.spawned) return false;
     const count = Math.max(3, Math.min(5, Number(sighting.ships) || 3));
     const pool = ['frigate', 'frigate', 'barge', 'command'];
-    if (system.ring >= 5 && Math.random() < 0.12) pool.push('miningCapital');
+    const ring = Math.max(1, Number(system.ring) || 1);
+    const capitalMinerChance = ring >= 10 ? 0.65 : ring >= 9 ? 0.45 : ring >= 8 ? 0.30 : ring >= 5 ? 0.12 : 0;
+    const capitalMinerHotDrop = Math.random() < capitalMinerChance;
+    if (capitalMinerHotDrop) pool.push('miningCapital');
     for (let i = 0; i < count; i++) {
-      const type = i === 0 && pool.includes('miningCapital') && Math.random() < 0.25
+      const type = i === 0 && capitalMinerHotDrop
         ? 'miningCapital' : pool[Math.floor(Math.random() * pool.length)];
       const cfg = PIRATE_TYPES[type] || PIRATE_TYPES.frigate;
       const angle = Math.PI * 2 * i / count + Math.random() * 0.35;
@@ -528,20 +531,24 @@ class PublicNpcManager {
     };
     state.redSpaceEncounterSeeded = true;
     const roll = random();
-    // 4% capital operation, 18% small mining fleet, 8% lone pirate combat patrol.
+    const ring = Math.max(1, Number(system.ring) || 1);
+    // Capital-miner operations become more common in the deepest systems:
+    // ring 7: 4%, ring 8: 10%, ring 9: 15%, ring 10+: 22%.
+    const capitalOperationChance = ring >= 10 ? 0.22 : ring >= 9 ? 0.15 : ring >= 8 ? 0.10 : 0.04;
+    // Keep the ordinary mining-fleet and combat-patrol chances unchanged.
     let miners = [];
     let escorts = [];
-    if (roll < 0.04) {
+    if (roll < capitalOperationChance) {
       miners = ['miningCapital', random() < 0.7 ? 'barge' : 'command'];
       escorts = random() < 0.75 ? ['siegeBattleship'] : ['siegeCruiser'];
-    } else if (roll < 0.22) {
+    } else if (roll < capitalOperationChance + 0.18) {
       const count = 2 + Math.floor(random() * 3);
       for (let i = 0; i < count; i++) {
         const pick = random();
         miners.push(pick < 0.48 ? 'frigate' : (pick < 0.86 ? 'barge' : 'command'));
       }
       if (random() < 0.35) escorts.push(random() < 0.72 ? 'combatFrigate' : 'siegeCruiser');
-    } else if (roll < 0.30) {
+    } else if (roll < capitalOperationChance + 0.26) {
       escorts = [random() < 0.65 ? 'combatFrigate' : 'siegeCruiser'];
     } else {
       return;
