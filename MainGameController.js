@@ -344,6 +344,8 @@ function applyFittedModuleBonuses(ship) {
     const rarity = String(mod.rarity || 'white').toLowerCase();
     const scale = ({white:1,green:1.2,blue:1.45,purple:1.8})[rarity] || 1;
     const bonus = 1 + rank * 0.04 * scale;
+    if (slot === 'resistance' && Number.isFinite(Number(ship.resist))) ship._fittedResistanceMultiplier = bonus;
+    if (slot === 'shieldRecharge') ship._fittedShieldRechargeMultiplier = bonus;
     if (['laser','guns','missiles'].includes(slot)) {
       fittedDamageMultiplier *= bonus;
       ['miningPower','missileDamage','weaponDamage','gunDamage'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
