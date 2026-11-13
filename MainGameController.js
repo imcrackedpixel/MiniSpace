@@ -868,6 +868,56 @@ window.hotDropMiningFleet = function(sightingId) {
   saveGameSession();
 };
 
+window.onTeamPanicHotDrop = function(member) {
+  if (!member || !member.id || !playerShip || !mapManager) return;
+  const online = window.MinispaceOnline && window.MinispaceOnline.state;
+  if (!online || !online.teamId || !online.teamMembers.some(m => m && m.id === member.id)) return;
+  const destinationId = String(member.mapId || '');
+  let arrival = null;
+  if (destinationId.indexOf('frontier_') === 0) {
+    arrival = mapManager.jumpToFrontierSystem(playerShip, destinationId);
+    if (!arrival) { window.showCorpNotification('TEAM REINFORCEMENT delayed · unable to open ' + destinationId + '.'); return; }
+    asteroidBelt = arrival.asteroidBelt;
+    debrisField = arrival.debrisField;
+    mainStation = arrival.station || mapManager.frontierStation || homeStation;
+    window.MINISPACE_FRONTIER_STATION = mainStation;
+    if (publicNpcManager) publicNpcManager.initFrontierSystem(arrival.system, mainStation);
+  } else if (destinationId === 'private_highsec') {
+    mainStation = homeStation || mainStation;
+    window.MINISPACE_FRONTIER_STATION = null;
+    arrival = mapManager.jumpToPrivateSec(playerShip, mainStation);
+    asteroidBelt = arrival.asteroidBelt;
+    debrisField = arrival.debrisField;
+  } else {
+    window.showCorpNotification('TEAM REINFORCEMENT unavailable · teammate is outside supported hot-drop space.');
+    return;
+  }
+  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+  playerShip.x = (Number(member.x) || 0) + 190;
+  playerShip.y = (Number(member.y) || 0) + 120;
+  playerShip.vx = 0; playerShip.vy = 0;
+  playerShip.angle = Math.atan2((Number(member.y) || 0) - playerShip.y, (Number(member.x) || 0) - playerShip.x);
+  playerShip.docked = false;
+  playerShip._miniTacticalShieldUntil = Date.now() + 4000;
+  if (typeof playerShip.takeDamage === 'function' && !playerShip._miniTacticalShieldWrapped) {
+    const originalTakeDamage = playerShip.takeDamage.bind(playerShip);
+    playerShip.takeDamage = function() {
+      if (Date.now() < (this._miniTacticalShieldUntil || 0)) return;
+      return originalTakeDamage.apply(null, arguments);
+    };
+    playerShip._miniTacticalShieldWrapped = true;
+  }
+  targetMovePos = null; lockedTarget = null; isDockingRequested = false; gateCooldown = 180;
+  window.startMiniSpaceJumpEffect();
+  if (typeof saveGameSession === 'function') saveGameSession();
+  window.showCorpNotification('TEAM REINFORCEMENT · hot-dropped beside ' + String(member.name || 'teammate') + ' · 4-second arrival shield.');
+};
+
+window.addEventListener('minispace-team-panic', function(event) {
+  const member = event && event.detail;
+  if (typeof window.onTeamPanicHotDrop === 'function') window.onTeamPanicHotDrop(member);
+});
+
 window.onCorpExplorerPanicHotDrop = function(bot) {
   if (!bot || !bot.ship || !bot.explorerMission || !playerShip || !mapManager) return;
   const mission = bot.explorerMission;
