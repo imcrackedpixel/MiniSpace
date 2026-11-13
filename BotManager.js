@@ -148,6 +148,7 @@ class BotManager {
     bot.explorerMapId = 'private_highsec';
     bot.explorerMission = {
       sightingId: sighting.id,
+      ambush: !!sighting.ambush,
       targetSystemId: system.id,
       targetX: Number(sighting.x) || 4500,
       targetY: Number(sighting.y) || 4500,
