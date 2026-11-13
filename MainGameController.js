@@ -3869,6 +3869,12 @@ function render() {
       if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
       if(mapManager.frontierReturnGate)mapManager.frontierReturnGate.draw(ctx);
       (mapManager.frontierGates||[]).forEach(g=>g.draw(ctx));
+    } else if (mapManager && mapManager.currentMapId === 'public_trade_hub') {
+      // Trade Hub is a separate station, not the private High-Sec station.
+      // Draw it inside the main world pass so it shares the exact camera transform,
+      // clipping, and layer order with asteroids, gates and ships.
+      const tradeStation = window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station;
+      if (tradeStation && typeof tradeStation.draw === 'function') tradeStation.draw(ctx);
     } else if (!pub) {
       if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
       // The Trade Hub tear is a real High-Sec exit; draw it with the other map gates.
@@ -4473,69 +4479,7 @@ if (
   };
 })();
 
-/* TRADE HUB - DRAW THE HUB STATION IN THE WORLD RENDER */
-(function () {
-  const previousRender = render;
-
-  render = function () {
-    const inHub =
-      mapManager &&
-      mapManager.currentMapId === 'public_trade_hub';
-
-    if (!inHub) {
-      return previousRender();
-    }
-
-    const station =
-      window.MINISPACE_TRADE_HUB &&
-      window.MINISPACE_TRADE_HUB.station;
-
-    // Keep the normal High-Sec station hidden while rendering this map.
-    const oldMainDraw = mainStation && mainStation.draw;
-    if (mainStation) mainStation.draw = function () {};
-
-    // Prevent any legacy station hook from drawing the Trade Hub station twice.
-    const oldTradeDraw = station && station.draw;
-    if (station) station.draw = function () {};
-
-    try {
-      previousRender();
-    } finally {
-      if (mainStation) mainStation.draw = oldMainDraw;
-      if (station) station.draw = oldTradeDraw;
-    }
-
-    if (!station || !playerShip || !ctx || !canvas ||
-        typeof station.draw !== 'function') return;
-
-    // Draw the station using the same world-to-screen transform as the camera.
-    const dpr = window.devicePixelRatio || 1;
-    const z = cameraZoom * dpr;
-    // Match the exact camera origin used by render(), including manual panning.
-    // Previously this used the ship position alone, which could draw the station
-    // away from its true screen position after the camera had been moved.
-    const cameraX = playerShip.x + (Number(cameraOffsetX) || 0);
-    const cameraY = playerShip.y + (Number(cameraOffsetY) || 0);
-    ctx.save();
-    ctx.setTransform(
-      z, 0, 0, z,
-      canvas.width / 2 - cameraX * z,
-      canvas.height / 2 - cameraY * z
-    );
-
-    try {
-      station.draw(ctx);
-
-      // Keep the player's ship in front of the station artwork.
-      if (!playerShip.docked && typeof playerShip.draw === 'function') {
-        playerShip.draw(ctx, null);
-      }
-    } finally {
-      ctx.restore();
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-    }
-  };
-})();
+/* Trade Hub station is drawn directly in render() above. */
 
 /* TRADE HUB - CONNECT DOCKING TO ITS OWN STATION */
 (function () {
