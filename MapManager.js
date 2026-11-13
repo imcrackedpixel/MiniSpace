@@ -316,7 +316,7 @@ class MapManager {
  this.frontierReturnGate = null;
  this.frontierHomeGateSystemId = (FRONTIER_SYSTEMS.find(s => s.ring === 1) || {}).id || null;
  this.frontierGates = [];
- this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.ring === 1).map((system, i) => {
+ this.frontierEntryGates = FRONTIER_SYSTEMS.filter(s => s.ring === 1).slice(0, 1).map((system, i) => {
    const spots = [[500,500],[2500,1500],[4500,500],[4500,2500],[4500,3900],[500,2500]];
    const p = spots[i] || [2500,2500];
    return {x:p[0],y:p[1],radius:88,destinationId:system.id,draw:function(ctx){
