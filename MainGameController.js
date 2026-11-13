@@ -770,16 +770,21 @@ window.findFrontierRoute = function(from, to) {
   }
   return null;
 };
+try {
+  window._universeTargetSystemId = window._universeTargetSystemId || localStorage.getItem('minispace_universe_target') || window._universeRouteDestination || null;
+} catch (_) {}
 window.setUniverseTargetSystem = function(destinationId) {
   const valid = destinationId === 'private_highsec' || (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === destinationId);
   if (!valid) return;
   if (window._universeTargetSystemId === destinationId) {
     window._universeTargetSystemId = null; window._universeRouteDestination = null; targetMovePos = null; window._universeTargetNextHop = null;
+    try { localStorage.removeItem('minispace_universe_target'); } catch (_) {}
     if (typeof window.showCorpNotification === 'function') window.showCorpNotification('SYSTEM TARGET CLEARED');
     if (typeof window.openUniverse === 'function') window.openUniverse();
     updateNearbySpacePanel(); return;
   }
   window._universeTargetSystemId = destinationId; window._universeRouteDestination = destinationId;
+  try { localStorage.setItem('minispace_universe_target', destinationId); } catch (_) {}
   const routePath = window.findFrontierRoute(mapManager.currentMapId === 'private_highsec' ? 'private_highsec' : mapManager.currentMapId, destinationId);
   window._universeTargetNextHop = routePath && routePath.length > 1 ? routePath[1] : null;
   window.flyToFrontierGate(destinationId);
@@ -918,8 +923,8 @@ window.openUniverse = function() {
   const explorerMarker = explorerPoint ? '<div title="Corp Explorer · ' + explorerLabel + '" aria-label="Corp Explorer ' + explorerLabel +
     '" style="pointer-events:none;position:absolute;left:' + (explorerPoint[0] / 7.6) + '%;top:' + (explorerPoint[1] / 4.8) +
     '%;transform:translate(-50%,-155%);z-index:9;white-space:nowrap;padding:4px 7px;border-radius:10px;border:1px solid #5eead4;background:rgba(4,55,58,.96);color:#ccfbf1;font-size:10px;font-weight:900;box-shadow:0 0 14px rgba(45,212,191,.7)">🚀 ' + explorerLabel + '</div>' : '';
-  const homeHere = current === 'private_highsec';
-  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : '#38bdf8') + ';background:' + (homeHere ? '#854d0e' : '#12354a') + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 12px #38bdf8') + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
+  const homeHere = current === 'private_highsec', homeTargeted = window._universeTargetSystemId === 'private_highsec';
+  const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : (homeTargeted ? '#fbbf24' : '#38bdf8')) + ';background:' + (homeHere ? '#854d0e' : (homeTargeted ? '#713f12' : '#12354a')) + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (homeTargeted ? '0 0 0 5px rgba(251,191,36,.24),0 0 22px #fbbf24' : '0 0 12px #38bdf8')) + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
     const p = xy(s.id), safe = s.lossMode === 'no-loss', color = safe ? '#38bdf8' : '#f87171';
     const here = current === s.id, targeted = window._universeTargetSystemId === s.id;
