@@ -208,7 +208,7 @@ class PublicNpcManager {
       const id = sighting.id + '-miner-' + i;
       if (this.publicNpcMiners.some(n => n && n.id === id)) continue;
       this.addPirate(cfg, sighting.x + Math.cos(angle) * radius, sighting.y + Math.sin(angle) * radius, id, {
-        mapId: system.id, role: 'miner', hpScale: 0.85, dmg: 0, rarity: 'common'
+        mapId: system.id, role: 'mining_fleet', hpScale: 0.85, dmg: 0, rarity: 'common'
       });
       const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
       if (npc) {
@@ -1014,6 +1014,11 @@ class PublicNpcManager {
             Math.round(npc.pos.x), Math.round(npc.pos.y), 'found', Math.round(ship.x), Math.round(ship.y));
         }
         this.setPos(ship, npc.pos.x, npc.pos.y);
+      }
+
+      if (npc.role === 'mining_fleet' && !ship._minispacePlayerTagged) {
+        this.peacefulBehaviour(npc, asteroidBelt);
+        return;
       }
 
       const playerPresent = !!(playerShip && !playerShip.docked);
