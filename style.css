@@ -761,3 +761,7 @@ html:fullscreen body, html:-webkit-full-screen body {
   .universe-window { max-height:calc(100dvh - max(10px,env(safe-area-inset-top)) - max(5px,env(safe-area-inset-bottom))); }
   .universe-window header { top:-7px; min-height:44px; }
 }
+
+/* Plotted universe route: keep the next gate obvious in the Nearby tear list. */
+.nearby-entry.nearby-target-gate{border:1px solid #fbbf24!important;background:linear-gradient(90deg,rgba(120,75,12,.55),rgba(28,24,17,.94))!important;box-shadow:inset 3px 0 #fbbf24,0 0 10px rgba(245,158,11,.22)}
+.universe-node.targeted{outline:3px solid rgba(251,191,36,.48);outline-offset:4px}
