@@ -733,10 +733,52 @@ window.flyToFrontierGate = function(destinationId) {
   window.showCorpNotification('ROUTE SET · ' + (destinationId === 'private_highsec' ? 'HIGH-SEC' : destinationId.replace('frontier_','').toUpperCase()) +
     ' · flying to ' + (nextHop === 'private_highsec' ? 'HIGH-SEC' : nextHop.replace('frontier_','').toUpperCase()) + ' gate.');
 };
+window.hotDropMiningFleet = function(sightingId) {
+  if (!playerShip || !mapManager || !publicNpcManager) return;
+  if (!(Number(playerData.explorationCorpPurchased) > 0)) {
+    window.showCorpNotification('A Corp Explorer is required to locate mining fleets.');
+    return;
+  }
+  const sightings = publicNpcManager.getExplorerFleetSightings(true);
+  const sighting = sightings.find(s => s.id === sightingId);
+  if (!sighting || sighting.expiresAt <= Date.now()) {
+    window.showCorpNotification('Explorer ping expired · waiting for a fresh scan.');
+    window.openUniverse();
+    return;
+  }
+  const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === sighting.systemId);
+  if (!system) return;
+  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+  if (mapManager.currentMapId !== system.id) {
+    const result = mapManager.jumpToFrontierSystem(playerShip, system.id);
+    if (!result) return;
+    asteroidBelt = result.asteroidBelt;
+    debrisField = result.debrisField;
+    mainStation = result.station || mapManager.frontierStation || homeStation;
+    window.MINISPACE_FRONTIER_STATION = mainStation;
+    if (publicNpcManager) publicNpcManager.initFrontierSystem(system, mainStation);
+  }
+  publicNpcManager.spawnExplorerMiningFleet(system, sighting);
+  playerShip.x = Math.max(500, sighting.x - 900);
+  playerShip.y = Math.max(500, sighting.y - 500);
+  playerShip.vx = 0;
+  playerShip.vy = 0;
+  playerShip.docked = false;
+  targetMovePos = { x: sighting.x, y: sighting.y };
+  lockedTarget = null;
+  isDockingRequested = false;
+  gateCooldown = 180;
+  window.closeUniverse();
+  window.showCorpNotification('CORP EXPLORER HOT DROP · ' + system.name + ' · ' + sighting.ships + ' mining ships detected. Approach to engage.');
+  saveGameSession();
+};
+
 window.openUniverse = function() {
   const modal = document.getElementById('universe-modal'), host = document.getElementById('universe-systems');
   if (!modal || !host) return;
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [], current = mapManager.currentMapId;
+  const fleetSightings = publicNpcManager && typeof publicNpcManager.getExplorerFleetSightings === 'function'
+    ? publicNpcManager.getExplorerFleetSightings((Number(playerData.explorationCorpPurchased) || 0) > 0) : [];
   const xy = id => {
     if (id === 'private_highsec') return [380,240];
     const s = systems.find(v => v.id === id); if (!s) return [380,240];
@@ -752,6 +794,12 @@ window.openUniverse = function() {
     const a = xy(s.id), b = xy(id);
     routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="universe-route-line"/>');
   }));
+  const fleetMarkers = fleetSightings.map(sighting => {
+    const p = xy(sighting.systemId);
+    return '<button type="button" data-fleet-system="' + sighting.systemId + '" data-sighting-id="' + sighting.id +
+      '" title="Explorer ping · ' + sighting.ships + ' mining ships · HOT DROP" style="position:absolute;left:' + (p[0] / 7.6) +
+      '%;top:' + (p[1] / 4.8) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">⛏ ' + sighting.ships + '</button>';
+  }).join('');
   const homeHere = current === 'private_highsec';
   const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : '#38bdf8') + ';background:' + (homeHere ? '#854d0e' : '#12354a') + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 12px #38bdf8') + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
@@ -766,12 +814,14 @@ window.openUniverse = function() {
     (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025') + ';color:#e6edf3;border:1px solid ' +
     (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171') + ';border-radius:5px;font-size:11px">' + s.name + ' · ' + s.ring + '</button>').join('');
   host.innerHTML = '<div class="universe-starchart" style="position:relative;min-height:430px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
-    routes.join('') + '</svg>' + home + nodes + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
+    routes.join('') + '</svg>' + home + nodes + fleetMarkers + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
     '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
-    '<p class="universe-map-note">Tap a system or its name to plot a physical gate route. High-Sec is home. Rings 1–6 protect your ship; rings 7–10 are full-loot PvP.</p>';
+    '<p class="universe-map-note">Tap a system to plot a physical gate route. Gold ⛏ markers are temporary corp-explorer mining fleet pings — tap one to hot drop.</p>';
   if (!host.dataset.navigationBound) {
     host.addEventListener('click', function(event) {
+      const fleet = event.target.closest('button[data-fleet-system]');
+      if (fleet) { window.hotDropMiningFleet(fleet.getAttribute('data-sighting-id')); return; }
       const node = event.target.closest('button[data-system-id]');
       if (node) window.flyToFrontierGate(node.getAttribute('data-system-id'));
     });
