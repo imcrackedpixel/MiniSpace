@@ -1129,3 +1129,28 @@ html:fullscreen body, html:-webkit-full-screen body {
     max-height: calc(100dvh - 8px) !important;
   }
 }
+
+
+/* Fixed-size desktop-style windows: move from their title bars, never resize. */
+@media (min-width: 900px) {
+  #pilot-panel, #flight-controls, #minimap-panel, #online-panel,
+  #station-ui, .universe-window { resize: none !important; }
+  #pilot-panel, #flight-controls, #minimap-panel, #online-panel,
+  #station-ui, .universe-window { overflow: auto; }
+  .desktop-drag-handle {
+    cursor: grab !important;
+    user-select: none !important;
+    touch-action: none !important;
+  }
+  .desktop-drag-handle:active { cursor: grabbing !important; }
+}
+@media (max-width: 899px) {
+  #pilot-panel, #flight-controls, #minimap-panel, #online-panel,
+  #station-ui, .universe-window { resize: none !important; }
+  .mobile-resize-grip { display: none !important; }
+  .mobile-drag-handle, .desktop-drag-handle {
+    cursor: grab !important;
+    user-select: none !important;
+    touch-action: none !important;
+  }
+}
