@@ -300,15 +300,52 @@ function cleanModules(ship) {
   }
 }
 
+function fittedModuleBonusPercent(slot, rank, rarity) {
+  const scale = ({white:1,green:1.2,blue:1.45,purple:1.8})[String(rarity||'white').toLowerCase()] || 1;
+  return Math.max(0, Number(rank)||1) * 4 * scale;
+}
+function fittedModuleBonusLabel(slot, rank, rarity) {
+  const pct = fittedModuleBonusPercent(slot, rank, rarity), half = pct * 0.5;
+  const one = n => '+' + n.toFixed(1) + '%';
+  if (['laser','guns','missiles'].includes(slot)) return 'Damage ' + one(pct) + ' · Range ' + one(half);
+  if (['shield','shieldPlating','shieldExtender','shieldRecharge'].includes(slot)) return 'Shield / armour ' + one(pct) + ' · Recharge ' + one(pct);
+  if (slot === 'resistance') return 'Damage resistance ' + one(pct);
+  if (slot === 'cargo') return 'Cargo capacity ' + one(pct);
+  if (slot === 'propulsion') return 'Top speed ' + one(pct * 0.65);
+  if (['droneTether','dronesTether'].includes(slot)) return 'Drone range ' + one(pct);
+  if (slot === 'scrambler') return 'Scrambler range ' + one(pct) + ' · Slow strength +' + one(pct * 0.1);
+  if (slot === 'hacking') return 'Hacking / scan power ' + one(pct);
+  if (slot === 'cloaking') return 'Cloak duration ' + one(pct);
+  return 'Module bonus ' + one(pct);
+}
+function shipFittingHp(ship) {
+  if (!ship) return 0;
+  return Math.round(['maxShield','maxArmor','maxStructure'].reduce((sum,key)=>sum+Math.max(0,Number(ship[key])||0),0) || Number(ship.maxHp)||Number(ship.maxHealth)||0);
+}
+function shipFittingDps(ship) {
+  if (!ship) return 0;
+  if (ship.className === 'Siege Battleship') return Math.round(800 * (Number(ship._fittedDamageMultiplier)||1));
+  if (ship.className === 'Siege Cruiser' && typeof ship.gunDamage === 'function') {
+    const mounts = Array.isArray(ship.guns) ? ship.guns.length : 1;
+    return Math.round(ship.gunDamage() * mounts * 0.8);
+  }
+  if (Number.isFinite(Number(ship.weaponDps || ship.dps || ship.damagePerSecond))) return Math.round(Number(ship.weaponDps || ship.dps || ship.damagePerSecond));
+  if (Number.isFinite(Number(ship.missileDamage))) return Math.round(Number(ship.missileDamage) * 0.13 * 60);
+  if (Number.isFinite(Number(ship.weaponDamage))) return Math.round(Number(ship.weaponDamage));
+  if (Array.isArray(ship.drones)) return Math.round(ship.drones.reduce((sum,entry)=>{const d=entry&&(entry.ship||entry);return sum+(d&&Number(d.missileDamage)||0)*0.13*60;},0));
+  return 0;
+}
 function applyFittedModuleBonuses(ship) {
   const fitted = ship && ship.fittedModules || {};
+  let fittedDamageMultiplier = 1;
   Object.keys(fitted).forEach(function(slot) {
     const mod = fitted[slot]; if (!mod) return;
     const rank = Math.max(1, Math.min(10, Number(mod.rank) || 1));
     const rarity = String(mod.rarity || 'white').toLowerCase();
     const scale = ({white:1,green:1.2,blue:1.45,purple:1.8})[rarity] || 1;
-    const bonus = 1 + (rank - 1) * 0.04 * scale;
+    const bonus = 1 + rank * 0.04 * scale;
     if (['laser','guns','missiles'].includes(slot)) {
+      fittedDamageMultiplier *= bonus;
       ['miningPower','missileDamage','weaponDamage','gunDamage'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
       ['laserRange','weaponRange','scramblerRange'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=1+(bonus-1)*0.5;});
     } else if (['shield','shieldPlating','shieldExtender','shieldRecharge','resistance'].includes(slot)) {
@@ -330,6 +367,7 @@ function applyFittedModuleBonuses(ship) {
       if(Number.isFinite(Number(ship.cloakDuration)))ship.cloakDuration*=bonus;
     }
   });
+  ship._fittedDamageMultiplier = fittedDamageMultiplier;
 }
 function applyDesign(ship) {
   if (!ship) return;
@@ -2342,12 +2380,13 @@ function updateStationUI() {
           const rank=Math.max(1,Number(installed.rank)||1),rankCap=getCap(mod,playerShip.className),next=rank<10&&rank<rankCap,req=next?fittedModuleUpgradeRequirements(mod,rank):null;
           const costLabel=next?fmtISK(req.scrap)+' Scrap Metals'+(req.ore?' + '+req.ore.qty.toLocaleString()+' '+itemLabel(req.ore.key)+' + '+req.component.qty.toLocaleString()+' '+itemLabel(req.component.key):''):'';
           const rankStatus=rank>=10?'MAX RANK':rank>=rankCap?'LOCKED · ITEM LEVEL CHIP REQUIRED':'';
-          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/'+rankCap+'</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+costLabel:rankStatus)+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
+          fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>'+installed.name+' · RANK '+rank+'/'+rankCap+'</strong><small>'+String(installed.rarity||'white').toUpperCase()+' MODULE</small><small class="fitting-bonus">'+fittedModuleBonusLabel(mod,rank,installed.rarity)+'</small><button onclick="window.upgradeFittedModule(\''+mod+'\')" '+(!next||!playerShip.docked?'disabled':'')+'>'+(next?'+ UPGRADE · '+costLabel:rankStatus)+'</button><button onclick="window.removeFittedModule(\''+mod+'\')" '+(!playerShip.docked?'disabled':'')+'>REMOVE</button></div>';
         } else {
           fit+='<div class="fitting-module"><span>'+mod.replace(/([A-Z])/g,' $1').toUpperCase()+' SLOT</span><strong>EMPTY</strong><small>Find a compatible frontier drop</small></div>';
         }
       }
       fit+='</div>';
+      fit+='<div class="fitting-heading"><strong>SHIP PERFORMANCE</strong><span>LIVE FITTED STATS</span></div><div class="fitting-performance"><strong>HP '+shipFittingHp(playerShip).toLocaleString()+'</strong><strong>DPS '+shipFittingDps(playerShip).toLocaleString()+'</strong></div>';
     }else fit+='<p>Board a ship to view its module slots.</p>';
     const chips=Array.isArray(playerData.skillChips)?playerData.skillChips:[];
     const drops=Array.isArray(playerData.moduleDrops)?playerData.moduleDrops:[];
@@ -2355,7 +2394,7 @@ function updateStationUI() {
     if(drops.length)fit+='<div class="fitting-chip-list">'+drops.map(d=>{
       const compatible=!!(playerShip&&playerShip.docked&&playerShip.className===d.hull&&MODULE_KEYS[d.hull]&&MODULE_KEYS[d.hull].includes(d.module)&&!ensureFittedModules(playerShip)[d.module]);
       const sale=moduleDropSaleValue(d);
-      return '<div class="fitting-chip rarity-'+d.rarity+'"><span class="chip-glyph">⬡</span><div><strong>'+d.name+'</strong><small>'+d.hull+' · '+d.module+' · '+d.rarity.toUpperCase()+'</small></div><button onclick="window.fitFrontierModuleDrop(\''+d.id+'\')" '+(!compatible?'disabled':'')+'>FIT</button><button onclick="window.sellFrontierModuleDrop(\''+d.id+'\')" '+(!inTradeHub||!playerShip||!playerShip.docked?'disabled':'')+'>SELL '+fmtISK(sale)+'</button></div>';
+      return '<div class="fitting-chip rarity-'+d.rarity+'"><span class="chip-glyph">⬡</span><div><strong>'+d.name+'</strong><small>'+d.hull+' · '+d.module+' · '+d.rarity.toUpperCase()+'</small><small class="fitting-bonus">'+fittedModuleBonusLabel(d.module,1,d.rarity)+'</small></div><button onclick="window.fitFrontierModuleDrop(\''+d.id+'\')" '+(!compatible?'disabled':'')+'>FIT</button><button onclick="window.sellFrontierModuleDrop(\''+d.id+'\')" '+(!inTradeHub||!playerShip||!playerShip.docked?'disabled':'')+'>SELL '+fmtISK(sale)+'</button></div>';
     }).join('')+'</div>';
     fit+='<div class="fitting-heading"><strong>PURPLE SKILL CHIPS</strong><span>'+chips.length+' stored</span></div>';
     if(!chips.length)fit+='<p class="fitting-empty">No purple chips yet. Hunt elite pirates in Level 4–5 frontier systems.</p>';
