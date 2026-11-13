@@ -670,6 +670,60 @@ window.resetGameSave = function() {
 };
 
 
+// Screen-space jump animation: a teal/blue tunnel, expanding rings and a short arrival flash.
+window.startMiniSpaceJumpEffect = function() {
+  window.MINISPACE_JUMP_EFFECT = { startedAt: Date.now(), duration: 1050 };
+};
+function drawMiniSpaceJumpEffect(context, width, height) {
+  const effect = window.MINISPACE_JUMP_EFFECT;
+  if (!effect) return;
+  const elapsed = Date.now() - effect.startedAt;
+  const progress = Math.max(0, Math.min(1, elapsed / effect.duration));
+  if (progress >= 1) { window.MINISPACE_JUMP_EFFECT = null; return; }
+  const cx = width / 2, cy = height / 2;
+  const tunnel = Math.sin(progress * Math.PI);
+  context.save();
+  context.globalCompositeOperation = 'screen';
+  context.globalAlpha = Math.min(0.82, tunnel * 0.9 + (progress < 0.16 ? 0.2 : 0));
+  const wash = context.createRadialGradient(cx, cy, 0, cx, cy, Math.max(width, height) * 0.72);
+  wash.addColorStop(0, 'rgba(90,220,255,0.03)');
+  wash.addColorStop(0.55, 'rgba(20,145,205,' + (0.10 * tunnel) + ')');
+  wash.addColorStop(1, 'rgba(4,18,45,' + (0.32 * tunnel) + ')');
+  context.fillStyle = wash;
+  context.fillRect(0, 0, width, height);
+  const maxRadius = Math.hypot(width, height) * 0.72;
+  for (let i = 0; i < 7; i++) {
+    const phase = (progress * 1.45 + i / 7) % 1;
+    const radius = 18 + phase * maxRadius;
+    context.globalAlpha = (1 - phase) * tunnel * 0.8;
+    context.strokeStyle = i % 2 ? '#39d9ff' : '#b5f7ff';
+    context.lineWidth = 1.5 + (1 - phase) * 3;
+    context.beginPath();
+    context.ellipse(cx, cy, radius, radius * 0.58, 0, 0, Math.PI * 2);
+    context.stroke();
+  }
+  // Radial streaks rush away from the centre, creating a jump-tunnel sensation.
+  context.globalAlpha = tunnel * 0.52;
+  context.lineWidth = 1.4;
+  for (let i = 0; i < 44; i++) {
+    const angle = i * Math.PI * 2 / 44;
+    const inner = 24 + ((i * 37) % 95);
+    const outer = Math.min(maxRadius, inner + 45 + tunnel * 190);
+    context.strokeStyle = i % 3 ? 'rgba(72,205,255,0.8)' : 'rgba(220,250,255,0.95)';
+    context.beginPath();
+    context.moveTo(cx + Math.cos(angle) * inner, cy + Math.sin(angle) * inner);
+    context.lineTo(cx + Math.cos(angle) * outer, cy + Math.sin(angle) * outer);
+    context.stroke();
+  }
+  // Brief white-blue arrival flash.
+  if (progress > 0.78) {
+    context.globalAlpha = Math.pow((progress - 0.78) / 0.22, 2) * 0.42;
+    context.fillStyle = '#c9f7ff';
+    context.fillRect(0, 0, width, height);
+  }
+  context.restore();
+}
+
 window.jumpToFrontierSystem = function(id) {
   if (!playerShip || (missionManager && missionManager.activeMission)) { window.showCorpNotification('Finish your active mission before entering the frontier.'); return; }
   const current = mapManager.currentMapId;
@@ -678,7 +732,8 @@ window.jumpToFrontierSystem = function(id) {
     (isFrontierSpace() && (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === current && s.links.includes(id)));
   if (!allowed) { window.showCorpNotification('Fly through a connected space gate to reach that system.'); return; }
   if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
-  const r = mapManager.jumpToFrontierSystem(playerShip, id); if (!r) return;
+  window.startMiniSpaceJumpEffect();
+  const r = mapManager.jumpToFrontierSystem(playerShip, id); if (!r) { window.MINISPACE_JUMP_EFFECT = null; return; }
   asteroidBelt = r.asteroidBelt; debrisField = r.debrisField;
   mainStation = r.station || mapManager.frontierStation || homeStation;
   window.MINISPACE_FRONTIER_STATION = mainStation;
@@ -750,6 +805,7 @@ window.hotDropMiningFleet = function(sightingId) {
   if (!system) return;
   if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
   if (mapManager.currentMapId !== system.id) {
+    window.startMiniSpaceJumpEffect();
     const result = mapManager.jumpToFrontierSystem(playerShip, system.id);
     if (!result) return;
     asteroidBelt = result.asteroidBelt;
@@ -832,6 +888,7 @@ window.openUniverse = function() {
 window.closeUniverse = function(){const m=document.getElementById('universe-modal');if(m)m.style.display='none';};
 
 window.jumpToPublicSpace = function(slot = 0) {
+  window.startMiniSpaceJumpEffect();
   let res = mapManager.jumpToPublicSpace(playerShip, mainStation, publicNpcManager, slot);
   asteroidBelt = res.asteroidBelt;
   debrisField = res.debrisField;
@@ -864,6 +921,7 @@ window.jumpToMissionSystem = function() {
 };
 
 window.jumpToPrivateSec = function() {
+  window.startMiniSpaceJumpEffect();
   mainStation = homeStation || mainStation;
   window.MINISPACE_FRONTIER_STATION = null;
   let res = mapManager.jumpToPrivateSec(playerShip, mainStation);
@@ -3202,6 +3260,7 @@ function render() {
     ctx.restore();
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawMiniSpaceJumpEffect(ctx, W, H);
   const otherPilots=window.MinispaceOnline&&window.MinispaceOnline.state&&window.MinispaceOnline.state.remotePlayers;if(otherPilots){m.fillStyle='#36b99a';Object.values(otherPilots).forEach(p=>{if(p&&p.mapId===mapManager.currentMapId&&isFinite(Number(p.x))&&isFinite(Number(p.y))){m.beginPath();m.arc(Number(p.x)*sc,Number(p.y)*sc,2.4,0,Math.PI*2);m.fill();}});}m.save();m.translate(playerShip.x*sc,playerShip.y*sc);m.rotate(Number(playerShip.angle)||0);m.fillStyle='#e8fbff';m.strokeStyle='#36b99a';m.lineWidth=1.2;m.beginPath();m.moveTo(0,-5);m.lineTo(3.7,4);m.lineTo(0,2);m.lineTo(-3.7,4);m.closePath();m.fill();m.stroke();m.restore();m.strokeStyle='rgba(112,166,190,.55)';m.lineWidth=1;m.strokeRect(.5,.5,size-1,size-1);
 }
 
