@@ -211,6 +211,10 @@ function joinRoom(p,mapId) {
       });
     }
   }
+  if(p.teamId&&teams.has(p.teamId)){
+    const members=[...teams.get(p.teamId)].map(id=>players.get(id)).filter(Boolean);
+    send(p.ws,{type:'team-state',teamId:p.teamId,members:members.map(member=>({id:member.id,name:member.name}))});
+  }
 }
 
 function sendRoomSnapshot(p) {
