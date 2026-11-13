@@ -245,7 +245,7 @@
       // ---- guns ----
       const enemies = availableEnemies ||
         ((typeof publicNpcManager !== 'undefined' && publicNpcManager && publicNpcManager.publicNpcMiners) || []);
-      const target = targetEnemy || this.pickTarget(enemies);
+      const target = this.weaponsEnabled === false ? null : (targetEnemy || this.pickTarget(enemies));
       this.currentTarget = target || null;
 
       const heading = this.angle || 0;
