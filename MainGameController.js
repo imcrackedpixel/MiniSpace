@@ -699,9 +699,37 @@ function showExtractionLootModal(lootData) {
   document.body.appendChild(modal);
 }
 
-window.resetGameSave = function() {
-  try { localStorage.removeItem('minispace_save'); } catch (e) {}
-  location.reload();
+window.resetGameSave = async function() {
+  const button = document.querySelector('.btn-reset');
+  if (button) { button.disabled = true; button.textContent = 'RESETTING...'; }
+  const pilotName = String(playerData.pilotName || '').trim();
+  const freshPlayerData = {
+    pilotName: pilotName,
+    isk: 0,
+    stationOre: { veldspar: 0, scordite: 0, pyroxeres: 0, omber: 0, debris_t1: 0, debris_t2: 0, debris_t3: 0, debris_t4: 0, debris_t5: 0 },
+    upgrades: {}, shipsOwned: ['Mining Frigate'],
+    unlockedShips: { barge: false, command: false, capital: false, carrier: false, combatFrigate: false, explorationFrigate: false },
+    corpMembersPurchased: 0, explorationCorpPurchased: 0, transportManagerPurchased: 0,
+    designs: { explorer: 0 }, hullDesigns: {}, builtHulls: {}, chips: 0,
+    moduleBonusCap: {}, progression: { xp: 0, level: 1, skillPoints: 0, spent: { combat: {}, mining: {} } },
+    offensiveMode: false
+  };
+  try {
+    if (typeof window.MINISPACE_RESET_CLOUD !== 'function') throw new Error('Cloud reset is not available. Please reload after the update.');
+    await window.MINISPACE_RESET_CLOUD();
+    const freshSave = {
+      playerData: freshPlayerData, pilotName: pilotName, className: 'Mining Frigate',
+      maxCargo: 200, maxSpeed: 3.4, playerCargo: 0, playerOreType: 'veldspar',
+      playerCargoByOre: {}, playerModuleCargo: [], shipX: null, shipY: null,
+      shipVx: 0, shipVy: 0, shipAngle: 0, shipDocked: false, mapId: 'private_highsec'
+    };
+    localStorage.setItem('minispace_save', JSON.stringify(freshSave));
+    location.reload();
+  } catch (error) {
+    if (button) { button.disabled = false; button.textContent = 'Reset save data'; }
+    if (window.showCorpNotification) window.showCorpNotification('Reset failed: ' + (error.message || error));
+    console.error('Cloud pilot reset failed:', error);
+  }
 };
 
 
