@@ -565,11 +565,11 @@ class PublicNpcManager {
 
     miners.forEach((type, i) => {
       const angle = (i / Math.max(1, miners.length)) * Math.PI * 2 + random() * 0.3;
-      spawn(type, angle, 260 + random() * 180, 'redspace_miner', type === 'miningCapital' ? 0.72 : 0.78, 0);
+      spawn(type, angle, 260 + random() * 180, 'mining_fleet', type === 'miningCapital' ? 0.72 : 0.78, 0);
     });
     escorts.forEach((type, i) => {
       const angle = (i / Math.max(1, escorts.length)) * Math.PI * 2 + Math.PI + random() * 0.25;
-      spawn(type, angle, 650 + random() * 180, 'redspace_escort', 0.72, 0.16);
+      spawn(type, angle, 650 + random() * 180, 'patrol', 0.72, 0.16);
     });
 
     if (typeof window.showCorpNotification === 'function') {
