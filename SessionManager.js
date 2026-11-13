@@ -281,6 +281,18 @@ class SessionManager {
       newShip.applyStats();
     }
 
+    // Keep combat-hull cargo capacities consistent across boarding and old-save restores.
+    // These are base holds; fitted bonuses/talents can still be applied afterward.
+    const combatCargoCaps = {
+      'Combat Frigate': 200,
+      'Siege Cruiser': 500,
+      'Siege Battleship': 1000,
+      'Carrier': 5000
+    };
+    if (Object.prototype.hasOwnProperty.call(combatCargoCaps, nameClean)) {
+      newShip.maxCargo = combatCargoCaps[nameClean];
+    }
+
     return newShip;
   }
 }
