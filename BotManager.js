@@ -1493,18 +1493,18 @@ class BotManager {
 
       if (isExplorerBot(bot)) { this.updateExplorerBot(bot, target); return; }
 
-      // Command Ship uses its internal drone mining / tether logic
-      if (ship.className === 'Command Ship') {
-        ship.update(null, target, false, false, asteroidBelt);
-        // Check if cargo is full or needs delivering back to station
+      // Command Ships and Mining Capitals use their own deployed-drone mining logic.
+      if (ship.className === 'Command Ship' || ship.className === 'Mining Capital') {
         const maxC = ship.maxCargo || 20000;
-        if ((ship.cargo || 0) >= maxC * 0.95) {
-          const dx = this.station.x - ship.x;
-          const dy = this.station.y - ship.y;
-          const dist = Math.hypot(dx, dy);
-          if (dist <= 60) {
-            this.deliver(bot);
-          }
+        const returning = (ship.cargo || 0) >= maxC * 0.95;
+        if (returning && ship.className === 'Mining Capital' && ship.isAnchored) {
+          ship.isAnchored = false;
+          ship.cooldownTimer = 0;
+          if (typeof ship.applyStats === 'function') ship.applyStats();
+        }
+        ship.update(null, returning ? null : target, returning ? this.station : false, false, asteroidBelt);
+        if (returning && Math.hypot(this.station.x - ship.x, this.station.y - ship.y) <= 110) {
+          this.deliver(bot);
         }
         return;
       }
