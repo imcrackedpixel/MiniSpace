@@ -796,7 +796,7 @@ window.hotDropMiningFleet = function(sightingId) {
   }
   const sightings = publicNpcManager.getExplorerFleetSightings(true);
   const sighting = sightings.find(s => s.id === sightingId);
-  if (!sighting || sighting.expiresAt <= Date.now()) {
+  if (!sighting || sighting.expiresAt <= Date.now() || sighting.dispatched || sighting.spawned) {
     window.showCorpNotification('Explorer ping expired · waiting for a fresh scan.');
     window.openUniverse();
     return;
@@ -838,6 +838,10 @@ window.onCorpExplorerPanicHotDrop = function(bot) {
   playerShip.docked = false;
   targetMovePos = null; lockedTarget = null; isDockingRequested = false; gateCooldown = 180;
   mission.playerReinforced = true;
+  if (mission.counterDropRisk && !mission.counterDropSpawned && publicNpcManager &&
+      typeof publicNpcManager.spawnTacticalCounterDrop === 'function') {
+    mission.counterDropSpawned = publicNpcManager.spawnTacticalCounterDrop(arrival.system, mission.sightingId, playerShip.x, playerShip.y);
+  }
   window.startMiniSpaceJumpEffect();
   if (publicNpcManager && typeof publicNpcManager.addCapitalDropEffect === 'function') {
     publicNpcManager.addCapitalDropEffect(destinationId, playerShip.x, playerShip.y);
@@ -870,8 +874,8 @@ window.openUniverse = function() {
   const fleetMarkers = fleetSightings.map(sighting => {
     const p = xy(sighting.systemId);
     return '<button type="button" data-fleet-system="' + sighting.systemId + '" data-sighting-id="' + sighting.id +
-      '" title="Explorer ping · ' + sighting.ships + ' mining ships · dispatch Corp Explorer" style="position:absolute;left:' + (p[0] / 7.6) +
-      '%;top:' + (p[1] / 4.8) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">⛏ ' + sighting.ships + '</button>';
+      '" title="Explorer ping · ' + sighting.ships + ' mining ships · intel confidence ' + (sighting.intelConfidence || 0) + '% · dispatch Corp Explorer" style="position:absolute;left:' + (p[0] / 7.6) +
+      '%;top:' + (p[1] / 4.8) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">' + (Number(sighting.intelConfidence) < 82 ? '⚠ ' : '⛏ ') + sighting.ships + '</button>';
   }).join('');
   const corpExplorer = botManager && botManager.bots
     ? botManager.bots.find(entry => entry && entry.ship && ['Exploration Frigate','Improved Explorer Frigate','Explorer Cruiser'].includes(entry.className))
@@ -3433,7 +3437,7 @@ window.handlePlayerDeath = function() {
     missionManager.activeMission = null;
     missionManager.generateMissions();
   } else {
-    window.showCorpNotification(destroyed + ' and its upgrades destroyed! Returning to base.');
+    window.showCorpNotification(destroyed + ' and its fittings destroyed! The hull is lost and must be rebuilt from its Shipyard recipe. Returning to base.');
   }
 
   playerData.activeMission = null;
@@ -3441,6 +3445,23 @@ window.handlePlayerDeath = function() {
   if (playerData.upgrades) delete playerData.upgrades[destroyed];
   if (playerData.hullDesigns) delete playerData.hullDesigns[destroyed];
   if (playerData.builtHulls) delete playerData.builtHulls[destroyed];
+  if (playerData.fittedModules) delete playerData.fittedModules[destroyed];
+
+  const destroyedUnlockKey = ({
+    'Combat Frigate': 'combatFrigate',
+    'Mining Barge': 'barge',
+    'Command Ship': 'command',
+    'Carrier': 'carrier',
+    'Mining Capital': 'capital',
+    'Exploration Frigate': 'explorationFrigate',
+    'Improved Explorer Frigate': 'explorationFrigate',
+    'Siege Cruiser': 'siegeCruiser',
+    'Siege Battleship': 'siegeBattleship'
+  })[destroyed];
+  if (destroyedUnlockKey && playerData.unlockedShips) {
+    delete playerData.unlockedShips[destroyedUnlockKey];
+    playerData.shipsOwned = (playerData.shipsOwned || []).filter(name => name !== destroyed);
+  }
 
   if (playerShip) playerShip.moduleLevels = {};
 
