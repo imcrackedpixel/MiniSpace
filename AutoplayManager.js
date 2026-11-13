@@ -8,7 +8,7 @@ function isExplorerHull(cls){return AUTOPLAY_EXPLORER.includes(cls);}
 function isCombatAutoplayHull(cls){return AUTOPLAY_COMBAT.includes(cls);}
 class AutoplayManager{
  constructor(playerDataRef,stationRef,beltRef,debrisFieldRef){this.playerData=playerDataRef;this.station=stationRef;this.belt=beltRef;this.debrisField=debrisFieldRef;this.isAutoplay=false;this.combatMode=false;this.combatPhase='';}
- blockReason(ship){if(!ship)return'No ship.';if(!canAutoplay(ship.className))return'Autoplay is not supported by this ship.';if(typeof inPublicSpace==='function'&&inPublicSpace())return'Autoplay only works in High-Sec and mission systems.';if(isCombatAutoplayHull(ship.className)&&typeof inMissionSpace==='function'&&inMissionSpace()&&missionManager.activeMission&&missionManager.activeMission.difficulty!=='Easy')return'Combat autoplay only accepts Easy missions.';return null;}
+ blockReason(ship){if(!ship)return'No ship.';if(!canAutoplay(ship.className))return'Autoplay is not supported by this ship.';if(typeof inPublicSpace==='function'&&inPublicSpace())return'Autoplay only works in High-Sec and mission systems.';return null;}
  toggle(){
   if(this.isAutoplay){this.isAutoplay=false;this.combatMode=false;this.combatPhase='';if(typeof isDockingRequested!=='undefined')isDockingRequested=false;return;}
   const ship=typeof playerShip!=='undefined'?playerShip:null;
@@ -44,13 +44,12 @@ class AutoplayManager{
   if(!ship||!ship.docked)return;
   const active=missionManager&&missionManager.activeMission;
   if(!active){
-   if(!missionManager.acceptMission('easy',ship)){this.isAutoplay=false;this.combatMode=false;return;}
+   const choices=missionManager.availableMissions||[];
+   const selected=choices.length?choices[Math.floor(Math.random()*choices.length)]:null;
+   if(!selected||!missionManager.acceptMission(selected.id,ship)){this.isAutoplay=false;this.combatMode=false;return;}
    missionManager.activeMission.autoplayContract=true;
    if(mapManager&&mapManager.missionEntryGate)mapManager.missionEntryGate.destinationName=missionManager.activeMission.systemName;
    saveGameSession();updateMissionsUI();
-  }else if(active.difficulty!=='Easy'){
-   this.isAutoplay=false;this.combatMode=false;
-   window.showCorpNotification('Combat autoplay only runs Easy missions.');return;
   }
   this.isAutoplay=true;
   this.combatMode=true;
@@ -114,6 +113,7 @@ class AutoplayManager{
   const gate=mapManager.missionEntryGate,ret=mapManager.missionReturnGate;
   if(typeof inMissionSpace==='function'&&inMissionSpace()){
    if(mission.completed){this.combatPhase='return';targetMovePos={x:ret.x,y:ret.y};}
+   else if(mission.type==='salvage'||mission.type==='recon'){this.combatPhase=mission.type;targetMovePos=missionManager.getAutoplayTarget();}
    else{this.combatPhase='fight';targetMovePos=null;}
    const enemies=missionManager.getLivingEnemies();
    if(ship.className==='Combat Frigate')ship.update(targetMovePos,null,false,enemies,true);
