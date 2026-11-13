@@ -4108,20 +4108,8 @@ window.handlePlayerDeath = function() {
 
   if (playerShip) playerShip.moduleLevels = {};
 
-  let autoRebuilt=false;
-  const autoSettings=playerData.autoplaySettings||{};
-  if(autoSettings.autoRebuild&&destroyedUnlockKey){
-    const recipe=recipeFor(destroyedUnlockKey);
-    if(recipe&&recipeShortfall(recipe).length===0){
-      consumeRecipe(recipe);
-      if(!playerData.unlockedShips)playerData.unlockedShips={};
-      playerData.unlockedShips[destroyedUnlockKey]=true;
-      if(!Array.isArray(playerData.shipsOwned))playerData.shipsOwned=[];
-      if(!playerData.shipsOwned.includes(destroyed))playerData.shipsOwned.push(destroyed);
-      autoRebuilt=true;
-    }
-  }
-  playerShip = sessionManager.setShipClass(playerShip, autoRebuilt?destroyed:'Mining Frigate', 200, 3.4);
+  const autoRebuildPending=!!((playerData.autoplaySettings||{}).autoRebuild&&destroyedUnlockKey);
+  playerShip = sessionManager.setShipClass(playerShip, 'Mining Frigate', 200, 3.4);
   applyDesign(playerShip);
   playerShip.cargo = 0;
   playerShip.cargoByOre = {};
@@ -4132,7 +4120,56 @@ window.handlePlayerDeath = function() {
 
   window.jumpToPrivateSec();
   performDock();
-  if(autoRebuilt){if(typeof window.quickEquipBestShips==='function')window.quickEquipBestShips();window.showCorpNotification('Autoplay rebuilt '+destroyed+' and refitted the best stored modules.');}
+  if(autoRebuildPending){
+    (async function(){
+      try{
+        const recipe=recipeFor(destroyedUnlockKey);
+        if(!recipe)throw new Error('No ship recipe is available.');
+        if(!window.MINISPACE_MARKET)throw new Error('Market is unavailable.');
+        await window.MINISPACE_MARKET.ready();
+        await window.MINISPACE_MARKET.refresh();
+        window.MINISPACE_MARKET.applyToGame(playerData);
+        let short=recipeShortfall(recipe);
+        if(short.length){
+          const state=window.MINISPACE_MARKET.state();
+          const cost=short.reduce(function(total,entry){
+            const row=(state.items||[]).find(function(item){return item.item_key===entry.item;});
+            const qty=entry.need-entry.have;
+            if(!row||Number(row.stock||0)<qty)throw new Error('Market stock is too low for '+itemLabel(entry.item)+'.');
+            return total+qty*(Number(row.unit_price)||0);
+          },0);
+          const wallet=state.wallet?Math.max(0,Number(state.wallet.isk)||0):Math.max(0,Number(playerData.isk)||0);
+          if(wallet<cost)throw new Error('Not enough Scrap Metals. Need '+cost.toLocaleString()+'.');
+          for(const entry of short){
+            const qty=entry.need-entry.have;
+            await window.MINISPACE_MARKET.buy(entry.item,qty);
+            await window.MINISPACE_MARKET.transferToPrivate(entry.item,qty);
+          }
+          await window.MINISPACE_MARKET.refresh();
+          window.MINISPACE_MARKET.applyToGame(playerData);
+          short=recipeShortfall(recipe);
+        }
+        if(short.length)throw new Error('Some ship materials are still missing.');
+        consumeRecipe(recipe);
+        if(!playerData.unlockedShips)playerData.unlockedShips={};
+        playerData.unlockedShips[destroyedUnlockKey]=true;
+        if(!Array.isArray(playerData.shipsOwned))playerData.shipsOwned=[];
+        if(!playerData.shipsOwned.includes(destroyed))playerData.shipsOwned.push(destroyed);
+        playerShip=sessionManager.setShipClass(playerShip,destroyed,200,3.4);
+        applyDesign(playerShip);
+        playerShip.cargo=0;playerShip.cargoByOre={};
+        playerShip.structure=playerShip.maxStructure;
+        playerShip.shield=playerShip.maxShield;playerShip.armor=playerShip.maxArmor;
+        playerShip.docked=true;
+        if(typeof window.quickEquipBestShips==='function')window.quickEquipBestShips();
+        updateStationUI();updateMissionsUI();saveGameSession();
+        window.showCorpNotification('Autoplay bought missing materials, rebuilt '+destroyed+' and fitted your best stored modules.');
+      }catch(error){
+        window.showCorpNotification('Automatic rebuild could not finish: '+(error.message||error)+'. You are safe in your Mining Frigate.');
+        saveGameSession();
+      }
+    })();
+  }
 
   updateMissionsUI();
   saveGameSession();
