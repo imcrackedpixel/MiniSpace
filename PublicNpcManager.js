@@ -503,6 +503,82 @@ class PublicNpcManager {
     return true;
   }
 
+  spawnRedSpaceMiningEncounter(system, state, station) {
+    if (!system || Number(system.ring) < 7 || !state || state.redSpaceEncounterSeeded) return;
+    // Seed each system from its ID so every client creates the same encounter and positions.
+    let seed = 216 << 0;
+    const key = String(system.id || '');
+    for (let i = 0; i < key.length; i++) seed = (Math.imul(seed, 31) + key.charCodeAt(i)) >>> 0;
+    const random = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    };
+    state.redSpaceEncounterSeeded = true;
+    const roll = random();
+    // 4% capital operation, 18% small mining fleet, 8% lone pirate combat patrol.
+    let miners = [];
+    let escorts = [];
+    if (roll < 0.04) {
+      miners = ['miningCapital', random() < 0.7 ? 'barge' : 'command'];
+      escorts = random() < 0.75 ? ['siegeBattleship'] : ['siegeCruiser'];
+    } else if (roll < 0.22) {
+      const count = 2 + Math.floor(random() * 3);
+      for (let i = 0; i < count; i++) {
+        const pick = random();
+        miners.push(pick < 0.48 ? 'frigate' : (pick < 0.86 ? 'barge' : 'command'));
+      }
+      if (random() < 0.35) escorts.push(random() < 0.72 ? 'combatFrigate' : 'siegeCruiser');
+    } else if (roll < 0.30) {
+      escorts = [random() < 0.65 ? 'combatFrigate' : 'siegeCruiser'];
+    } else {
+      return;
+    }
+
+    const cx = Number(station && station.x) || 4500;
+    const cy = Number(station && station.y) || 4500;
+    const encounterId = 'red-mining-' + system.id;
+    let index = 0;
+    const spawn = (type, angle, radius, role, hpScale, damage) => {
+      const cfg = PIRATE_TYPES[type];
+      if (!cfg) return;
+      const x = cx + Math.cos(angle) * radius;
+      const y = cy + Math.sin(angle) * radius;
+      const npcId = encounterId + '-' + index++;
+      this.addPirate(cfg, x, y, npcId, {
+        mapId: system.id, role, hpScale, dmg: damage,
+        rarity: rollPirateRarity(random())
+      });
+      const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
+      if (!npc || npc.id !== npcId) return;
+      npc.role = role;
+      npc.redSpaceEncounter = encounterId;
+      npc.autoAggro = false;
+      npc.isAgro = false;
+      npc.isAggro = false;
+      npc.ship.isPirate = true;
+      if (type === 'miningCapital') {
+        npc.className = 'Mining Capital';
+        npc.ship.className = 'Mining Capital';
+        this.addCapitalDropEffect(system.id, x, y);
+      }
+    };
+
+    miners.forEach((type, i) => {
+      const angle = (i / Math.max(1, miners.length)) * Math.PI * 2 + random() * 0.3;
+      spawn(type, angle, 260 + random() * 180, 'redspace_miner', type === 'miningCapital' ? 0.72 : 0.78, 0);
+    });
+    escorts.forEach((type, i) => {
+      const angle = (i / Math.max(1, escorts.length)) * Math.PI * 2 + Math.PI + random() * 0.25;
+      spawn(type, angle, 650 + random() * 180, 'redspace_escort', 0.72, 0.16);
+    });
+
+    if (typeof window.showCorpNotification === 'function') {
+      const label = miners.some(type => type === 'miningCapital') ? 'MINING CAPITAL OPERATION'
+        : (miners.length ? 'PIRATE MINING FLEET' : 'PIRATE COMBAT PATROL');
+      window.showCorpNotification(label + ' · red-space activity detected');
+    }
+  }
+
   initFrontierSystem(system, station) {
     if (!system || !system.id || !station) return;
     const id = system.id, state = this.frontierState(id);
@@ -520,6 +596,7 @@ class PublicNpcManager {
       station.structure = Math.max(0, station.structure - damage);
       this.onFrontierStationDamaged(id, station);
     };
+    this.spawnRedSpaceMiningEncounter(system, state, station);
     state.spawned = true;
     this.checkFrontierStationWaves(id, station);
   }
