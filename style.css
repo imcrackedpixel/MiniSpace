@@ -821,3 +821,51 @@ html:fullscreen body, html:-webkit-full-screen body {
 @media(max-width:520px){.universe-chart-scroll{padding-bottom:5px}.universe-starchart{min-width:760px;min-height:480px;aspect-ratio:1.58}.universe-region{font-size:10px}.universe-node span{font-size:10px!important}}
 
 @media(min-width:521px){.universe-region-left,.universe-region-right{top:30%;height:40%}}
+
+
+/* Interactive universe chart: drag to pan, pinch or wheel to zoom. */
+.universe-chart-scroll{
+  position:relative;
+  width:100%;
+  height:min(64vh,560px);
+  min-height:300px;
+  overflow:auto;
+  overscroll-behavior:contain;
+  touch-action:none;
+  border:1px solid #263f50;
+  border-radius:8px;
+  background:#050b13;
+  cursor:grab;
+  scrollbar-width:thin;
+}
+.universe-chart-scroll:active{cursor:grabbing}
+.universe-map-zoom-space{position:relative;flex:none}
+.universe-map-zoom-space .universe-starchart{width:760px;height:480px;min-width:760px;min-height:480px;aspect-ratio:auto}
+.universe-map-controls{
+  position:sticky;
+  left:calc(100% - 112px);
+  bottom:8px;
+  z-index:20;
+  display:flex;
+  gap:4px;
+  width:max-content;
+  margin-top:-42px;
+  margin-right:8px;
+  margin-bottom:8px;
+  justify-content:flex-end;
+}
+.universe-map-controls button{
+  min-width:32px;
+  height:30px;
+  padding:2px 7px;
+  border:1px solid #527487;
+  border-radius:6px;
+  background:rgba(5,18,29,.94);
+  color:#e6f5fb;
+  font-weight:900;
+  touch-action:manipulation;
+}
+.universe-map-controls button:active{background:#164c42}
+@media(max-width:520px){
+  .universe-chart-scroll{height:54vh;min-height:280px}
+}
