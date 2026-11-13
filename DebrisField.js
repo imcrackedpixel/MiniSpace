@@ -11,13 +11,14 @@ class DebrisField {
     }
 
     init(count, radius) {
-        // Balanced lower yields to prevent massive payout inflation
+        // Wreck salvage is a useful income stream, but should not fund a carrier in one haul.
+        // Tier 5 now holds 50 Processors (25m value), down from 150 (75m).
         const tierTypes = [
-            { tier: 1, name: 'Frigate Wreck (Tier 1)', color: '#8b949e', yield: 25 },
-            { tier: 2, name: 'Destroyer Hull (Tier 2)', color: '#58a6ff', yield: 45 },
-            { tier: 3, name: 'Cruiser Wreck (Tier 3)', color: '#3fb950', yield: 70 },
-            { tier: 4, name: 'Battleship Remains (Tier 4)', color: '#d29922', yield: 100 },
-            { tier: 5, name: 'Capital Derelict (Tier 5)', color: '#f85149', yield: 150 }
+            { tier: 1, name: 'Frigate Wreck (Tier 1)', color: '#8b949e', yield: 10 },
+            { tier: 2, name: 'Destroyer Hull (Tier 2)', color: '#58a6ff', yield: 20 },
+            { tier: 3, name: 'Cruiser Wreck (Tier 3)', color: '#3fb950', yield: 30 },
+            { tier: 4, name: 'Battleship Remains (Tier 4)', color: '#d29922', yield: 40 },
+            { tier: 5, name: 'Capital Derelict (Tier 5)', color: '#f85149', yield: 50 }
         ];
 
         const mapSize = radius || 5000;
