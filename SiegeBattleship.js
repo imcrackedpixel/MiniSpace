@@ -159,7 +159,7 @@
       this.vy = Math.sin(heading) * this.speed;
       this.owner = owner;
       const missileLevel = owner.moduleLevels ? (owner.moduleLevels.missiles || 1) : 1;
-      this.damage = BASE_VOLLEY_DAMAGE * (1 + 0.10 * (missileLevel - 1)) * (owner.npcDamageScale || 1);
+      this.damage = BASE_VOLLEY_DAMAGE * (1 + 0.10 * (missileLevel - 1)) * (owner._fittedDamageMultiplier || 1) * (owner.npcDamageScale || 1);
       this.age = 0; this.life = VOLLEY.life;
       this.trail = [];
       this.smokePuffs = [];
