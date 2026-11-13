@@ -3375,6 +3375,7 @@ function updateNearbySpacePanel(){
  else if(id.indexOf('mission_')===0&&mapManager.missionReturnGate)add('tears','High-Sec Station · return tear',mapManager.missionReturnGate,'station','return');
  /* 3v3 High-Sec exit gates are hidden from Nearby. */
  else if(mainStation)add('tears','High-Sec Station',mainStation,'station','home');
+ if(id==='private_highsec'&&window.MINISPACE_MARKET_GATE)gate(window.MINISPACE_MARKET_GATE,'MARKET SYSTEM · Trade Hub',{trade:true});
  const gate=(o,n,x)=>add('tears',n,o,'gate',x);
  if(inMissionSpace())gate(mapManager.missionReturnGate,'Mission Return Tear',{return:true});
  else if(id.indexOf('frontier_')===0){gate(mapManager.frontierReturnGate,'Universe Return Tear',{return:true});(Array.isArray(mapManager.frontierGates)?mapManager.frontierGates:[]).forEach(o=>{const d=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(v=>v.id===o.destinationId);gate(o,(d?d.name:'Frontier')+' Tear',{destinationId:o.destinationId});});}
@@ -4086,8 +4087,9 @@ if (
   if (!window.MINISPACE_TRADE_HUB) return;
 
   const tradeGate = {
-    x: 4200,
-    y: 2500,
+    // Keep the market tear close enough to the home spawn to spot on mobile.
+    x: 3500,
+    y: 1450,
     radius: 100,
     draw(ctx) {
       // Reuse the animated emerald space-tear effect used by mission gates.
@@ -4118,6 +4120,7 @@ if (
       ctx.restore();
     }
   };
+  window.MINISPACE_MARKET_GATE = tradeGate;
 
   const hubReturnGate = {
     x: 700,
