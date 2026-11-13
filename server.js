@@ -213,7 +213,7 @@ function joinRoom(p,mapId) {
   }
   if(p.teamId&&teams.has(p.teamId)){
     const members=[...teams.get(p.teamId)].map(id=>players.get(id)).filter(Boolean);
-    send(p.ws,{type:'team-state',teamId:p.teamId,members:members.map(member=>({id:member.id,name:member.name}))});
+    send(p.ws,{type:'team-state',teamId:p.teamId,members:members.map(member=>({id:member.id,name:member.name,mapId:member.mapId,system:member.system,x:member.x,y:member.y,docked:member.docked}))});
   }
 }
 
@@ -270,6 +270,15 @@ function publicPlayer(p) {
   };
 }
 
+function sendTeamLocation(p) {
+  if(!p.teamId||!teams.has(p.teamId))return;
+  const payload={type:'team-location',player:{id:p.id,name:p.name,mapId:p.mapId,system:p.system,x:p.x,y:p.y,docked:p.docked}};
+  for(const id of teams.get(p.teamId)){
+    if(id===p.id)continue;
+    const teammate=players.get(id);
+    if(teammate&&teammate.ws)send(teammate.ws,payload);
+  }
+}
 function broadcastRoom(roomId,obj,except) {
   for(const p of players.values()) {
     if(p.roomId===roomId && p.ws && p.ws!==except) {
@@ -288,7 +297,7 @@ function broadcastAll(obj,except) {
 function sendTeamState(teamId) {
   const team=teams.get(teamId);if(!team)return;
   const members=[...team].map(id=>players.get(id)).filter(Boolean);
-  const payload={type:'team-state',teamId,members:members.map(member=>({id:member.id,name:member.name}))};
+  const payload={type:'team-state',teamId,members:members.map(member=>({id:member.id,name:member.name,mapId:member.mapId,system:member.system,x:member.x,y:member.y,docked:member.docked}))};
   members.forEach(member=>{
     send(member.ws,payload);
     if(member.roomId)broadcastRoom(member.roomId,{type:'player',player:publicPlayer(member)});
@@ -588,6 +597,7 @@ wss.on('connection',ws=>{
         },
         ws
       );
+      sendTeamLocation(p);
 
       return;
     }
