@@ -123,6 +123,28 @@ function pickPirate(pool) {
   return PIRATE_TYPES[pool[pool.length - 1].t];
 }
 
+// Per-pirate rarity: common is the norm; blue is uncommon and purple is very rare.
+const PIRATE_RARITY_ROLLS = [
+  { rarity: 'common', weight: 58 },
+  { rarity: 'uncommon', weight: 25 },
+  { rarity: 'rare', weight: 14 },
+  { rarity: 'epic', weight: 3 }
+];
+const PIRATE_RARITY_POWER = {
+  common: { hp: 1, damage: 1, loot: 0, rank: 0, label: 'COMMON' },
+  uncommon: { hp: 1.25, damage: 1.15, loot: 0.08, rank: 1, label: 'GREEN' },
+  rare: { hp: 1.65, damage: 1.35, loot: 0.20, rank: 2, label: 'BLUE' },
+  epic: { hp: 2.2, damage: 1.65, loot: 0.35, rank: 3, label: 'PURPLE' }
+};
+function rollPirateRarity(randomValue) {
+  let roll = (randomValue === undefined ? Math.random() : randomValue) * 100;
+  for (const entry of PIRATE_RARITY_ROLLS) {
+    roll -= entry.weight;
+    if (roll < 0) return entry.rarity;
+  }
+  return 'common';
+}
+
 class PublicNpcManager {
   constructor() {
     this.publicNpcMiners = [];
@@ -168,7 +190,7 @@ class PublicNpcManager {
     for (const e of plan) {
       for (let k = 0; k < e.n; k++) {
         const cfg = e.t === 'miners' ? pickPirate(MINER_POOL) : PIRATE_TYPES[e.t];
-        list.push({ cfg: cfg, dmg: e.dmg });
+        list.push({ cfg: cfg, dmg: e.dmg, rarity: rollPirateRarity() });
       }
     }
     for (let i = list.length - 1; i > 0; i--) {
@@ -184,7 +206,7 @@ class PublicNpcManager {
         ? COMBAT_SPAWN_MIN + Math.random() * COMBAT_SPAWN_VAR
         : M.beltRadius + (Math.random() - 0.5) * 200;
       this.addPirate(item.cfg, sp.x + Math.cos(a) * r, sp.y + Math.sin(a) * r, 'belt' + slot + '_' + i,
-        { dmg: combat ? COMBAT_DPS_SCALE : item.dmg, aggro: combat, slot: slot });
+        { dmg: combat ? COMBAT_DPS_SCALE : item.dmg, aggro: combat, slot: slot, rarity: item.rarity });
     });
   }
 
@@ -267,7 +289,8 @@ class PublicNpcManager {
         id: 'station_guard_' + id + '_' + i, type: type,
         x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius,
         hpScale: hpScale, dmg: system.ring >= 7 ? 0.22 : 0.14,
-        elite: system.ring >= 9 && i === 0
+        elite: system.ring >= 9 && i === 0,
+        rarity: rollPirateRarity(seeded(i * 7 + 3))
       };
     });
     state.spawned = true;
@@ -324,7 +347,9 @@ class PublicNpcManager {
 
   addPirate(cfg, x, y, id, opts) {
     opts = opts || {};
-    const scale = (opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1)) * (opts.elite ? 1.5 : 1);
+    const rarity = PIRATE_RARITY_POWER[opts.rarity] ? opts.rarity : 'common';
+    const rarityPower = PIRATE_RARITY_POWER[rarity];
+    const scale = (opts.dmg !== undefined ? opts.dmg : (DPS_DAMPEN[cfg.name] || 1)) * (opts.elite ? 1.5 : 1) * rarityPower.damage;
     // Instant aggro only for combat-capable hulls that belong to the player's own belt
     const autoAggro = !!opts.aggro && opts.slot === this.playerSlot;
     const shipObj = cfg.makeShip(x, y);
@@ -361,6 +386,7 @@ class PublicNpcManager {
     }
     hp *= npcHpScale;
     if(opts.elite){for(const layer of ['shield','armor','structure']){const key='max'+layer.charAt(0).toUpperCase()+layer.slice(1);if(shipObj[key]>0){shipObj[key]*=2.4;shipObj[layer]*=2.4;}}hp*=2.4;}
+    if(rarityPower.hp>1){for(const layer of ['shield','armor','structure']){const key='max'+layer.charAt(0).toUpperCase()+layer.slice(1);if(shipObj[key]>0){shipObj[key]*=rarityPower.hp;shipObj[layer]*=rarityPower.hp;}}hp*=rarityPower.hp;}
     this.publicNpcMiners.push({
       id: id,
       mapId: opts.mapId || null,
@@ -368,6 +394,8 @@ class PublicNpcManager {
       role: opts.role || null,
       cfg: cfg,
       elite: !!opts.elite,
+      rarity: rarity,
+      rarityPower: rarityPower,
       rewarded: false,
       ship: shipObj,
       className: cfg.name,
@@ -709,11 +737,16 @@ class PublicNpcManager {
         if(playerData){
           if(!Array.isArray(playerData.moduleDrops))playerData.moduleDrops=[];
           const system = npc.mapId && (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === npc.mapId);
-          // The loot fairy rolls per kill: deeper systems and elite guards improve the odds,
-          // but ordinary pirates do not guarantee a module every time.
-          const dropChance = npc.elite ? 0.75 : (system ? Math.min(0.52, 0.16 + system.ring * 0.036) : 1);
+          // Rarer spawns improve both the chance of a module and its minimum quality.
+          const spawnPower = npc.rarityPower || PIRATE_RARITY_POWER.common;
+          const baseDropChance = npc.elite ? 0.75 : (system ? Math.min(0.52, 0.16 + system.ring * 0.036) : 1);
+          const dropChance = Math.min(0.98, baseDropChance + spawnPower.loot);
+          const lootRank = { white: 0, green: 1, blue: 2, purple: 3 };
+          const spawnLootRank = spawnPower.rank || 0;
           if (Math.random() < dropChance) {
-            const rr=Math.random(),rarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
+            const rr=Math.random();
+            const rolledRarity=rr<.48?'white':rr<.78?'green':rr<.94?'blue':'purple';
+            const rarity=Object.keys(lootRank).find(key=>lootRank[key]===Math.max(lootRank[rolledRarity],spawnLootRank))||'white';
             const hull=npc.className==='Capital'?'Siege Capital':npc.className;
             const mods=({
               'Carrier':['droneTether','shieldExtender','resistance','propulsion'],
@@ -732,6 +765,13 @@ class PublicNpcManager {
             const module=mods[Math.floor(Math.random()*mods.length)];
             playerData.moduleDrops.push({id:'mod-'+npc.id+'-'+Date.now(),rarity:rarity,hull:hull,module:module,name:rarity.toUpperCase()+' '+module+' Module',level:1});
             if(typeof window.showCorpNotification==='function')window.showCorpNotification('LOOT DROP: '+rarity.toUpperCase()+' '+module+' Module');
+            // Blue and purple spawns can drop an extra module, with purple being more generous.
+            const bonusChance = npc.rarity === 'epic' ? 0.65 : (npc.rarity === 'rare' ? 0.30 : 0);
+            if (bonusChance && Math.random() < bonusChance) {
+              const bonusModule=mods[Math.floor(Math.random()*mods.length)];
+              playerData.moduleDrops.push({id:'mod-'+npc.id+'-bonus-'+Date.now(),rarity:rarity,hull:hull,module:bonusModule,name:rarity.toUpperCase()+' '+bonusModule+' Module',level:1});
+              if(typeof window.showCorpNotification==='function')window.showCorpNotification('BONUS LOOT: '+rarity.toUpperCase()+' '+bonusModule+' Module');
+            }
           }
         }
         if (typeof window.showCorpNotification === 'function') {
@@ -878,13 +918,13 @@ class PublicNpcManager {
 
         // Gate-style nameplate, scaled down for ships. Rarity colours the frame and title.
         ctx.save();
-        const rarity = 'common';
-        const accent = rarity === 'elite' ? '#bc8cff'
+        const rarity = npc.rarity || 'common';
+        const accent = rarity === 'epic' ? '#bc8cff'
           : rarity === 'rare' ? '#58a6ff'
           : rarity === 'uncommon' ? '#3fb950'
           : '#e6edf3';
         const zoom = Math.max(0.45, Number(window.cameraZoom) || 1);
-        const label = 'PIRATE';
+        const label = (rarity === 'epic' ? 'PURPLE' : rarity === 'rare' ? 'BLUE' : rarity === 'uncommon' ? 'GREEN' : 'PIRATE') + (npc.elite ? ' ELITE' : '');
         const fontSize = 13 / zoom;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
