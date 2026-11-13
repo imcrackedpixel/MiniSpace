@@ -773,12 +773,14 @@ window.setUniverseTargetSystem = function(destinationId) {
   const valid = destinationId === 'private_highsec' || (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === destinationId);
   if (!valid) return;
   if (window._universeTargetSystemId === destinationId) {
-    window._universeTargetSystemId = null; window._universeRouteDestination = null; targetMovePos = null;
+    window._universeTargetSystemId = null; window._universeRouteDestination = null; targetMovePos = null; window._universeTargetNextHop = null;
     if (typeof window.showCorpNotification === 'function') window.showCorpNotification('SYSTEM TARGET CLEARED');
     if (typeof window.openUniverse === 'function') window.openUniverse();
     updateNearbySpacePanel(); return;
   }
   window._universeTargetSystemId = destinationId; window._universeRouteDestination = destinationId;
+  const routePath = window.findFrontierRoute(mapManager.currentMapId === 'private_highsec' ? 'private_highsec' : mapManager.currentMapId, destinationId);
+  window._universeTargetNextHop = routePath && routePath.length > 1 ? routePath[1] : null;
   window.flyToFrontierGate(destinationId);
 };
 window.flyToFrontierGate = function(destinationId) {
