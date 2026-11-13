@@ -131,7 +131,11 @@ class CombatFrigate {
       }  
     }  
   
-    let activeTarget = this.currentTarget;  
+    if (this.weaponsEnabled === false) {
+      this.currentTarget = null;
+      this.releaseScrambler();
+    }
+    let activeTarget = this.weaponsEnabled === false ? null : this.currentTarget;  
     let isThrusting = false;  
     let destAngle = null;  
     let inOrbit = false;  
