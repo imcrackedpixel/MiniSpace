@@ -1,42 +1,27 @@
 // HudValues.js - Numerical HUD values, Siege Cruiser in the hangar and Market, and HP / mining rate / DPS next to hangar ship names.
 // Load in Index.html AFTER MainGameController.js (the line <script src="HudValues.js"></script> just before </body>).
 
-// ===== HUD numbers: shield / armor / structure values on the bars =====
+// ===== HUD numbers: keep a single live value beside each health bar =====
 (function () {
   const ROWS = [
-    { fill: 'shield-fill', key: 'shield', max: 'maxShield', label: 'hud-shield-val' },
-    { fill: 'armor-fill', key: 'armor', max: 'maxArmor', label: 'hud-armor-val' },
-    { fill: 'structure-fill', key: 'structure', max: 'maxStructure', label: 'hud-structure-val' }
+    { value: 'shield-value', key: 'shield', max: 'maxShield' },
+    { value: 'armor-value', key: 'armor', max: 'maxArmor' },
+    { value: 'structure-value', key: 'structure', max: 'maxStructure' }
   ];
-
-  // Creates one value label per bar, placed at the end of its row (once)
-  function ensureLabels() {
-    for (const r of ROWS) {
-      if (document.getElementById(r.label)) continue;
-      const fill = document.getElementById(r.fill);
-      if (!fill) continue;
-      const row = fill.parentElement && fill.parentElement.parentElement;
-      if (!row) continue;
-      const span = document.createElement('span');
-      span.id = r.label;
-      span.style.cssText = 'font-size: 8px; color: #c9d1d9; white-space: nowrap; margin-left: 4px; min-width: 88px; text-align: right;';
-      row.appendChild(span);
-    }
-  }
 
   function tick() {
     const s = window.playerShip;
     if (!s) return;
-    ensureLabels();
     for (const r of ROWS) {
-      const el = document.getElementById(r.label);
+      const el = document.getElementById(r.value);
       if (!el) continue;
-      const v = Math.max(0, Math.floor(s[r.key] || 0));
-      const m = Math.floor(s[r.max] || 0);
+      const v = Math.max(0, Math.floor(Number(s[r.key]) || 0));
+      const m = Math.max(0, Math.floor(Number(s[r.max]) || 0));
       el.textContent = v.toLocaleString() + ' / ' + m.toLocaleString();
     }
   }
 
+  // MainGameController owns the bars; this only keeps their existing number labels current.
   setInterval(tick, 200);
   tick();
 })();
