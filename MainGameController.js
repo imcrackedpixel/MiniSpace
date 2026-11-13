@@ -615,7 +615,7 @@ function autoUseChip() {
 
 function rewardBossKill() {
   const tiers = ['debris_t3', 'debris_t4', 'debris_t5'];
-  let remaining = LOOT.debrisIsk, itemsGained = [], cargoFull = false;
+  let remaining = LOOT.debrisIsk, itemsGained = [], cargoFull = false, hangarBackup = false;
   while (remaining > 0 && !cargoFull) {
     const key = tiers[Math.floor(Math.random() * tiers.length)], price = itemPrices[key];
     const chunk = Math.min(remaining, 60000 + Math.random() * 90000);
@@ -627,7 +627,16 @@ function rewardBossKill() {
     }
     if (loaded < qty) cargoFull = true;
   }
-  if (remaining > 0 && typeof window.showCorpNotification === 'function') window.showCorpNotification('CARGO LIMIT · Some station-boss salvage was left behind.');
+  // Never discard boss salvage when the ship hold is full. Store the remainder
+  // in the persistent High-Sec hangar inventory so it survives docking/reloads.
+  if (remaining > 0) {
+    const key = tiers[Math.floor(Math.random() * tiers.length)];
+    const qty = Math.ceil(remaining / itemPrices[key]);
+    if (!playerData.stationOre) playerData.stationOre = {};
+    playerData.stationOre[key] = (Number(playerData.stationOre[key]) || 0) + qty;
+    itemsGained.push({ label: itemLabel(key), qty: qty });
+    hangarBackup = true;
+  }
 
   const aggregated = {};
   itemsGained.forEach(item => {
@@ -642,7 +651,8 @@ function rewardBossKill() {
   const result = {
     textParts: lootSummary,
     blueprints: [],
-    chips: []
+    chips: [],
+    hangarBackup: hangarBackup
   };
 
   if (Math.random() < LOOT.explorerChance) {
@@ -674,7 +684,7 @@ function showExtractionLootModal(lootData) {
 
   modal.innerHTML = '<div style="background:#12161b;border:1px solid #3a525c;border-radius:6px;padding:24px;max-width:420px;width:100%;color:#d3dade;box-shadow:0 8px 24px rgba(0,0,0,0.5);text-align:center;">' +
     '<div style="font-size:18px;font-weight:bold;color:#3fb950;margin-bottom:12px;">⚡ STATION BOSS DEFEATED ⚡</div>' +
-    '<div style="font-size:13px;color:#8b949e;margin-bottom:16px;">Extraction sequence initiated. Salvaged components loaded into ship cargo. Dock to unload into your station hangar:</div>' +
+    '<div style="font-size:13px;color:#8b949e;margin-bottom:16px;">' + (lootData.hangarBackup ? 'Extraction sequence complete. Cargo was filled; remaining salvage was secured directly in your High-Sec station hangar. Dock to unload the cargo you are carrying:' : 'Extraction sequence initiated. Salvaged components loaded into ship cargo. Dock to unload into your station hangar:') + '</div>' +
     '<div style="background:#0d1117;border:1px solid #21262d;border-radius:4px;padding:12px;text-align:left;font-size:13px;margin-bottom:16px;max-height:160px;overflow-y:auto;">' +
     lootData.textParts.map(p => '• ' + p).join('<br>') +
     blueprintsHtml + chipsHtml +
@@ -1010,6 +1020,7 @@ window.openUniverse = function() {
   const regionMembers = [[], [], [], []];
   systems.forEach(system => regionMembers[Number.isInteger(system.regionId) ? system.regionId : 0].push(system));
   const systemPositions = new Map();
+  const desiredPositions = [];
   regionMembers.forEach((members, region) => members.forEach(system => {
     const depth = Number(system.mapDepth) || 0;
     const branch = Number(system.mapBranch) || 0;
@@ -1028,8 +1039,39 @@ window.openUniverse = function() {
       x = branch ? 230 - (branch - 1) * 42 - pocketDepth * 34 : 300;
       y = 80 + depth * 66;
     }
-    systemPositions.set(system.id, [x, y]);
+    desiredPositions.push({ id: system.id, x: x, y: y });
   }));
+
+  // Resolve collisions across the WHOLE chart, not just within each region.
+  // The original branch offsets allowed several different systems to share
+  // the same coordinates. Keep each node near its intended route, then move
+  // only colliding nodes into the nearest clear grid position.
+  const occupiedPositions = [{ x: 380, y: 240, id: 'private_highsec' }];
+  const layoutOffsets = [];
+  for (let ring = 0; ring <= 16; ring++) {
+    for (let dx = -ring; dx <= ring; dx++) {
+      for (let dy = -ring; dy <= ring; dy++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== ring) continue;
+        layoutOffsets.push([dx * 75, dy * 45]);
+      }
+    }
+  }
+  desiredPositions.forEach(function(point) {
+    let chosen = null;
+    for (const offset of layoutOffsets) {
+      const x = point.x + offset[0], y = point.y + offset[1];
+      if (x < 20 || x > 900 || y < 20 || y > 700) continue;
+      const clear = occupiedPositions.every(other =>
+        Math.abs(other.x - x) >= 68 || Math.abs(other.y - y) >= 38
+      );
+      if (clear) { chosen = [x, y]; break; }
+    }
+    // The search area is deliberately generous; this fallback is a safety
+    // net for future map expansions rather than an expected layout path.
+    if (!chosen) chosen = [point.x, point.y + 900];
+    systemPositions.set(point.id, chosen);
+    occupiedPositions.push({ x: chosen[0], y: chosen[1], id: point.id });
+  });
   // DOTLAN-style chart spacing: spread the connected graph over a larger canvas.
   const xy = id => { const p = id === 'private_highsec' ? [380, 240] : (systemPositions.get(id) || [380, 240]); return [p[0] * 1.9 + 80, p[1] * 2]; };
   const regionPanels = [
