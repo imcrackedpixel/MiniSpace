@@ -842,7 +842,7 @@ class PublicNpcManager {
     if (old && old.active) return false;
     this._hotDropAmbushes[system.id] = {
       sightingId: sightingId, active: true, wave: 0,
-      nextWaveAt: Date.now(), warned: false
+      nextWaveAt: Date.now() + 2600, warned: false
     };
     this.spawnHotDropAmbushWave(system, x, y, 0);
     return true;
