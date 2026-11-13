@@ -14,9 +14,12 @@ class MissionManager {
     const mediumSystem = safeFrontier[0] || null;
     const hardSystem = safeFrontier[1] || safeFrontier[0] || null;
     this.availableMissions = [
-      { id:'easy', difficulty:'Easy', title:'Clear the Outpost', targetCount:2, rewardIsk:75000, enemyShield:55, enemyArmor:65, enemyStructure:75, enemyDamage:1.5, description:'Destroy 2 lightly armed pirate ships.' },
-      { id:'medium', difficulty:'Medium', title:'Break the Raider Patrol', targetCount:4, rewardIsk:180000, enemyShield:85, enemyArmor:95, enemyStructure:110, enemyDamage:2.5, description:'Destroy 4 pirate raiders protecting a supply route.' },
-      { id:'hard', difficulty:'Hard', title:'Disrupt the Pirate Wing', targetCount:6, rewardIsk:350000, enemyShield:115, enemyArmor:130, enemyStructure:145, enemyDamage:4, description:'Destroy 6 hardened pirate ships. Expect heavier resistance.' }
+      { id:'easy', difficulty:'Easy', type:'combat', title:'Clear the Outpost', targetCount:2, rewardIsk:75000, enemyShield:55, enemyArmor:65, enemyStructure:75, enemyDamage:1.5, description:'Break a pirate outpost patrol and clear the local raiders.' },
+      { id:'salvage', difficulty:'Easy', type:'salvage', title:'Black-Box Recovery', targetCount:3, rewardIsk:110000, description:'Locate three wreck sites and recover their black boxes before returning.' },
+      { id:'recon', difficulty:'Medium', type:'recon', title:'Ghost Signal Survey', targetCount:3, rewardIsk:190000, description:'Visit three signal beacons and map the hidden pirate relay network.' },
+      { id:'medium', difficulty:'Medium', type:'combat', title:'Break the Raider Patrol', targetCount:4, rewardIsk:220000, enemyShield:85, enemyArmor:95, enemyStructure:110, enemyDamage:2.5, description:'Intercept a reinforced raider patrol protecting a supply route.' },
+      { id:'deep-salvage', difficulty:'Hard', type:'salvage', title:'Lost Fleet Black Site', targetCount:5, rewardIsk:390000, description:'Recover five valuable wreck caches in a heavily contested debris field.' },
+      { id:'hard', difficulty:'Hard', type:'combat', title:'Disrupt the Pirate Wing', targetCount:6, rewardIsk:420000, enemyShield:115, enemyArmor:130, enemyStructure:145, enemyDamage:4, description:'Destroy a hardened pirate wing. Expect heavy resistance.' }
     ].map((mission,i) => {
       const frontier = mission.id === 'medium' ? mediumSystem : (mission.id === 'hard' ? hardSystem : null);
       return Object.assign({}, mission, {
@@ -60,6 +63,15 @@ class MissionManager {
   spawnMissionFleet(asteroidBeltRef, playerShip) {
     const m=this.activeMission; if(!m||m.spawnedFleet||!playerShip)return;
     m.spawnedFleet=true; m.fleet=[];
+    if (m.type === 'salvage' || m.type === 'recon') {
+      m.objectives=[]; m.objectiveIndex=0;
+      const count=Math.max(2,Number(m.targetCount)||3), radius=m.difficulty==='Hard'?900:650;
+      for(let i=0;i<count;i++){
+        const angle=(Math.PI*2*i/count)+Math.random()*0.35, distance=radius+Math.random()*350;
+        m.objectives.push({x:playerShip.x+Math.cos(angle)*distance,y:playerShip.y+Math.sin(angle)*distance,complete:false,label:m.type==='salvage'?'WRECK CACHE':'SCAN BEACON'});
+      }
+      return;
+    }
     const profile=this.shipEnemyProfile({className:m.shipClass});
     const difficultyFactor=m.difficulty==='Easy'?0.68:(m.difficulty==='Medium'?0.88:1.08);
     const upgradeFactor=1+Math.max(0,(m.shipRating||1)-({ 'Combat Frigate':1, 'Explorer Cruiser':1.35, 'Siege Cruiser':2.1, 'Siege Battleship':3.2, 'Carrier':3.8, 'Siege Capital':4.5 }[m.shipClass]||1))*0.025;
@@ -113,6 +125,18 @@ class MissionManager {
   }
   updateMissionFleet(playerShip) {
     const m=this.activeMission; if(!m||!m.spawnedFleet||m.completed)return;
+    if(m.type==='salvage'||m.type==='recon'){
+      const o=(m.objectives||[])[m.objectiveIndex||0];
+      if(o&&playerShip&&!playerShip.docked&&Math.hypot(playerShip.x-o.x,playerShip.y-o.y)<125){
+        o.complete=true;m.objectiveIndex=(m.objectiveIndex||0)+1;
+        if(typeof window.awardPlayerXP==='function')window.awardPlayerXP(m.type==='salvage'?'mining':'combat',m.type==='salvage'?90:110,m.type==='salvage'?'Wreck cache recovered':'Recon beacon scanned');
+        if(typeof window.showCorpNotification==='function')window.showCorpNotification(m.type==='salvage'?'Wreck cache recovered.':'Signal beacon scanned.');
+        if(m.objectiveIndex>=m.objectives.length)this.checkMissionCompletion();
+        if(typeof updateMissionsUI==='function')updateMissionsUI();
+        if(typeof saveGameSession==='function')saveGameSession();
+      }
+      return;
+    }
     m.fleet.forEach(enemy=>{
       if(!enemy||enemy.structure<=0||!playerShip||playerShip.docked)return;
       const d=Math.hypot(playerShip.x-enemy.x,playerShip.y-enemy.y);
@@ -141,16 +165,24 @@ class MissionManager {
     });
     this.checkMissionCompletion();
   }
+  getAutoplayTarget(){const m=this.activeMission,o=m&&Array.isArray(m.objectives)?m.objectives[m.objectiveIndex||0]:null;return o?{x:o.x,y:o.y}:null;}
   getLivingEnemies(){return !this.activeMission||!Array.isArray(this.activeMission.fleet)?[]:this.activeMission.fleet.filter(e=>e&&e.structure>0);}
-  drawMissionFleet(ctx){this.getLivingEnemies().forEach(enemy=>{if(typeof enemy.draw==='function')enemy.draw(ctx);ctx.save();ctx.strokeStyle='#ff5b62';ctx.lineWidth=2;ctx.beginPath();ctx.arc(enemy.x,enemy.y,34,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#ff777d';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText((enemy.displayName||'PIRATE RAIDER').toUpperCase(),enemy.x,enemy.y-48);const hp=Math.max(0,Math.min(1,(enemy.shield+enemy.armor+enemy.structure)/Math.max(1,enemy.maxShield+enemy.maxArmor+enemy.maxStructure)));ctx.fillStyle='#35191d';ctx.fillRect(enemy.x-28,enemy.y-39,56,5);ctx.fillStyle='#f85149';ctx.fillRect(enemy.x-28,enemy.y-39,56*hp,5);ctx.restore();});}
+  drawMissionFleet(ctx){
+    const m=this.activeMission;
+    if(m&&Array.isArray(m.objectives))m.objectives.forEach((o,i)=>{if(!o||o.complete)return;ctx.save();ctx.strokeStyle=i===(m.objectiveIndex||0)?'#55e6c1':'#647985';ctx.fillStyle='rgba(20,45,55,.82)';ctx.lineWidth=3;ctx.beginPath();ctx.arc(o.x,o.y,42,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#d9fff4';ctx.font='bold 12px monospace';ctx.textAlign='center';ctx.fillText(o.label,o.x,o.y-55);ctx.fillText((i+1)+'/'+m.objectives.length,o.x,o.y+5);ctx.restore();});
+    this.getLivingEnemies().forEach(enemy=>{if(typeof enemy.draw==='function')enemy.draw(ctx);ctx.save();ctx.strokeStyle='#ff5b62';ctx.lineWidth=2;ctx.beginPath();ctx.arc(enemy.x,enemy.y,34,0,Math.PI*2);ctx.stroke();ctx.fillStyle='#ff777d';ctx.font='bold 13px Courier New';ctx.textAlign='center';ctx.fillText((enemy.displayName||'PIRATE RAIDER').toUpperCase(),enemy.x,enemy.y-48);const hp=Math.max(0,Math.min(1,(enemy.shield+enemy.armor+enemy.structure)/Math.max(1,enemy.maxShield+enemy.maxArmor+enemy.maxStructure)));ctx.fillStyle='#35191d';ctx.fillRect(enemy.x-28,enemy.y-39,56,5);ctx.fillStyle='#f85149';ctx.fillRect(enemy.x-28,enemy.y-39,56*hp,5);ctx.restore();});}
   checkMissionCompletion(){
     const m=this.activeMission;if(!m||!m.spawnedFleet||m.completed)return false;
+    if(m.type==='salvage'||m.type==='recon'){
+      if((m.objectiveIndex||0)>=(m.objectives||[]).length){m.completed=true;if(typeof window.showCorpNotification==='function')window.showCorpNotification('Mission objective complete! Return through the green space tear to claim your reward.');if(typeof updateMissionsUI==='function')updateMissionsUI();if(typeof saveGameSession==='function')saveGameSession();return true;}
+      return false;
+    }
     m.fleet.forEach(enemy=>{if(enemy&&enemy.structure<=0&&!enemy._missionXpAwarded){enemy._missionXpAwarded=true;m.kills++;if(typeof window.awardPlayerXP==='function')window.awardPlayerXP('combat',m.difficulty==='Easy'?65:(m.difficulty==='Medium'?100:145),'Pirate destroyed');}});
     if(m.fleet.every(e=>!e||e.structure<=0)){m.completed=true;if(typeof window.showCorpNotification==='function')window.showCorpNotification('Mission complete! Return through the green space tear to claim your reward.');if(typeof updateMissionsUI==='function')updateMissionsUI();if(typeof saveGameSession==='function')saveGameSession();return true;}return false;
   }
   claimReward(playerData){
     if(!this.activeMission||!this.activeMission.completed||!this.activeMission.returned)return 0;
-    const autoplayFactor=this.activeMission.autoplayContract?0.35:1;
+    const autoplayFactor=this.activeMission.autoplayContract?0.75:1;
     const reward=Math.round(this.activeMission.rewardIsk*autoplayFactor*(typeof window.getMissionRewardTalentMultiplier==='function'?window.getMissionRewardTalentMultiplier():1));playerData.isk=(playerData.isk||0)+reward;
     // The station boss level-up chip is also a rare mission reward: exactly a 1-in-20 roll.
     const chipDrop=Math.random()<0.05;if(chipDrop)playerData.chips=(playerData.chips||0)+1;
