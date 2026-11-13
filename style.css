@@ -875,3 +875,24 @@ html:fullscreen body, html:-webkit-full-screen body {
 #online-team-window input{min-width:0;flex:1}
 #online-team-window button{flex-shrink:0}
 @media(max-width:700px){#online-content{max-height:calc(35vh - 38px)}}
+
+
+/* Compact station-hangar actions: keep mobile buttons sized to their labels. */
+.hangar-quick-equip-btn,
+.hangar-sell-all-btn {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 7px 12px !important;
+  margin: 6px 0;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
+  font-size: 10px !important;
+  font-weight: 900;
+}
+.hangar-quick-equip-btn { border-color: #4d9b88 !important; }
+.hangar-sell-all-btn { border-color: #b8955a !important; color: #f2d9a7 !important; }
