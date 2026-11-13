@@ -221,6 +221,30 @@ function drawSpaceRift(ctx, x, y, R, pal, seed) {
   ctx.restore();
 }
   
+
+// Draw a visible amber marker around the next tear on the currently plotted route.
+function drawUniverseTargetTear(ctx, gate) {
+  if (!gate || !window._universeTargetNextHop || gate.destinationId !== window._universeTargetNextHop) return false;
+  ctx.save();
+  const pulse = 1 + Math.sin(Date.now() / 220) * 0.08;
+  ctx.strokeStyle = '#fbbf24';
+  ctx.fillStyle = 'rgba(251,191,36,.12)';
+  ctx.lineWidth = 7;
+  ctx.shadowColor = '#f59e0b';
+  ctx.shadowBlur = 24;
+  ctx.beginPath();
+  ctx.arc(gate.x, gate.y, (gate.radius + 30) * pulse, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.setLineDash([16, 9]);
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(gate.x, gate.y, (gate.radius + 48) * pulse, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+  return true;
+}
+
 // Shared high-visibility portal label, styled to match the Trade Hub entrance.
 function drawPortalLabel(ctx, x, y, radius, title, subtitle, accent) {
   const zoom = Math.max(0.45, Number(window.cameraZoom) || 1);
@@ -320,8 +344,9 @@ class MapManager {
    const spots = [[500,500],[2500,1500],[4500,500],[4500,2500],[4500,3900],[500,2500]];
    const p = spots[i] || [2500,2500];
    return {x:p[0],y:p[1],radius:88,destinationId:system.id,draw:function(ctx){
+     const targeted = drawUniverseTargetTear(ctx, this);
      drawSpaceRift(ctx,this.x,this.y,this.radius,RIFT_PALETTES.pvp,18+i);
-     drawPortalLabel(ctx,this.x,this.y,this.radius,'FRONTIER GATE',system.name,'#fb923c');
+     drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':'FRONTIER GATE',system.name,targeted?'#fbbf24':'#fb923c');
    }};
  });
  this.frontierEntryGate = this.frontierEntryGates[0];
@@ -389,9 +414,10 @@ class MapManager {
     const isHome=id==='private_highsec';
     const g={x:cx+Math.cos(a)*distance,y:cy+Math.sin(a)*distance,radius:isHome?105:90,destinationId:id};
     g.draw=function(ctx){
+      const targeted = drawUniverseTargetTear(ctx, this);
       drawSpaceRift(ctx,this.x,this.y,this.radius,isHome?RIFT_PALETTES.ret:RIFT_PALETTES.pvp,40+i);
       const d=FRONTIER_SYSTEMS.find(s=>s.id===this.destinationId);
-      drawPortalLabel(ctx,this.x,this.y,this.radius,isHome?'RETURN RIFT':'FRONTIER ROUTE',isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),isHome?'#34d399':'#fb923c');
+      drawPortalLabel(ctx,this.x,this.y,this.radius,targeted?'TARGET ROUTE':(isHome?'RETURN RIFT':'FRONTIER ROUTE'),isHome?'HIGH-SEC 1.0':(d?d.name:'UNKNOWN'),targeted?'#fbbf24':(isHome?'#34d399':'#fb923c'));
     };
     return g;
   });
