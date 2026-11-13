@@ -8,11 +8,22 @@ class MissionManager {
   }
   generateMissions() {
     const systems = this.systemNames.slice().sort(() => Math.random() - 0.5);
+    const safeFrontier = (window.MINISPACE_UNIVERSE_SYSTEMS || [])
+      .filter(system => Number(system.ring) <= 2 && system.id && system.regionRoot !== undefined)
+      .sort(() => Math.random() - 0.5);
+    const mediumSystem = safeFrontier[0] || null;
+    const hardSystem = safeFrontier[1] || safeFrontier[0] || null;
     this.availableMissions = [
       { id:'easy', difficulty:'Easy', title:'Clear the Outpost', targetCount:2, rewardIsk:75000, enemyShield:55, enemyArmor:65, enemyStructure:75, enemyDamage:1.5, description:'Destroy 2 lightly armed pirate ships.' },
       { id:'medium', difficulty:'Medium', title:'Break the Raider Patrol', targetCount:4, rewardIsk:180000, enemyShield:85, enemyArmor:95, enemyStructure:110, enemyDamage:2.5, description:'Destroy 4 pirate raiders protecting a supply route.' },
       { id:'hard', difficulty:'Hard', title:'Disrupt the Pirate Wing', targetCount:6, rewardIsk:350000, enemyShield:115, enemyArmor:130, enemyStructure:145, enemyDamage:4, description:'Destroy 6 hardened pirate ships. Expect heavier resistance.' }
-    ].map((m,i)=>Object.assign({},m,{systemName:systems[i]}));
+    ].map((mission,i) => {
+      const frontier = mission.id === 'medium' ? mediumSystem : (mission.id === 'hard' ? hardSystem : null);
+      return Object.assign({}, mission, {
+        systemName: frontier ? frontier.name : systems[i],
+        frontierSystemId: frontier ? frontier.id : null
+      });
+    });
   }
   shipRating(ship) {
     if (!ship) return 1;
