@@ -569,6 +569,28 @@ class CapitalShip {
  }
 
  const dr = entry.ship;
+ // Make the Mining Capital's actual drone work readable: each active drone
+ // projects a visible mining beam onto the asteroid it is extracting.
+ if (entry.mining && entry.targetRock && entry.targetRock.oreYield > 0) {
+   const rock = entry.targetRock;
+   const pulse = 0.72 + Math.sin(this.animTimer * 5 + i) * 0.18;
+   ctx.save();
+   ctx.globalCompositeOperation = 'lighter';
+   ctx.lineCap = 'round';
+   ctx.strokeStyle = 'rgba(45,212,191,' + pulse + ')';
+   ctx.shadowColor = '#2dd4bf';
+   ctx.shadowBlur = 13;
+   ctx.lineWidth = 2.5;
+   ctx.beginPath();
+   ctx.moveTo(dr.x, dr.y);
+   ctx.lineTo(rock.x, rock.y);
+   ctx.stroke();
+   ctx.fillStyle = 'rgba(45,212,191,0.22)';
+   ctx.beginPath();
+   ctx.arc(rock.x, rock.y, Math.max(12, (rock.radius || 30) * 0.75), 0, Math.PI * 2);
+   ctx.fill();
+   ctx.restore();
+ }
  const c = dr.cargo || 0;
  const maxC = dr.maxCargo || CAPITAL_DRONE_FALLBACK_CARGO;
  if (maxC > 0 && c > 0) {
