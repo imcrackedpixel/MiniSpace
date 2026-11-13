@@ -18,6 +18,7 @@
   teamRequests:[],
   teamId:null,
   teamMembers:[],
+  teamLocations:[],
   directory:[],
   remotePlayers:{},
   gmPlayers:[],
@@ -440,9 +441,18 @@
    }
    if(message.type==='team-state'){
     state.teamId=message.teamId||null;state.teamMembers=Array.isArray(message.members)?message.members:[];
+    state.teamLocations=state.teamMembers.map(member=>({...member}));
     Object.values(state.remotePlayers).forEach(p=>{if(p)p.teamId=state.teamMembers.some(m=>m.id===p.id)?state.teamId:null;});
     renderTeam();window.dispatchEvent(new CustomEvent('minispace-team-state',{detail:{teamId:state.teamId,members:state.teamMembers}}));
     log(state.teamId?'Team updated · '+state.teamMembers.length+' pilots.':'You are no longer in a team.');
+   }
+   if(message.type==='team-location'&&message.player&&message.player.id){
+    const incoming=message.player;
+    const index=state.teamLocations.findIndex(member=>member.id===incoming.id);
+    if(index>=0)state.teamLocations[index]={...state.teamLocations[index],...incoming};
+    else if(incoming.id!==state.id)state.teamLocations.push(incoming);
+    state.teamMembers=state.teamLocations.map(member=>({...member}));
+    window.dispatchEvent(new CustomEvent('minispace-team-location',{detail:incoming}));
    }
    if(message.type==='team-error')log(String(message.message||'Team action unavailable.'));
    if(message.type==='team-invite-declined')log(String(message.name||'Pilot')+' declined your team invitation.');
