@@ -803,12 +803,12 @@ window.hotDropMiningFleet = function(sightingId) {
   }
   const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === sighting.systemId);
   if (!system) return;
-  publicNpcManager.spawnExplorerMiningFleet(system, sighting);
   const dispatch = botManager.dispatchExplorerToFleet(sighting, system);
   if (!dispatch || !dispatch.success) {
     window.showCorpNotification(dispatch && dispatch.message ? dispatch.message : 'Corp Explorer could not accept the hot-drop.');
     return;
   }
+  publicNpcManager.spawnExplorerMiningFleet(system, sighting);
   sighting.dispatched = true;
   window.closeUniverse();
   window.showCorpNotification('CORP EXPLORER HOT DROP · ' + system.name + ' · cloaked outbound, 10-second Panic Button, then cloaked return to High-Sec. Your ship stays here.');
