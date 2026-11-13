@@ -338,6 +338,8 @@ function shipFittingDps(ship) {
 function applyFittedModuleBonuses(ship) {
   const fitted = ship && ship.fittedModules || {};
   let fittedDamageMultiplier = 1;
+  ship._fittedResistanceMultiplier = 1;
+  ship._fittedShieldRechargeMultiplier = 1;
   Object.keys(fitted).forEach(function(slot) {
     const mod = fitted[slot]; if (!mod) return;
     const rank = Math.max(1, Math.min(10, Number(mod.rank) || 1));
