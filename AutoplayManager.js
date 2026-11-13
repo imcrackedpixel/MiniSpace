@@ -16,6 +16,7 @@ class AutoplayManager{
   if(reason){window.showCorpNotification(reason);return;}
   this.isAutoplay=true;
   this.combatMode=isCombatAutoplayHull(ship.className);
+  if(this.combatMode && !this.playerData.offensiveMode && typeof window.toggleOffensiveMode==='function') window.toggleOffensiveMode();
   if(this.combatMode){
    const active=missionManager&&missionManager.activeMission;
    if(active&&active.returned&&typeof window.claimMissionReward==='function')window.claimMissionReward();
@@ -56,7 +57,7 @@ class AutoplayManager{
   this.combatPhase='travel';
   autoUndockTimer=180;
   if(typeof syncAutoplayButton==='function')syncAutoplayButton();
-  window.showCorpNotification('Combat autoplay ON: Easy mission ready. Undocking shortly.');
+  window.showCorpNotification('Mission autoplay ON: contract selected. Undocking shortly.');
  }
  onCombatDocked(){
   if(!this.isAutoplay||!this.combatMode||this.combatPhase!=='docking')return;
@@ -134,7 +135,7 @@ class AutoplayManager{
    else ship.update(targetMovePos,null,false,enemies);
   }
  }
- onMissionDocked(){if(!this.isAutoplay||!this.combatMode)return;this.combatPhase='accept';this.startEasyMissionAtStation();window.showCorpNotification('Combat autoplay: next Easy mission queued.');if(typeof syncAutoplayButton==='function')syncAutoplayButton();}
+ onMissionDocked(){if(!this.isAutoplay||!this.combatMode)return;this.combatPhase='accept';this.startEasyMissionAtStation();window.showCorpNotification('Mission autoplay: next contract queued.');if(typeof syncAutoplayButton==='function')syncAutoplayButton();}
  update(ship,activeBelt){if(!this.isAutoplay||!ship)return;const reason=this.blockReason(ship);if(reason){this.isAutoplay=false;this.combatMode=false;this.combatPhase='';window.showCorpNotification(reason);if(typeof syncAutoplayButton==='function')syncAutoplayButton();return;}if(ship.docked)return;if(this.combatMode){this.combatUpdate(ship);return;}
   const belt=activeBelt||this.belt,explorer=isExplorerHull(ship.className),maxCap=ship.maxCargo||200,full=(ship.cargo||0)>=maxCap-0.5;
   if(full){const dist=Math.hypot(this.station.x-ship.x,this.station.y-ship.y);if(dist<200)performDock(true);else this.moveShip(ship,{x:this.station.x,y:this.station.y},null,belt);return;}
