@@ -2479,7 +2479,9 @@ const SHIP_CATALOG = {
 const TRADE_ITEM_LABELS = {
   veldspar:'Copper', scordite:'Steel', pyroxeres:'Titanium', omber:'Gold',
   debris_t1:'Resistor', debris_t2:'Capacitor', debris_t3:'Circuit Board',
-  debris_t4:'Microchip', debris_t5:'Processor'
+  debris_t4:'Microchip', debris_t5:'Processor',
+  fitting_white:'White Fitting Salvage', fitting_green:'Green Fitting Salvage',
+  fitting_blue:'Blue Fitting Salvage', fitting_purple:'Purple Fitting Salvage'
 };
 function tradeMarketState() {
   return window.MINISPACE_MARKET && window.MINISPACE_MARKET.state
@@ -2723,6 +2725,96 @@ window.sellHangarItemViaTransport = async function(itemKey, requestedQty) {
   }
 };
 
+window.quickSellFittingsViaTransport = async function() {
+  if (window._miniSpaceQuickSellFittingsRunning) return;
+  window._miniSpaceQuickSellFittingsRunning = true;
+  let deposited = 0;
+  try {
+    if (!playerShip || !playerShip.docked ||
+        (typeof window.getMiniSpaceMapId === 'function' && window.getMiniSpaceMapId() !== 'private_highsec')) {
+      window.showCorpNotification('Dock at your Private High-Sec station to quick-sell stored fittings.');
+      return;
+    }
+    const manager = botManager && botManager.bots ? botManager.bots.find(function (b) {
+      return b && b.ship && ['Transport Capital', 'Industrial Hauler', 'Freighter'].includes(b.ship.className);
+    }) : null;
+    const saleStates = ['sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning','to_trade_gate','to_market','to_return_gate','returning'];
+    const canReceiveWhileTravelling = !!(manager && saleStates.includes(manager.transportState));
+    const canReceiveAtStation = !!(manager && manager.transportState === 'loading' && !manager.transportTask);
+    if (!manager || manager.transportTask || (!canReceiveAtStation && !canReceiveWhileTravelling)) {
+      window.showCorpNotification('Your Transport Manager cannot accept a Quick-Sell order right now.');
+      return;
+    }
+    if (!window.MINISPACE_MARKET || typeof window.MINISPACE_MARKET.ready !== 'function' ||
+        typeof window.MINISPACE_MARKET.reserveTransportSale !== 'function') {
+      throw new Error('The shared market transport service is not ready.');
+    }
+    const drops = Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops.slice() : [];
+    const groups = { white: [], green: [], blue: [], purple: [] };
+    drops.forEach(function (drop) {
+      const rarity = String(drop && drop.rarity || 'white').toLowerCase();
+      (groups[groups[rarity] ? rarity : 'white']).push(drop);
+    });
+    const totalDrops = Object.keys(groups).reduce(function (sum, rarity) { return sum + groups[rarity].length; }, 0);
+    if (!totalDrops) {
+      window.showCorpNotification('No unequipped fittings are stored in your station hangar.');
+      return;
+    }
+
+    await window.MINISPACE_MARKET.ready();
+    const capacity = Math.min(1000000, Math.max(1, Math.floor(Number(manager.ship.maxCargo) || 5000)));
+    if (!Array.isArray(manager.playerSaleQueue)) manager.playerSaleQueue = [];
+    if (canReceiveAtStation && !manager.playerSaleTask && manager.transportState === 'loading') {
+      const corpHangar = playerData.corpStationOre || (playerData.corpStationOre = {});
+      const oldCargo = manager.ship.cargoByOre || {};
+      Object.keys(oldCargo).forEach(function (key) {
+        const amount = Math.max(0, Math.floor(Number(oldCargo[key]) || 0));
+        if (amount > 0) corpHangar[key] = (Number(corpHangar[key]) || 0) + amount;
+      });
+      manager.ship.cargo = 0;
+      manager.ship.cargoByOre = {};
+    }
+
+    for (const rarity of ['white','green','blue','purple']) {
+      const group = groups[rarity];
+      let offset = 0;
+      const itemKey = 'fitting_' + rarity;
+      while (offset < group.length) {
+        const chunk = Math.min(capacity, group.length - offset);
+        const shipmentId = 'pilot-fittings-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+        const items = {};
+        items[itemKey] = chunk;
+        const raw = await window.MINISPACE_MARKET.reserveTransportSale(shipmentId, items);
+        const receipt = Array.isArray(raw) ? raw[0] : raw;
+        if (!receipt || receipt.success === false) throw new Error('The market could not reserve the next fitting shipment.');
+        manager.playerSaleQueue.push({ shipmentId: shipmentId, items: items, status: 'deposited', owner: 'current_pilot' });
+        const remove = new Set(group.slice(offset, offset + chunk));
+        playerData.moduleDrops = (Array.isArray(playerData.moduleDrops) ? playerData.moduleDrops : []).filter(function (drop) {
+          return !remove.has(drop);
+        });
+        offset += chunk;
+        deposited += chunk;
+      }
+    }
+    if (canReceiveAtStation && !manager.playerSaleTask && !manager.playerSaleIdleSince) {
+      manager.playerSaleIdleSince = Date.now();
+    }
+    if (typeof window.saveGameSession === 'function') window.saveGameSession();
+    updateStationUI();
+    updateCorpUI();
+    window.showCorpNotification('Quick-Sell queued ' + deposited.toLocaleString() +
+      ' unequipped fittings with your Transport Manager. He will add them to the shared market and credit your wallet after the 10% transport fee.');
+  } catch (error) {
+    if (deposited > 0 && typeof window.saveGameSession === 'function') window.saveGameSession();
+    updateStationUI();
+    updateCorpUI();
+    window.showCorpNotification('Quick-Sell queued ' + deposited.toLocaleString() +
+      ' fittings before stopping: ' + (error.message || error) + '. Accepted shipments remain safely queued.');
+  } finally {
+    window._miniSpaceQuickSellFittingsRunning = false;
+  }
+};
+
 window.sellAllHangarViaTransport = async function() {
   if (window._miniSpaceSellAllRunning) return;
   window._miniSpaceSellAllRunning = true;
@@ -2947,7 +3039,11 @@ function updateStationUI() {
   if (hangarEl) { hangarEl.innerHTML = hangarHtml; window.setHangarView(window._miniHangarView || 'items'); }
   const fittingEl=document.getElementById('hangar-fitting-panel');
   if(fittingEl){
-    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div><button class="hangar-quick-equip-btn" onclick="window.quickEquipBestShips()" '+(!playerShip||!playerShip.docked?'disabled':'')+' title="Fit the highest-rarity compatible modules to every owned ship">✦ QUICK-EQUIP ALL SHIPS</button>';
+    const fittingDrops=Array.isArray(playerData.moduleDrops)?playerData.moduleDrops:[];
+    const fittingManager=botManager&&botManager.bots?botManager.bots.find(function(b){return b&&b.ship&&['Transport Capital','Industrial Hauler','Freighter'].includes(b.ship.className);}):null;
+    const fittingManagerReady=!!(fittingManager&&!fittingManager.transportTask&&(['loading','sell_to_trade_gate','sell_to_market','sell_to_return_gate','sell_returning','to_trade_gate','to_market','to_return_gate','returning'].includes(fittingManager.transportState)));
+    const fittingQuickSellDisabled=!fittingDrops.length||!fittingManagerReady||!playerShip||!playerShip.docked||inTradeHub;
+    let fit='<div class="fitting-heading"><strong>SHIP FITTING</strong><span>'+(playerShip?playerShip.className:'No ship boarded')+'</span></div><div class="hangar-fitting-actions"><button class="hangar-quick-equip-btn" onclick="window.quickEquipBestShips()" '+(!playerShip||!playerShip.docked?'disabled':'')+' title="Fit the highest-rarity compatible modules to every owned ship">✦ QUICK-EQUIP ALL SHIPS</button><button class="hangar-quick-sell-btn" onclick="window.quickSellFittingsViaTransport()" '+(fittingQuickSellDisabled?'disabled':'')+' title="Send all unequipped fitting drops to your Transport Manager for market sale">⇧ QUICK-SELL FITTINGS ('+fittingDrops.length+')</button></div>';
     if(playerShip){
       const slots=ensureFittedModules(playerShip);
       fit+='<div class="fitting-module-grid">';
