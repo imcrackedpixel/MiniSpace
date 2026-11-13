@@ -129,7 +129,7 @@
     }
 
     gunDamage() {
-      return CFG.damage * (1 + UPGRADE.guns * (this.level('guns') - 1));
+      return CFG.damage * (1 + UPGRADE.guns * (this.level('guns') - 1)) * (this._fittedDamageMultiplier || 1);
     }
 
     // Used by ShieldRegen.js: fraction of the out-of-combat recharge rate applied while in combat.
