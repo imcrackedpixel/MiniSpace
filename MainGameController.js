@@ -688,6 +688,7 @@ window.openUniverse = function() {
   };
   const edges = new Set(), routes = [];
   systems.forEach(s => s.links.forEach(id => {
+    if (id === 'private_highsec' && s.id !== (mapManager && mapManager.frontierHomeGateSystemId)) return;
     const key = [s.id,id].sort().join('|'); if (edges.has(key)) return; edges.add(key);
     const a = xy(s.id), b = xy(id);
     routes.push('<line x1="' + a[0] + '" y1="' + a[1] + '" x2="' + b[0] + '" y2="' + b[1] + '" class="universe-route-line"/>');
@@ -2599,7 +2600,7 @@ function updateHUD() {
   }
   if ((b = document.getElementById('dock-btn'))) b.style.display = (s.docked || inPublicSpace()) ? 'none' : 'block';
   if ((b = document.getElementById('offensive-btn'))) {
-    b.style.display = (['Combat Frigate','Carrier','Siege Cruiser','Siege Battleship','Siege Capital','Explorer Cruiser'].includes(s.className) || (Array.isArray(s.drones) && s.drones.length > 0)) ? 'block' : 'none';
+    b.style.display = ['Combat Frigate','Carrier','Siege Cruiser','Siege Battleship','Siege Capital','Explorer Cruiser'].includes(s.className) ? 'block' : 'none';
     b.textContent = 'COMBAT: ' + (playerData.offensiveMode ? 'ON' : 'OFF');
     b.style.color = playerData.offensiveMode ? '#ff8b82' : '#9aa7b0';
     b.style.borderColor = playerData.offensiveMode ? '#b94a48' : '#39434b';
