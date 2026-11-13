@@ -981,13 +981,104 @@ window.openUniverse = function() {
       (targeted ? '#fbbf24' : (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171')) + ';border-radius:5px;font-size:11px;font-weight:' + (targeted ? '900' : '600') + '">' +
       (targeted ? '★ ' : '') + s.name + ' · ' + s.ring + '</button>';
   }).join('');
-  host.innerHTML = '<div class="universe-chart-scroll"><div class="universe-starchart" style="position:relative;min-height:480px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
+  host.innerHTML = '<div class="universe-chart-scroll" aria-label="Interactive universe map"><div class="universe-map-zoom-space" style="width:760px;height:480px"><div class="universe-starchart" style="position:relative;width:760px;height:480px;min-width:760px;min-height:480px;aspect-ratio:auto;overflow:hidden;transform:scale(1);transform-origin:top left"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
     routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 4 ISOLATED REGIONS</div>' +
-    '<div class="universe-chart-key">★ YOUR LOCATION · SOLID LINES = GATES · BLUE NO-LOSS · RED FULL-LOOT</div></div></div>' +
+    '<div class="universe-chart-key">★ YOUR LOCATION · SOLID LINES = GATES · BLUE NO-LOSS · RED FULL-LOOT</div></div></div><div class="universe-map-controls"><button type="button" data-map-zoom="out" aria-label="Zoom out">−</button><button type="button" data-map-zoom="reset" aria-label="Reset zoom">100%</button><button type="button" data-map-zoom="in" aria-label="Zoom in">+</button></div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
-    '<p class="universe-map-note">Four isolated regions, each with its own High-Sec entrance. Follow the gate lines deeper, explore optional side-pocket branches, and use the return gate to retrace your route. Return to High-Sec to enter another region.</p>';
+    '<p class="universe-map-note">Pinch with two fingers or use the mouse wheel to zoom. Drag or scroll to move around the map. Each region has its own entrance from High-Sec.</p>';
   if (!host.dataset.navigationBound) {
+    const getMapParts = () => ({
+      viewport: host.querySelector('.universe-chart-scroll'),
+      space: host.querySelector('.universe-map-zoom-space'),
+      chart: host.querySelector('.universe-starchart')
+    });
+    const setMapZoom = (requested, anchorX, anchorY) => {
+      const parts = getMapParts(); if (!parts.viewport || !parts.space || !parts.chart) return;
+      const oldZoom = Number(host.dataset.mapZoom) || 1;
+      const nextZoom = Math.max(0.55, Math.min(2.6, requested));
+      const rect = parts.viewport.getBoundingClientRect();
+      const localX = Number.isFinite(anchorX) ? anchorX - rect.left : parts.viewport.clientWidth / 2;
+      const localY = Number.isFinite(anchorY) ? anchorY - rect.top : parts.viewport.clientHeight / 2;
+      const mapX = (parts.viewport.scrollLeft + localX) / oldZoom;
+      const mapY = (parts.viewport.scrollTop + localY) / oldZoom;
+      host.dataset.mapZoom = String(nextZoom);
+      parts.space.style.width = (760 * nextZoom) + 'px';
+      parts.space.style.height = (480 * nextZoom) + 'px';
+      parts.chart.style.transform = 'scale(' + nextZoom + ')';
+      parts.viewport.scrollLeft = mapX * nextZoom - localX;
+      parts.viewport.scrollTop = mapY * nextZoom - localY;
+      const reset = host.querySelector('[data-map-zoom="reset"]');
+      if (reset) reset.textContent = Math.round(nextZoom * 100) + '%';
+    };
+    host._universePointers = new Map();
+    host.addEventListener('pointerdown', function(event) {
+      const viewport = event.target.closest('.universe-chart-scroll');
+      if (!viewport || event.target.closest('.universe-map-controls')) return;
+      if (!host._universePointers) host._universePointers = new Map();
+      host._universePointers.set(event.pointerId, {x:event.clientX,y:event.clientY,lastX:event.clientX,lastY:event.clientY});
+      try { viewport.setPointerCapture(event.pointerId); } catch (_) {}
+      if (host._universePointers.size === 2) {
+        const pts = Array.from(host._universePointers.values());
+        host._universePinchStartDistance = Math.hypot(pts[0].x-pts[1].x,pts[0].y-pts[1].y) || 1;
+        host._universePinchStartZoom = Number(host.dataset.mapZoom) || 1;
+        host._universeGestureMoved = true;
+      } else if (host._universePointers.size === 1) {
+        host._universePanStart = {x:event.clientX,y:event.clientY,left:viewport.scrollLeft,top:viewport.scrollTop};
+        host._universeGestureMoved = false;
+      }
+    });
+    host.addEventListener('pointermove', function(event) {
+      const pointers = host._universePointers;
+      if (!pointers || !pointers.has(event.pointerId)) return;
+      const point = pointers.get(event.pointerId);
+      point.lastX = event.clientX; point.lastY = event.clientY;
+      const parts = getMapParts(); if (!parts.viewport) return;
+      if (pointers.size >= 2) {
+        const pts = Array.from(pointers.values());
+        const distance = Math.hypot(pts[0].lastX-pts[1].lastX,pts[0].lastY-pts[1].lastY) || 1;
+        const scale = (host._universePinchStartZoom || 1) * distance / (host._universePinchStartDistance || distance);
+        setMapZoom(scale,(pts[0].lastX+pts[1].lastX)/2,(pts[0].lastY+pts[1].lastY)/2);
+        host._universeGestureMoved = true;
+      } else if (host._universePanStart) {
+        const dx = event.clientX-host._universePanStart.x, dy = event.clientY-host._universePanStart.y;
+        if (Math.abs(dx)+Math.abs(dy)>5) host._universeGestureMoved = true;
+        if (host._universeGestureMoved) {
+          parts.viewport.scrollLeft = host._universePanStart.left-dx;
+          parts.viewport.scrollTop = host._universePanStart.top-dy;
+        }
+      }
+    });
+    const finishMapPointer = function(event) {
+      if (host._universePointers) host._universePointers.delete(event.pointerId);
+      if (!host._universePointers || host._universePointers.size < 2) {
+        host._universePinchStartDistance = 0;
+        host._universePinchStartZoom = Number(host.dataset.mapZoom) || 1;
+      }
+      if (!host._universePointers || host._universePointers.size === 0) {
+        host._universePanStart = null;
+        if (host._universeGestureMoved) {
+          host._universeSuppressClick = true;
+          setTimeout(() => { host._universeSuppressClick = false; }, 350);
+        }
+      }
+    };
+    host.addEventListener('pointerup', finishMapPointer);
+    host.addEventListener('pointercancel', finishMapPointer);
+    host.addEventListener('wheel', function(event) {
+      if (!event.target.closest('.universe-chart-scroll')) return;
+      event.preventDefault();
+      const zoom = Number(host.dataset.mapZoom) || 1;
+      setMapZoom(zoom * Math.exp(-event.deltaY * 0.0015),event.clientX,event.clientY);
+    }, {passive:false});
     host.addEventListener('click', function(event) {
+      if (host._universeSuppressClick) { event.preventDefault(); event.stopPropagation(); return; }
+      const zoomButton = event.target.closest('button[data-map-zoom]');
+      if (zoomButton) {
+        const currentZoom = Number(host.dataset.mapZoom) || 1;
+        const action = zoomButton.getAttribute('data-map-zoom');
+        setMapZoom(action === 'reset' ? 1 : currentZoom * (action === 'in' ? 1.25 : 0.8));
+        return;
+      }
       const fleet = event.target.closest('button[data-fleet-system]');
       if (fleet) { window.hotDropMiningFleet(fleet.getAttribute('data-sighting-id')); return; }
       const node = event.target.closest('button[data-system-id]');
@@ -3239,10 +3330,17 @@ function updateGame() {
   } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
     const back=mapManager.frontierReturnGate;
     if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius) {
-      const destination=window._universeRouteDestination;
+      const currentSystem=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===mapManager.currentMapId);
+      const returnDestination=currentSystem&&currentSystem.parentId||'private_highsec';
+      const plottedDestination=window._universeRouteDestination;
       window._universeRouteDestination=null;
-      window.jumpToPrivateSec();
-      if(destination==='private_highsec')window.showCorpNotification('Arrived home in Private High-Sec.');
+      if(returnDestination==='private_highsec') {
+        window.jumpToPrivateSec();
+        window.showCorpNotification('Returned to High-Sec through your region entrance.');
+      } else {
+        window.jumpToFrontierSystem(returnDestination);
+        if(plottedDestination==='private_highsec')window.showCorpNotification('Returned one system towards High-Sec. Keep following return gates to reach the hub.');
+      }
     } else for(const gate of (mapManager.frontierGates||[])) {
       if(Math.hypot(playerShip.x-gate.x,playerShip.y-gate.y)<gate.radius){window.jumpToFrontierSystem(gate.destinationId);break;}
     }
