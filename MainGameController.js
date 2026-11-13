@@ -2455,7 +2455,8 @@ const UPGRADE_STEP = 6000;
 function upgradeCostAt(lvl) {
   const last = baseUpgradeCosts.length - 1;
   const base = lvl <= last ? baseUpgradeCosts[lvl] : baseUpgradeCosts[last] + UPGRADE_STEP * (lvl - last - 1);
-  return base * getShipTierMultiplier();
+  // Triple the Scrap Metals fee for every module upgrade, including fitted items.
+  return base * getShipTierMultiplier() * 3;
 }
 
 function corpOwnedRow(name, sub) {
