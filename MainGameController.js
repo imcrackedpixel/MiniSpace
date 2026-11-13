@@ -3328,7 +3328,7 @@ window.openAutoplaySettings=function(){
   '<div style="display:flex;justify-content:space-between;align-items:center;"><b style="font-size:19px;">AUTOPLAY SETTINGS</b><button id="autoplay-close" style="background:#303b46;color:#fff;border:0;border-radius:6px;padding:7px 10px;">✕</button></div>'+
   '<p style="color:#93a4b2;font-size:12px;margin:7px 0 14px;">Choose what your pilot does automatically. The active ship must match the selected activity.</p>'+
   field('ACTIVITY','ap-activity',settings.activity||'auto',[['auto','Auto — use current ship'],['mining','Mining'],['missions','Missions'],['exploration','Exploration']])+
-  '<div style="border-top:1px solid #34414c;padding-top:10px;margin-top:2px;"><b>FRONTIER SPACE FILTERS</b><p style="color:#93a4b2;font-size:11px;margin:4px 0 10px;">Choose where each activity is allowed. Frontier-only requires you to travel there through a gate.</p>'+
+  '<div style="border-top:1px solid #34414c;padding-top:10px;margin-top:2px;"><b>FRONTIER SPACE FILTERS</b><p style="color:#93a4b2;font-size:11px;margin:4px 0 10px;">Choose where each activity is allowed. Frontier-only requires a gate jump. Home missions run Easy contracts; frontier missions currently patrol and hunt pirates.</p>'+
   field('MINING','ap-frontier-mining',settings.frontier.mining,[['home','Home only'],['frontier','Frontier only'],['both','Home + Frontier']])+
   field('EXPLORATION / SCANNING','ap-frontier-exploration',settings.frontier.exploration,[['home','Home only'],['frontier','Frontier only'],['both','Home + Frontier']])+
   field('MISSIONS','ap-frontier-missions',settings.frontier.missions,[['home','Home only'],['frontier','Frontier only'],['both','Home + Frontier']])+'</div>'+
