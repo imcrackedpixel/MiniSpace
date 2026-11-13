@@ -3875,8 +3875,57 @@ function render() {
       // clipping, and layer order with asteroids, gates and ships.
       const tradeStation = window.MINISPACE_TRADE_HUB && window.MINISPACE_TRADE_HUB.station;
       if (tradeStation && typeof tradeStation.draw === 'function') tradeStation.draw(ctx);
+      // Draw the Trade Hub exit portal directly in the same world pass as the station.
+      // This self-contained renderer avoids relying on shared rift helpers or post-render transforms.
       const returnTear = window.MINISPACE_TRADE_HUB_RETURN_GATE;
-      if (returnTear && typeof returnTear.draw === 'function') returnTear.draw(ctx);
+      if (returnTear) {
+        const px = returnTear.x, py = returnTear.y, pr = 105;
+        const pulse = 1 + Math.sin(Date.now() * 0.003) * 0.08;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.rotate(-0.42);
+        ctx.globalCompositeOperation = 'lighter';
+        const halo = ctx.createRadialGradient(0, 0, pr * 0.12, 0, 0, pr * 2.4 * pulse);
+        halo.addColorStop(0, 'rgba(20,245,210,0.48)');
+        halo.addColorStop(0.35, 'rgba(30,210,255,0.24)');
+        halo.addColorStop(0.72, 'rgba(30,130,255,0.09)');
+        halo.addColorStop(1, 'rgba(20,130,255,0)');
+        ctx.fillStyle = halo;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, pr * 2.4 * pulse, pr * 1.55 * pulse, 0, 0, Math.PI * 2);
+        ctx.fill();
+        for (let i = 0; i < 3; i++) {
+          const phase = Date.now() * 0.0007 + i * 2.1;
+          ctx.strokeStyle = i === 1 ? 'rgba(105,245,255,0.95)' : 'rgba(45,230,180,0.82)';
+          ctx.lineWidth = 3 - i * 0.55;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, pr * (1.05 + i * 0.22), pr * (0.48 + i * 0.13), phase, 0.15 + i, 2.45 + i * 1.4);
+          ctx.stroke();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+        const core = ctx.createRadialGradient(0, 0, 2, 0, 0, pr);
+        core.addColorStop(0, '#020914');
+        core.addColorStop(0.58, '#061b2a');
+        core.addColorStop(0.86, '#087b75');
+        core.addColorStop(1, 'rgba(35,235,210,0.92)');
+        ctx.fillStyle = core;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, pr * 0.82, pr * 0.48, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = 0; i < 18; i++) {
+          const a = Date.now() * 0.0005 + i * Math.PI * 2 / 18;
+          const inner = pr * (0.55 + (i % 3) * 0.08);
+          const outer = pr * (1.15 + (i % 4) * 0.16);
+          ctx.strokeStyle = i % 2 ? 'rgba(80,235,255,0.78)' : 'rgba(80,255,190,0.8)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * inner, Math.sin(a) * inner * 0.58);
+          ctx.lineTo(Math.cos(a + 0.08) * outer, Math.sin(a + 0.08) * outer * 0.58);
+          ctx.stroke();
+        }
+        ctx.restore();
+      }
     } else if (!pub) {
       if (mainStation && typeof mainStation.draw === 'function') mainStation.draw(ctx);
       // The Trade Hub tear is a real High-Sec exit; draw it with the other map gates.
