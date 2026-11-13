@@ -66,7 +66,7 @@
     if (typeof window !== 'undefined') {
       if (Array.isArray(window.ships)) pool.push(...window.ships);
       if (window.game && Array.isArray(window.game.ships)) pool.push(...window.game.ships);
-      if (window.centralStationBoss) pool.push(window.centralStationBoss);
+      if (window.centralStationBoss && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space') pool.push(window.centralStationBoss);
       if (Array.isArray(window.stations)) pool.push(...window.stations);
       if (window.game && Array.isArray(window.game.stations)) pool.push(...window.game.stations);
       if (window.stationManager && Array.isArray(window.stationManager.stations)) {
