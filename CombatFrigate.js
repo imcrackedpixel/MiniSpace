@@ -102,7 +102,7 @@ class CombatFrigate {
   
     // Include Central Station Boss if active in public space  
     // NPC-owned drones (flagged by PvpLeash) never target their own station boss  
-    if (window.centralStationBoss && window.centralStationBoss.structure > 0 && !this.ignoreStationBoss) {  
+    if (window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && !this.ignoreStationBoss) {  
       if (!enemyList.includes(window.centralStationBoss)) {  
         enemyList.push(window.centralStationBoss);  
       }  
