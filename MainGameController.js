@@ -301,14 +301,16 @@ function cleanModules(ship) {
 }
 
 function fittedModuleBonusPercent(slot, rank, rarity) {
-  const scale = ({white:1,green:1.2,blue:1.45,purple:1.8})[String(rarity||'white').toLowerCase()] || 1;
-  return Math.max(0, Number(rank)||1) * 4 * scale;
+  const scale = ({white:1,green:1.1,blue:1.2,purple:1.3})[String(rarity||'white').toLowerCase()] || 1;
+  const perRank = slot === 'shieldRecharge' ? 1 : 1.5;
+  return Math.max(0, Number(rank)||1) * perRank * scale;
 }
 function fittedModuleBonusLabel(slot, rank, rarity) {
   const pct = fittedModuleBonusPercent(slot, rank, rarity), half = pct * 0.5;
   const one = n => '+' + n.toFixed(1) + '%';
   if (['laser','guns','missiles'].includes(slot)) return 'Damage ' + one(pct) + ' · Range ' + one(half);
-  if (['shield','shieldPlating','shieldExtender','shieldRecharge'].includes(slot)) return 'Shield / armour ' + one(pct) + ' · Recharge ' + one(pct);
+  if (['shield','shieldPlating','shieldExtender'].includes(slot)) return 'Shield / armour ' + one(pct);
+  if (slot === 'shieldRecharge') return 'Shield recharge ' + one(pct);
   if (slot === 'resistance') return 'Damage resistance ' + one(pct);
   if (slot === 'cargo') return 'Cargo capacity ' + one(pct);
   if (slot === 'propulsion') return 'Top speed ' + one(pct * 0.65);
@@ -344,16 +346,23 @@ function applyFittedModuleBonuses(ship) {
     const mod = fitted[slot]; if (!mod) return;
     const rank = Math.max(1, Math.min(10, Number(mod.rank) || 1));
     const rarity = String(mod.rarity || 'white').toLowerCase();
-    const scale = ({white:1,green:1.2,blue:1.45,purple:1.8})[rarity] || 1;
-    const bonus = 1 + rank * 0.04 * scale;
-    if (slot === 'resistance' && Number.isFinite(Number(ship.resist))) ship._fittedResistanceMultiplier = bonus;
-    if (slot === 'shieldRecharge') ship._fittedShieldRechargeMultiplier = bonus;
+    const scale = ({white:1,green:1.1,blue:1.2,purple:1.3})[rarity] || 1;
+    const bonus = 1 + rank * 0.015 * scale;
+    if (slot === 'resistance') {
+      ship._fittedResistanceMultiplier = bonus;
+      if (Number.isFinite(Number(ship.damageResistance))) ship.damageResistance = Math.min(0.75, ship.damageResistance * bonus);
+    }
+    if (slot === 'shieldRecharge') {
+      const rechargeBonus = 1 + rank * 0.01 * scale;
+      ship._fittedShieldRechargeMultiplier = Math.min(1.15, rechargeBonus);
+      if (Number.isFinite(Number(ship.shieldRechargeRate))) ship.shieldRechargeRate *= Math.min(1.15, rechargeBonus);
+    }
     if (['laser','guns','missiles'].includes(slot)) {
       fittedDamageMultiplier *= bonus;
       ['miningPower','missileDamage','weaponDamage','gunDamage'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
       ['laserRange','weaponRange','scramblerRange'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=1+(bonus-1)*0.5;});
-    } else if (['shield','shieldPlating','shieldExtender','shieldRecharge','resistance'].includes(slot)) {
-      ['maxShield','maxArmor','damageResistance','shieldRechargeRate'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
+    } else if (['shield','shieldPlating','shieldExtender'].includes(slot)) {
+      ['maxShield','maxArmor'].forEach(k=>{if(Number.isFinite(Number(ship[k])))ship[k]*=bonus;});
       if (Number.isFinite(Number(ship.shield))) ship.shield=Math.min(ship.maxShield||ship.shield,ship.shield*bonus);
     } else if (slot==='cargo') {
       if(Number.isFinite(Number(ship.maxCargo)))ship.maxCargo*=bonus;
@@ -467,6 +476,14 @@ function saveGameSession() {
   if (!playerData.upgrades) playerData.upgrades = {};
     playerData.upgrades[playerShip.className] = Object.assign({}, playerShip.moduleLevels);
   }
+  playerData.lastKnownLocation = {
+    mapId: mapManager && mapManager.currentMapId || 'private_highsec',
+    x: playerShip ? Number(playerShip.x) || 0 : 0,
+    y: playerShip ? Number(playerShip.y) || 0 : 0,
+    angle: playerShip ? Number(playerShip.angle) || 0 : 0,
+    docked: playerShip ? !!playerShip.docked : false,
+    savedAt: Date.now()
+  };
   sessionManager.save(playerData, playerShip);
   if (typeof window.MINISPACE_SAVE_CLOUD === 'function') {
     window.MINISPACE_SAVE_CLOUD();
