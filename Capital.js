@@ -562,7 +562,8 @@ class CapitalShip {
  ctx.restore();
  }
 
- for (const entry of this.drones) {
+ for (let i = 0; i < this.drones.length; i++) {
+ const entry = this.drones[i];
  if (entry.ship && !entry.isDocked) {
  if (typeof entry.ship.draw === 'function') {
  entry.ship.draw(ctx, asteroidBeltRef);
