@@ -909,13 +909,23 @@ window.openUniverse = function() {
   else window._universeTargetNextHop = null;
   const fleetSightings = publicNpcManager && typeof publicNpcManager.getExplorerFleetSightings === 'function'
     ? publicNpcManager.getExplorerFleetSightings((Number(playerData.explorationCorpPurchased) || 0) > 0) : [];
+  // Stable, organic three-arm starfield layout: systems keep their positions between map opens,
+  // but no longer sit on perfect concentric circles.
   const xy = id => {
     if (id === 'private_highsec') return [380,240];
     const s = systems.find(v => v.id === id); if (!s) return [380,240];
-    const ring = Number(s.ring) || 1, radius = 5 + ring * 3.9;
-    const peers = systems.filter(v => v.ring === ring), index = peers.findIndex(v => v.id === id);
-    const angle = (index / Math.max(1, peers.length)) * Math.PI * 2 - Math.PI / 2 + ring * 0.19;
-    return [(50 + Math.cos(angle) * radius) * 7.6, (50 + Math.sin(angle) * radius) * 4.8];
+    let hash = 2166136261;
+    const key = String(id);
+    for (let i = 0; i < key.length; i++) hash = Math.imul(hash ^ key.charCodeAt(i), 16777619) >>> 0;
+    const randA = (hash & 0xffff) / 65535;
+    const randB = ((hash >>> 16) & 0xffff) / 65535;
+    const arm = hash % 3;
+    const ring = Number(s.ring) || 1;
+    const angle = arm * (Math.PI * 2 / 3) + ring * 0.31 + (randA - 0.5) * 1.05;
+    const radius = 28 + ring * 23 + (randB - 0.5) * 34;
+    const x = 380 + Math.cos(angle) * radius * 1.08;
+    const y = 240 + Math.sin(angle) * radius * 0.69;
+    return [Math.max(24, Math.min(736, x)), Math.max(30, Math.min(450, y))];
   };
   const edges = new Set(), routes = [];
   const plottedPath = window._universeTargetSystemId
@@ -956,7 +966,7 @@ window.openUniverse = function() {
     return '<button type="button" class="universe-node ' + (here ? 'current ' : '') + (targeted ? 'targeted ' : '') + (here ? '' : 'reachable') +
       '" data-system-id="' + s.id + '" title="' + (here ? 'YOU ARE HERE · ' : '') + s.name + ' · RING ' + s.ring + ' · ' + (safe ? 'NO-LOSS PvP' : 'FULL-LOOT PvP') +
       '" aria-label="' + (here ? 'Your current system: ' : 'Fly to ') + s.name + ', ring ' + s.ring + ', ' + (safe ? 'no ship loss' : 'full loot') +
-      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (targeted ? '0 0 0 5px rgba(251,191,36,.2),0 0 20px #fbbf24' : '0 0 9px ' + color)) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★' : s.ring) + '<span style="position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);white-space:nowrap;padding:2px 4px;border-radius:4px;background:rgba(3,12,20,.88);border:1px solid ' + (targeted ? '#fbbf24' : 'rgba(120,150,165,.45)') + ';color:' + (targeted ? '#fde68a' : '#d5e2e8') + ';font-size:8px;font-weight:' + (targeted ? '900' : '600') + ';text-shadow:0 1px 3px #000;pointer-events:none">' + s.name + '</span>' + (here ? '<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
+      '" style="position:absolute;left:' + (p[0] / 7.6) + '%;top:' + (p[1] / 4.8) + '%;transform:translate(-50%,-50%);width:' + (here ? '27px' : '18px') + ';height:' + (here ? '27px' : '18px') + ';min-width:' + (here ? '27px' : '18px') + ';padding:0;border-radius:50%;border:' + (here ? '3px solid #facc15' : (targeted ? '3px solid #fbbf24' : '2px solid ' + color)) + ';background:' + (here ? '#854d0e' : (targeted ? '#713f12' : color)) + ';color:#fff;font-size:' + (here ? '15px' : '10px') + ';font-weight:900;box-shadow:' + (here ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : (targeted ? '0 0 0 5px rgba(251,191,36,.2),0 0 20px #fbbf24' : '0 0 9px ' + color)) + ';z-index:' + (here ? '5' : '2') + '">' + (here ? '★' : s.ring) + '<span style="position:absolute;left:50%;top:calc(100% + 5px);transform:translateX(-50%);white-space:nowrap;padding:3px 6px;border-radius:5px;background:rgba(2,8,16,.96);border:1px solid ' + (targeted ? '#fbbf24' : 'rgba(120,150,165,.45)') + ';color:' + (targeted ? '#fde68a' : '#d5e2e8') + ';font-size:9px;font-weight:' + (targeted ? '900' : '700') + ';text-shadow:0 1px 4px #000;pointer-events:none">' + s.name + '</span>' + (here ? '<span style="position:absolute;left:50%;top:28px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   }).join('');
   const list = systems.map(s => {
     const targeted = window._universeTargetSystemId === s.id;
