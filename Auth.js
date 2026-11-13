@@ -501,8 +501,16 @@
           });
           storeSession(refreshed);
         }
+        if (!session.access_token) {
+          throw new Error('Your sign-in session has no access token. Please log in again.');
+        }
         if (!session.user || !session.user.id) {
-          session = await api('/auth/v1/user', { method: 'GET' });
+          // /auth/v1/user returns only the user profile. Keep it inside the
+          // existing session instead of replacing the session and losing its token.
+          const user = await api('/auth/v1/user', { method: 'GET' });
+          if (!user || !user.id) throw new Error('Could not restore your pilot account.');
+          session.user = user;
+          storeSession(session);
         }
         await loadCloudSave();
         finishReady();
