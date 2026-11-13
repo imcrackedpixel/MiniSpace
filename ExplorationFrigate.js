@@ -124,6 +124,9 @@ class ExplorationFrigate {
 
   // Shield, then armor, then structure
   takeDamage(rawDmg, source) {
+    // A dispatched Corp Explorer is protected while its 10-second Panic Button hold is active.
+    const corpMission = this.corpBot && this.corpBot.explorerMission;
+    if (this.isPanicButtonActive && corpMission && corpMission.phase === 'panic' && Date.now() < corpMission.panicUntil) return;
     // being shot opens the beam window, and remembers who shot (a cruiser focuses that ship)
     if (rawDmg > 0) { this.hitTimer = EXPLORER_GUN_WINDOW; if (source) this.lastAttacker = source; }
     let dmg = rawDmg * (1.0 - (this.damageResistance || 0));
