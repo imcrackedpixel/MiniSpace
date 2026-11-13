@@ -17,6 +17,7 @@ class SpaceStation {
     }
 
     draw(ctx) {
+        if (this.isFrontierStation && Number(this.structure) <= 0) return;
         ctx.save();
         ctx.translate(this.x, this.y);
 
