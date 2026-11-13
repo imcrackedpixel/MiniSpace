@@ -39,15 +39,15 @@ create table if not exists public.market_transactions (
 
 insert into public.market_items(item_key, display_name, unit_price)
 values
- ('veldspar','Veldspar',2),
- ('scordite','Scordite',4),
- ('pyroxeres','Pyroxeres',7),
- ('omber','Omber',10),
- ('debris_t1','T1 Debris',15),
- ('debris_t2','T2 Debris',30),
- ('debris_t3','T3 Debris',50),
- ('debris_t4','T4 Debris',80),
- ('debris_t5','T5 Debris',120)
+ ('veldspar','Veldspar',100),
+ ('scordite','Scordite',250),
+ ('pyroxeres','Pyroxeres',500),
+ ('omber','Omber',1000),
+ ('debris_t1','T1 Components',2500),
+ ('debris_t2','T2 Components',10000),
+ ('debris_t3','T3 Components',40000),
+ ('debris_t4','T4 Components',150000),
+ ('debris_t5','T5 Components',500000)
 on conflict (item_key) do update
 set display_name=excluded.display_name,
     unit_price=excluded.unit_price;
