@@ -4315,8 +4315,49 @@ if (
     }
   };
 
+  function startTradeTearEntry() {
+    if (window.MINISPACE_TEAR_ENTRY_EFFECT) return;
+    window.MINISPACE_TEAR_ENTRY_EFFECT = { startedAt: Date.now(), duration: 480 };
+    if (playerShip) {
+      playerShip.vx = 0;
+      playerShip.vy = 0;
+    }
+    targetMovePos = null;
+    lockedTarget = null;
+    isDockingRequested = false;
+  }
+
+  function drawTradeTearEntryEffect(context, width, height) {
+    const effect = window.MINISPACE_TEAR_ENTRY_EFFECT;
+    if (!effect) return;
+    const progress = Math.max(0, Math.min(1, (Date.now() - effect.startedAt) / effect.duration));
+    const cx = width / 2, cy = height / 2;
+    const ease = progress * progress;
+    context.save();
+    context.globalCompositeOperation = 'screen';
+    context.globalAlpha = 0.9 * (1 - progress * 0.35);
+    const radius = Math.max(width, height) * (0.06 + ease * 0.72);
+    const glow = context.createRadialGradient(cx, cy, 0, cx, cy, radius);
+    glow.addColorStop(0, 'rgba(170,245,255,' + (0.08 + progress * 0.2) + ')');
+    glow.addColorStop(0.42, 'rgba(35,190,225,' + (0.12 * (1 - progress)) + ')');
+    glow.addColorStop(1, 'rgba(3,18,35,0)');
+    context.fillStyle = glow;
+    context.fillRect(0, 0, width, height);
+    for (let i = 0; i < 4; i++) {
+      const ringProgress = (progress * 1.35 + i * 0.24) % 1;
+      const ringRadius = 12 + ringProgress * Math.max(width, height) * 0.62;
+      context.globalAlpha = (1 - ringProgress) * (1 - progress * 0.35) * 0.72;
+      context.strokeStyle = i % 2 ? '#45dfff' : '#d6fbff';
+      context.lineWidth = 2 + (1 - ringProgress) * 3;
+      context.beginPath();
+      context.ellipse(cx, cy, ringRadius, ringRadius * 0.62, 0, 0, Math.PI * 2);
+      context.stroke();
+    }
+    context.restore();
+  }
+
   window.jumpToTradeHub = function () {
-    // Play the same jump tunnel as other tears when entering the Trade Hub.
+    // Arrival tunnel plays after the short ship-pull-in animation.
     if (typeof window.startMiniSpaceJumpEffect === 'function') window.startMiniSpaceJumpEffect();
     const hub = window.MINISPACE_TRADE_HUB;
     mapManager.currentMapId = hub.id;
@@ -4350,6 +4391,22 @@ if (
   updateGame = function () {
     originalUpdateGame();
 
+    const entryEffect = window.MINISPACE_TEAR_ENTRY_EFFECT;
+    if (entryEffect) {
+      if (playerShip) {
+        playerShip.vx = 0;
+        playerShip.vy = 0;
+      }
+      targetMovePos = null;
+      lockedTarget = null;
+      isDockingRequested = false;
+      if (Date.now() - entryEffect.startedAt >= entryEffect.duration) {
+        window.MINISPACE_TEAR_ENTRY_EFFECT = null;
+        window.jumpToTradeHub();
+      }
+      return;
+    }
+
     if (!playerShip || gateCooldown > 0) return;
 
     if (mapManager.currentMapId === 'public_trade_hub') {
@@ -4370,7 +4427,7 @@ if (
         playerShip.y - tradeGate.y
       ) < tradeGate.radius
     ) {
-      window.jumpToTradeHub();
+      startTradeTearEntry();
     }
   };
 
@@ -4402,6 +4459,7 @@ if (
     }
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    drawTradeTearEntryEffect(ctx, canvas.width, canvas.height);
   };
 })();
 /* TRADE HUB: HIDE CORP MINERS AND SHOW HUB GATES ON MINIMAP */
