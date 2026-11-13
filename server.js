@@ -371,6 +371,7 @@ function removeFromTeam(p) {
 wss.on('connection',ws=>{
   const connectionId=crypto.randomUUID().slice(0,8);
   let helloProcessed=false;
+  let helloInProgress=false;
   console.log('Pilot websocket connected:', { connectionId });
   ws.on('close',(code,reason)=>{
     console.log('Pilot websocket closed:', {
@@ -434,6 +435,14 @@ wss.on('connection',ws=>{
         if (p.roomId && !p.invisible) broadcastRoom(p.roomId,{type:'player',player:publicPlayer(p)},ws);
         return;
       }
+      // The client periodically sends name-only hello updates. The initial
+      // Supabase verification is asynchronous, so ignore duplicates while it
+      // is pending rather than treating them as a second unauthenticated login.
+      if (helloInProgress) {
+        console.log('Duplicate pilot hello ignored during authentication:', { connectionId });
+        return;
+      }
+      helloInProgress=true;
 
       // Authenticate first, then resume only a session owned by this exact account.
       // Browser localStorage can survive an account switch, so a shared resume token
