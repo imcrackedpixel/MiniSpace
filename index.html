@@ -344,5 +344,92 @@ window.toggleMiniSpaceHud = function(button) {
  mo.observe(document.body,{subtree:true,attributes:true,attributeFilter:['style','class']});
 })();
 </script>
+
+<!-- MOBILE WINDOW MOVE + RESIZE -->
+<script>
+(function(){
+ if(window.__miniSpaceMobileWindows)return;
+ window.__miniSpaceMobileWindows=true;
+ const mobile=()=>matchMedia('(max-width: 899px)').matches;
+ const key='minispace_mobile_window_layout_v1';
+ let saved={};try{saved=JSON.parse(localStorage.getItem(key)||'{}')||{}}catch(_){}
+ const save=()=>{try{localStorage.setItem(key,JSON.stringify(saved))}catch(_){}};
+ const clamp=(v,min,max)=>Math.max(min,Math.min(max,v));
+ function attach(el,handle,id){
+  if(!el||!handle||handle.dataset.mobileDragReady)return;
+  handle.dataset.mobileDragReady='1';handle.classList.add('mobile-drag-handle');
+  el.classList.add('mobile-window-movable');
+  const restore=()=>{
+   if(!mobile()||!saved[id])return;
+   const p=saved[id],r=el.getBoundingClientRect();
+   el.style.position='fixed';el.style.left=clamp(p.left,0,innerWidth-70)+'px';
+   el.style.top=clamp(p.top,0,innerHeight-60)+'px';
+   el.style.right='auto';el.style.bottom='auto';el.style.margin='0';
+   if(p.width)el.style.width=clamp(p.width,150,innerWidth-8)+'px';
+   if(p.height)el.style.height=clamp(p.height,90,innerHeight-8)+'px';
+   el.style.transform='none';el.style.translate='none';
+  };
+  restore();
+  let dragging=null,resizing=null;
+  handle.addEventListener('pointerdown',e=>{
+   if(!mobile()||e.target.closest('button,input,select,textarea,a'))return;
+   const r=el.getBoundingClientRect();
+   dragging={x:e.clientX,y:e.clientY,left:r.left,top:r.top,moved:false};
+   try{handle.setPointerCapture(e.pointerId)}catch(_){}
+   e.preventDefault();e.stopPropagation();
+  });
+  handle.addEventListener('pointermove',e=>{
+   if(!dragging||!mobile())return;
+   const dx=e.clientX-dragging.x,dy=e.clientY-dragging.y;
+   if(Math.abs(dx)+Math.abs(dy)>3)dragging.moved=true;
+   if(!dragging.moved)return;
+   const r=el.getBoundingClientRect();
+   el.style.position='fixed';el.style.left=clamp(dragging.left+dx,0,innerWidth-Math.min(70,r.width))+'px';
+   el.style.top=clamp(dragging.top+dy,0,innerHeight-Math.min(55,r.height))+'px';
+   el.style.right='auto';el.style.bottom='auto';el.style.margin='0';el.style.transform='none';el.style.translate='none';
+  });
+  const finishDrag=()=>{
+   if(!dragging)return;
+   if(dragging.moved){const r=el.getBoundingClientRect();saved[id]=Object.assign({},saved[id],{left:r.left,top:r.top,width:r.width,height:r.height});save();el.dataset.mobileJustDragged='1';setTimeout(()=>delete el.dataset.mobileJustDragged,80)}
+   dragging=null;
+  };
+  handle.addEventListener('pointerup',finishDrag);handle.addEventListener('pointercancel',finishDrag);
+  let grip=el.querySelector(':scope > .mobile-resize-grip');
+  if(!grip){grip=document.createElement('div');grip.className='mobile-resize-grip';grip.textContent='⤢';grip.setAttribute('aria-label','Resize window');el.appendChild(grip)}
+  grip.addEventListener('pointerdown',e=>{
+   if(!mobile())return;
+   const r=el.getBoundingClientRect();resizing={x:e.clientX,y:e.clientY,width:r.width,height:r.height};
+   try{grip.setPointerCapture(e.pointerId)}catch(_){}
+   e.preventDefault();e.stopPropagation();
+  });
+  grip.addEventListener('pointermove',e=>{
+   if(!resizing||!mobile())return;
+   el.style.width=clamp(resizing.width+e.clientX-resizing.x,150,innerWidth-8)+'px';
+   el.style.height=clamp(resizing.height+e.clientY-resizing.y,90,innerHeight-8)+'px';
+  });
+  const finishResize=()=>{
+   if(!resizing)return;const r=el.getBoundingClientRect();
+   saved[id]=Object.assign({},saved[id],{left:r.left,top:r.top,width:r.width,height:r.height});save();resizing=null;
+  };
+  grip.addEventListener('pointerup',finishResize);grip.addEventListener('pointercancel',finishResize);
+  el.addEventListener('click',e=>{if(el.dataset.mobileJustDragged){e.preventDefault();e.stopPropagation()}},true);
+ }
+ function init(){
+  if(!mobile())return;
+  attach(document.getElementById('pilot-panel'),document.getElementById('pilot-panel-heading'),'pilot');
+  const controls=document.getElementById('flight-controls');
+  if(controls&&!document.getElementById('mobile-flight-drag')){const h=document.createElement('div');h.id='mobile-flight-drag';h.textContent='FLIGHT CONTROLS  ⠿';h.style.cssText='padding:5px;color:#9be7d4;font-size:11px;font-weight:bold;touch-action:none';controls.insertBefore(h,controls.firstChild)}
+  attach(controls,document.getElementById('mobile-flight-drag'),'controls');
+  attach(document.getElementById('minimap-panel'),document.getElementById('minimap-heading'),'nearby');
+  attach(document.getElementById('online-panel'),document.querySelector('#online-panel header'),'chat');
+  attach(document.getElementById('station-ui'),document.querySelector('#station-ui .station-header'),'station');
+  attach(document.querySelector('.universe-window'),document.querySelector('.universe-window > header'),'universe');
+ }
+ init();window.addEventListener('resize',init);
+ const mo=new MutationObserver(()=>init());
+ mo.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['style','class']});
+})();
+</script>
+
 </body>
 </html>
