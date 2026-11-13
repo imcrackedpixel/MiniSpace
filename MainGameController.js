@@ -805,14 +805,45 @@ window.hotDropMiningFleet = function(sightingId) {
   if (!system) return;
   const dispatch = botManager.dispatchExplorerToFleet(sighting, system);
   if (!dispatch || !dispatch.success) {
-    window.showCorpNotification(dispatch && dispatch.message ? dispatch.message : 'Corp Explorer could not accept the hot-drop.');
+    window.showCorpNotification(dispatch && dispatch.message ? dispatch.message : 'Corp Explorer could not accept the dispatch.');
     return;
   }
   publicNpcManager.spawnExplorerMiningFleet(system, sighting);
   sighting.dispatched = true;
   window.closeUniverse();
-  window.showCorpNotification('CORP EXPLORER HOT DROP · ' + system.name + ' · cloaked outbound, 10-second Panic Button, then cloaked return to High-Sec. Your ship stays here.');
+  window.showCorpNotification('CORP EXPLORER DISPATCHED · ' + system.name + ' · cloaked transit. You will be reinforced when Panic Button activates.');
   saveGameSession();
+};
+
+window.onCorpExplorerPanicHotDrop = function(bot) {
+  if (!bot || !bot.ship || !bot.explorerMission || !playerShip || !mapManager) return;
+  const mission = bot.explorerMission;
+  const destinationId = mission.targetSystemId;
+  if (!destinationId || mission.playerReinforced) return;
+  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
+  const arrival = mapManager.jumpToFrontierSystem(playerShip, destinationId);
+  if (!arrival) {
+    window.showCorpNotification('TACTICAL REINFORCEMENT delayed · unable to open the Explorer system.');
+    return;
+  }
+  asteroidBelt = arrival.asteroidBelt;
+  debrisField = arrival.debrisField;
+  mainStation = arrival.station || mapManager.frontierStation || homeStation;
+  window.MINISPACE_FRONTIER_STATION = mainStation;
+  if (publicNpcManager) publicNpcManager.initFrontierSystem(arrival.system, mainStation);
+  playerShip.x = bot.ship.x + 190;
+  playerShip.y = bot.ship.y + 120;
+  playerShip.vx = 0; playerShip.vy = 0;
+  playerShip.angle = Math.atan2(bot.ship.y - playerShip.y, bot.ship.x - playerShip.x);
+  playerShip.docked = false;
+  targetMovePos = null; lockedTarget = null; isDockingRequested = false; gateCooldown = 180;
+  mission.playerReinforced = true;
+  window.startMiniSpaceJumpEffect();
+  if (publicNpcManager && typeof publicNpcManager.addCapitalDropEffect === 'function') {
+    publicNpcManager.addCapitalDropEffect(destinationId, playerShip.x, playerShip.y);
+  }
+  if (typeof saveGameSession === 'function') saveGameSession();
+  window.showCorpNotification('TACTICAL REINFORCEMENT · Corp Explorer Panic Button active · you have been pulled into ' + ((arrival.system && arrival.system.name) || 'the fleet system') + '.');
 };
 
 window.openUniverse = function() {
@@ -839,9 +870,22 @@ window.openUniverse = function() {
   const fleetMarkers = fleetSightings.map(sighting => {
     const p = xy(sighting.systemId);
     return '<button type="button" data-fleet-system="' + sighting.systemId + '" data-sighting-id="' + sighting.id +
-      '" title="Explorer ping · ' + sighting.ships + ' mining ships · HOT DROP" style="position:absolute;left:' + (p[0] / 7.6) +
+      '" title="Explorer ping · ' + sighting.ships + ' mining ships · dispatch Corp Explorer" style="position:absolute;left:' + (p[0] / 7.6) +
       '%;top:' + (p[1] / 4.8) + '%;transform:translate(15px,-22px);z-index:7;padding:3px 6px;border-radius:12px;border:1px solid #fbbf24;background:#422006;color:#fde68a;font-size:11px;font-weight:900;box-shadow:0 0 12px rgba(251,191,36,.55)">⛏ ' + sighting.ships + '</button>';
   }).join('');
+  const corpExplorer = botManager && botManager.bots
+    ? botManager.bots.find(entry => entry && entry.ship && ['Exploration Frigate','Improved Explorer Frigate','Explorer Cruiser'].includes(entry.className))
+    : null;
+  const explorerSystemId = corpExplorer ? (corpExplorer.explorerMapId || 'private_highsec') : null;
+  const explorerPhase = corpExplorer && corpExplorer.explorerMission ? corpExplorer.explorerMission.phase : 'standby';
+  const explorerLabel = explorerPhase === 'panic' ? 'TACTICAL REINFORCEMENT'
+    : explorerPhase === 'return' ? 'RETURNING'
+    : explorerPhase === 'outbound' ? 'EN ROUTE'
+    : 'CORP EXPLORER';
+  const explorerPoint = explorerSystemId ? xy(explorerSystemId) : null;
+  const explorerMarker = explorerPoint ? '<div title="Corp Explorer · ' + explorerLabel + '" aria-label="Corp Explorer ' + explorerLabel +
+    '" style="pointer-events:none;position:absolute;left:' + (explorerPoint[0] / 7.6) + '%;top:' + (explorerPoint[1] / 4.8) +
+    '%;transform:translate(-50%,-155%);z-index:9;white-space:nowrap;padding:4px 7px;border-radius:10px;border:1px solid #5eead4;background:rgba(4,55,58,.96);color:#ccfbf1;font-size:10px;font-weight:900;box-shadow:0 0 14px rgba(45,212,191,.7)">🚀 ' + explorerLabel + '</div>' : '';
   const homeHere = current === 'private_highsec';
   const home = '<button type="button" class="universe-node ' + (homeHere ? 'current' : '') + '" data-system-id="private_highsec" title="' + (homeHere ? 'YOU ARE HERE · ' : '') + 'Private High-Sec 1.0" aria-label="' + (homeHere ? 'Your current system: ' : 'Fly back to ') + 'Private High-Sec" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:' + (homeHere ? '42px' : '34px') + ';height:' + (homeHere ? '42px' : '34px') + ';padding:0;border-radius:50%;z-index:4;border:3px solid ' + (homeHere ? '#facc15' : '#38bdf8') + ';background:' + (homeHere ? '#854d0e' : '#12354a') + ';color:#fff;box-shadow:' + (homeHere ? '0 0 0 5px rgba(250,204,21,.22),0 0 24px #facc15' : '0 0 12px #38bdf8') + '">' + (homeHere ? '★' : '⌂') + (homeHere ? '<span style="position:absolute;left:50%;top:43px;transform:translateX(-50%);white-space:nowrap;color:#facc15;font-size:11px;font-weight:900;text-shadow:0 1px 4px #000">YOU ARE HERE</span>' : '') + '</button>';
   const nodes = systems.map(s => {
@@ -856,10 +900,10 @@ window.openUniverse = function() {
     (s.lossMode === 'no-loss' ? '#12354a' : '#4a2025') + ';color:#e6edf3;border:1px solid ' +
     (s.lossMode === 'no-loss' ? '#38bdf8' : '#f87171') + ';border-radius:5px;font-size:11px">' + s.name + ' · ' + s.ring + '</button>').join('');
   host.innerHTML = '<div class="universe-starchart" style="position:relative;min-height:430px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
-    routes.join('') + '</svg>' + home + nodes + fleetMarkers + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
-    '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
+    routes.join('') + '</svg>' + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
+    '<div class="universe-chart-key">★ GOLD · YOUR LOCATION &nbsp; 🚀 TEAL · CORP EXPLORER &nbsp; BLUE · NO-LOSS PvP &nbsp; RED · FULL-LOOT PvP</div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
-    '<p class="universe-map-note">Tap a system to plot a physical gate route. Gold ⛏ markers are temporary corp-explorer mining fleet pings — tap one to hot drop.</p>';
+    '<p class="universe-map-note">Tap a system to plot a physical gate route. Gold ⛏ markers are mining fleet pings. The teal 🚀 marker shows the Corp Explorer live system and mission status.</p>';
   if (!host.dataset.navigationBound) {
     host.addEventListener('click', function(event) {
       const fleet = event.target.closest('button[data-fleet-system]');
