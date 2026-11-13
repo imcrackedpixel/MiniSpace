@@ -745,10 +745,9 @@ window.jumpToFrontierSystem = function(id) {
     else {
       const path = window.findFrontierRoute(id, destination), next = path && path[1];
       window._universeTargetNextHop = next || null;
-      const gate = next === 'private_highsec' ? mapManager.frontierReturnGate :
-        (mapManager.frontierGates || []).find(v => v.destinationId === next);
-      if (gate) { targetMovePos = { x: gate.x, y: gate.y }; }
-      else window._universeRouteDestination = null;
+      // Keep the plotted destination as navigation guidance only. The pilot
+      // must fly to each highlighted tear and choose when to jump.
+      if (!next) window._universeRouteDestination = null;
     }
   }
   window.showCorpNotification('Warp complete: ' + r.system.name + ' · ' +
