@@ -29,22 +29,7 @@
         if (tradeStationImage.complete && tradeStationImage.naturalWidth > 0) {
           ctx.drawImage(tradeStationImage, -900, -600, 1800, 1200);
         } else {
-          // A clear temporary station graphic if the PNG is still loading or
-          // unavailable; docking remains connected to this same station object.
-          ctx.save();
-          ctx.shadowColor = '#36b99a';
-          ctx.shadowBlur = 30;
-          ctx.strokeStyle = '#9be7d4';
-          ctx.lineWidth = 24;
-          ctx.beginPath();
-          ctx.ellipse(0, 0, 760, 430, 0, 0, Math.PI * 2);
-          ctx.stroke();
-          ctx.fillStyle = '#d7fff4';
-          ctx.font = 'bold 110px system-ui, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText('TRADE HUB', 0, 0);
-          ctx.restore();
+          // Artwork is still loading; avoid drawing a placeholder ring or halo.
         }
 
         ctx.restore();
