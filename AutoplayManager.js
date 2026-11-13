@@ -45,9 +45,16 @@ class AutoplayManager{
   if(!ship||!ship.docked)return;
   const active=missionManager&&missionManager.activeMission;
   if(!active){
-   const choices=missionManager.availableMissions||[];
+   // Combat autoplay is deliberately restricted to Easy contracts.
+   // Filter before random selection so Medium/Hard missions can never be queued.
+   const choices=(missionManager.availableMissions||[]).filter(m=>m&&m.difficulty==='Easy');
    const selected=choices.length?choices[Math.floor(Math.random()*choices.length)]:null;
-   if(!selected||!missionManager.acceptMission(selected.id,ship)){this.isAutoplay=false;this.combatMode=false;return;}
+   if(!selected||!missionManager.acceptMission(selected.id,ship)){
+    this.isAutoplay=false;this.combatMode=false;this.combatPhase='';
+    if(typeof window.showCorpNotification==='function')window.showCorpNotification('No Easy missions are currently available. Autoplay stopped.');
+    if(typeof syncAutoplayButton==='function')syncAutoplayButton();
+    return;
+   }
    missionManager.activeMission.autoplayContract=true;
    if(mapManager&&mapManager.missionEntryGate)mapManager.missionEntryGate.destinationName=missionManager.activeMission.systemName;
    saveGameSession();updateMissionsUI();
