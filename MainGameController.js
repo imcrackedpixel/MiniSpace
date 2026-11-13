@@ -2638,7 +2638,7 @@ function updateNearbySpacePanel(){
  const g={tears:[],pirates:[],ore:[],players:[]},add=(k,n,o,t,x)=>{if(o&&Number.isFinite(Number(o.x))&&Number.isFinite(Number(o.y)))g[k].push({name:String(n||t),x:Number(o.x),y:Number(o.y),distance:dist(o),kind:t,ref:o,extra:x||null});};
  const id=String(mapManager.currentMapId||'');
  if(id==='public_trade_hub'&&window.MINISPACE_TRADE_HUB&&window.MINISPACE_TRADE_HUB.station)add('tears','Trade Hub Station',window.MINISPACE_TRADE_HUB.station,'station','trade');
- else if(id.indexOf('frontier_')===0&&mapManager.frontierReturnGate){if(mainStation)add('tears',(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===id)?.name+' Station',mainStation,'station','local');add('tears','High-Sec Station · return tear',mapManager.frontierReturnGate,'station','return');}
+ else if(id.indexOf('frontier_')===0){if(mainStation)add('tears',(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===id)?.name+' Station',mainStation,'station','local');if(mapManager.frontierReturnGate)add('tears','High-Sec Station · return tear',mapManager.frontierReturnGate,'station','return');}
  else if(id.indexOf('mission_')===0&&mapManager.missionReturnGate)add('tears','High-Sec Station · return tear',mapManager.missionReturnGate,'station','return');
  /* 3v3 High-Sec exit gates are hidden from Nearby. */
  else if(mainStation)add('tears','High-Sec Station',mainStation,'station','home');
