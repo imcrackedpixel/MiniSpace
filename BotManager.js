@@ -219,7 +219,9 @@ class BotManager {
         if (typeof ship.togglePanicButton === 'function' && !ship.isPanicButtonActive) ship.togglePanicButton();
         mission.phase = 'panic';
         mission.panicUntil = Date.now() + 10000;
+        if (!mission.playerReinforced && typeof window.onCorpExplorerPanicHotDrop === 'function') window.onCorpExplorerPanicHotDrop(bot);
         if (typeof window.showCorpNotification === 'function') window.showCorpNotification('CORP EXPLORER ON STATION · Panic Button active for 10 seconds.');
+        if (typeof window.saveGameSession === 'function') window.saveGameSession();
         return;
       }
       const nextIndex = Number(mission.routeIndex) + 1;
