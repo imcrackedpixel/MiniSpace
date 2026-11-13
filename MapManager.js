@@ -310,9 +310,10 @@ const FRONTIER_SYSTEMS = (function () {
         generated++;
       }
       all.push({id:row[0],name:row[1],shipIcon:row[2],recommendedShip:row[3],ring:ring,level:ring,
-        security:ring <= 6 ? 'protected' : 'full-loot',
+        security:ring <= 2 ? 'safe-fringe' : (ring <= 6 ? 'protected' : 'full-loot'),
         lossMode:ring <= 6 ? 'no-loss' : 'full-loot',
-        kind:ring <= 6 ? 'Protected PvP' : 'Full-Loot PvP',links:[]});
+        kind:ring <= 2 ? 'Safe Fringe · Low Threat · No-Loss' : (ring <= 6 ? 'Protected PvP' : 'Full-Loot PvP'),
+        isSafeFringe:ring <= 2,links:[]});
     }
   });
 
@@ -487,6 +488,19 @@ class MapManager {
   return {asteroidBelt:belt,debrisField:debris,size:size,system:system,station:this.frontierStation};
  }
  jumpToMissionSystem(playerShip, mission) {
+   if (mission && mission.frontierSystemId) {
+     const arrival = this.jumpToFrontierSystem(playerShip, mission.frontierSystemId);
+     if (!arrival) return null;
+     // The mission uses the real first/second-ring frontier system, but its
+     // contract exit remains a dedicated tear back to High-Sec.
+     this.missionReturnGate = { x: 700, y: 4500, radius: 105, draw(ctx) {
+       drawSpaceRift(ctx, this.x, this.y, this.radius, RIFT_PALETTES.ret, 24);
+       drawPortalLabel(ctx, this.x, this.y, this.radius, 'MISSION RETURN', 'HIGH-SEC 1.0', '#34d399');
+     }};
+     playerShip.x = 1080; playerShip.y = 4500;
+     playerShip.vx = 0; playerShip.vy = 0; playerShip.docked = false;
+     return { asteroidBelt: arrival.asteroidBelt, debrisField: arrival.debrisField, size: arrival.size, system: arrival.system };
+   }
    const size = 7000;
    this.currentMapId = 'mission_' + String(mission.systemName || mission.id || 'unknown').toLowerCase().replace(/[^a-z0-9]+/g, '_');
    const cx = size / 2, cy = size / 2;
