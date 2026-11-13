@@ -3284,6 +3284,7 @@ Promise.resolve(window.MINISPACE_AUTH_READY).then(async function () {
   }
 
   const restoredFrontierLocation = restoreSavedFrontierLocation();
+  if (restoredFrontierLocation) saveGameSession();
   const _setupModal = document.getElementById('setup-modal');
   if (_setupModal && playerData.pilotName && playerData.race) _setupModal.style.display = 'none';
 
