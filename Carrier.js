@@ -194,11 +194,11 @@ class Carrier {
     if (this.drones) {
       let inCombat = false;
       
-      if (targetEnemy && targetEnemy.structure > 0 && Math.hypot(targetEnemy.x - this.x, targetEnemy.y - this.y) <= this.weaponRange) {
+      if (this.weaponsEnabled !== false && targetEnemy && targetEnemy.structure > 0 && Math.hypot(targetEnemy.x - this.x, targetEnemy.y - this.y) <= this.weaponRange) {
         inCombat = true;
-      } else if (window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
+      } else if (this.weaponsEnabled !== false && window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
         inCombat = true; 
-      } else if (enemyListRef && enemyListRef.length > 0) {
+      } else if (this.weaponsEnabled !== false && enemyListRef && enemyListRef.length > 0) {
         for (let e of enemyListRef) {
           let ent = e.ship || e;
           if (ent && ent.structure > 0 && Math.hypot(ent.x - this.x, ent.y - this.y) <= this.weaponRange) {
@@ -212,6 +212,7 @@ class Carrier {
         let entry = this.drones[i];
         if (!entry || !entry.ship) continue;
         let drone = entry.ship;
+        drone.weaponsEnabled = this.weaponsEnabled !== false;
 
         const dockDist = 195;
         const predict = 22;
@@ -245,9 +246,9 @@ class Carrier {
                 
               if (targetEnemy && targetEnemy.structure > 0) {
                 entry.targetEnemy = targetEnemy;
-              } else if (window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
+              } else if (this.weaponsEnabled !== false && window.centralStationBoss && window.centralStationBoss.structure > 0 && typeof mapManager !== 'undefined' && mapManager.currentMapId === 'public_space' && Math.hypot(window.centralStationBoss.x - this.x, window.centralStationBoss.y - this.y) <= this.weaponRange) {
                 entry.targetEnemy = window.centralStationBoss;
-              } else if (enemyListRef && enemyListRef.length > 0) {
+              } else if (this.weaponsEnabled !== false && enemyListRef && enemyListRef.length > 0) {
                 let valid = enemyListRef.filter(e => {
                   let ent = e.ship || e;
                   return ent && ent.structure > 0 && Math.hypot(ent.x - this.x, ent.y - this.y) <= this.weaponRange;
