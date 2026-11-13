@@ -727,7 +727,10 @@ window.resetGameSave = async function() {
     location.reload();
   } catch (error) {
     if (button) { button.disabled = false; button.textContent = 'Reset save data'; }
-    if (window.showCorpNotification) window.showCorpNotification('Reset failed: ' + (error.message || error));
+    const resetMessage = 'Reset failed: ' + (error && error.message ? error.message : String(error)) + '\n\nIf the reset database setup has not been installed, run supabase/market_reset_pilot_progress.sql in Supabase SQL Editor, then try again.';
+    if (window.showCorpNotification) window.showCorpNotification(resetMessage.replace(/\n/g, ' '));
+    // Notifications can be hidden behind the station UI; always show the actual failure.
+    window.alert(resetMessage);
     console.error('Cloud pilot reset failed:', error);
   }
 };
