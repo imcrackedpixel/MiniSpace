@@ -187,6 +187,7 @@ class PublicNpcManager {
         x: 1500 + Math.random() * 6000,
         y: 1500 + Math.random() * 6000,
         ships: 3 + Math.floor(Math.random() * 3),
+        intelConfidence: Math.random() < 0.25 ? 55 + Math.floor(Math.random() * 26) : 82 + Math.floor(Math.random() * 19),
         expiresAt: now + 240000,
         spawned: false
       }));
@@ -710,6 +711,37 @@ class PublicNpcManager {
       patrolPt: null,
       rock: null
     });
+  }
+
+  spawnTacticalCounterDrop(system, sightingId, x, y) {
+    if (!system || !sightingId) return false;
+    const idPrefix = 'counterdrop-' + sightingId;
+    if (this.publicNpcMiners.some(n => n && n.id && n.id.indexOf(idPrefix) === 0)) return false;
+    const deepSpace = Number(system.ring) >= 7;
+    const plan = deepSpace
+      ? [{ type: 'siegeBattleship', dx: -520, dy: -260 }, { type: 'siegeBattleship', dx: 520, dy: -260 }, { type: 'carrier', dx: 0, dy: 620 }]
+      : [{ type: 'siegeBattleship', dx: -420, dy: -260 }, { type: 'siegeCruiser', dx: 430, dy: 280 }];
+    plan.forEach((entry, index) => {
+      const cfg = PIRATE_TYPES[entry.type];
+      if (!cfg) return;
+      this.addPirate(cfg, x + entry.dx, y + entry.dy, idPrefix + '-' + index, {
+        mapId: system.id,
+        role: 'tactical_counterdrop',
+        hpScale: entry.type === 'carrier' ? 0.42 : 0.48,
+        dmg: 0.12,
+        rarity: 'blue'
+      });
+      const npc = this.publicNpcMiners[this.publicNpcMiners.length - 1];
+      if (npc && npc.id === idPrefix + '-' + index) {
+        npc.autoAggro = true;
+        npc.isAgro = true;
+        npc.isAggro = true;
+      }
+    });
+    if (typeof window.showCorpNotification === 'function') {
+      window.showCorpNotification('TACTICAL COUNTER-DROP · hostile ' + (deepSpace ? 'battleships and carrier' : 'battleship and cruiser') + ' detected · engage or disengage!');
+    }
+    return true;
   }
 
   totalHp(ship) {
