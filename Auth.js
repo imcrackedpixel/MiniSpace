@@ -182,7 +182,7 @@
     if (marketReadyPromise) return marketReadyPromise;
     marketReadyPromise = (async function () {
       // One-time import of a real existing pilot save. New accounts with no save
-      // keep the starter wallet created by the database trigger.
+      // keep the zero-balance wallet created by the database trigger.
       const raw = localStorage.getItem('minispace_save');
       let bootstrappedFromSave = false;
       if (raw) {
