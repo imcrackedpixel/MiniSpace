@@ -728,7 +728,7 @@ window.jumpToFrontierSystem = function(id) {
   if (!playerShip || (missionManager && missionManager.activeMission)) { window.showCorpNotification('Finish your active mission before entering the frontier.'); return; }
   const current = mapManager.currentMapId;
   const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === id);
-  const allowed = current === 'private_highsec' ? !!(system && system.ring === 1) :
+  const allowed = current === 'private_highsec' ? !!(system && system.regionRoot) :
     (isFrontierSpace() && (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === current && s.links.includes(id)));
   if (!allowed) { window.showCorpNotification('Fly through a connected space gate to reach that system.'); return; }
   if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
@@ -758,9 +758,9 @@ window.jumpToFrontierSystem = function(id) {
 };
 window.findFrontierRoute = function(from, to) {
   const systems = window.MINISPACE_UNIVERSE_SYSTEMS || [];
-  const homeGateSystemId = mapManager && mapManager.frontierHomeGateSystemId;
-  const linksFor = id => id === 'private_highsec' ? (homeGateSystemId ? [homeGateSystemId] : []) :
-    (((systems.find(s => s.id === id) || {}).links || []).filter(next => next !== 'private_highsec' || id === homeGateSystemId));
+  const linksFor = id => id === 'private_highsec'
+    ? systems.filter(system => system.regionRoot).map(system => system.id)
+    : (((systems.find(s => s.id === id) || {}).links || []).slice());
   const queue = [[from]], seen = new Set([from]);
   while (queue.length) {
     const path = queue.shift(), last = path[path.length - 1];
@@ -814,9 +814,10 @@ window.flyToFrontierGate = function(destinationId) {
   const path = window.findFrontierRoute(current === 'private_highsec' ? 'private_highsec' : current, destinationId);
   if (!path || path.length < 2) { window.showCorpNotification('No gate route to that system.'); return; }
   const nextHop = path[1];
+  const currentSystem = systems.find(system => system.id === current);
   const gate = current === 'private_highsec' ?
     (mapManager.frontierEntryGates || []).find(g => g.destinationId === nextHop) :
-    (nextHop === 'private_highsec' ? mapManager.frontierReturnGate : (mapManager.frontierGates || []).find(g => g.destinationId === nextHop));
+    (currentSystem && nextHop === currentSystem.parentId ? mapManager.frontierReturnGate : (mapManager.frontierGates || []).find(g => g.destinationId === nextHop));
   if (!gate) { window.showCorpNotification('The next physical gate is unavailable.'); return; }
   window._universeRouteDestination = destinationId;
   if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
@@ -912,19 +913,17 @@ window.openUniverse = function() {
   // Four readable map regions. System placement is stable and independent of
   // render order, while the gates still connect the exact same system IDs.
   const regionMembers = [[], [], [], []];
-  systems.forEach((system, index) => regionMembers[index % 4].push(system));
+  systems.forEach(system => regionMembers[Number.isInteger(system.regionId) ? system.regionId : 0].push(system));
   const systemPositions = new Map();
-  regionMembers.forEach((members, region) => members.forEach((system, index) => {
+  regionMembers.forEach((members, region) => members.forEach(system => {
+    const depth = Number(system.mapDepth) || 0;
+    const branch = Number(system.mapBranch) || 0;
+    const pocketDepth = Number(system.mapPocketDepth) || 0;
     let x, y;
-    if (region === 0 || region === 2) {
-      const col = index % 4, row = Math.floor(index / 4);
-      x = 95 + col * 190 + ((index * 13) % 17 - 8);
-      y = (region === 0 ? 55 : 326) + row * 36 + ((index * 7) % 9 - 4);
-    } else {
-      const col = index % 3, row = Math.floor(index / 3);
-      x = (region === 3 ? 55 : 541) + col * 82 + ((index * 11) % 9 - 4);
-      y = 190 + row * 34 + ((index * 5) % 7 - 3);
-    }
+    if (region === 0) { x = 105 + depth * 82 + (branch ? 8 : 0); y = 92 + (branch ? 34 + pocketDepth * 15 : 0); }
+    else if (region === 1) { x = 655 - (branch ? 42 + pocketDepth * 15 : 0); y = 72 + depth * 43; }
+    else if (region === 2) { x = 655 - depth * 82 - (branch ? 8 : 0); y = 385 - (branch ? 34 + pocketDepth * 15 : 0); }
+    else { x = 105 + (branch ? 42 + pocketDepth * 15 : 0); y = 410 - depth * 43; }
     systemPositions.set(system.id, [x, y]);
   }));
   const xy = id => id === 'private_highsec' ? [380, 240] : (systemPositions.get(id) || [380, 240]);
@@ -983,10 +982,10 @@ window.openUniverse = function() {
       (targeted ? '★ ' : '') + s.name + ' · ' + s.ring + '</button>';
   }).join('');
   host.innerHTML = '<div class="universe-chart-scroll"><div class="universe-starchart" style="position:relative;min-height:480px;overflow:hidden"><svg viewBox="0 0 760 480" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">' +
-    routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 50 SYSTEMS</div>' +
-    '<div class="universe-chart-key">★ YOUR LOCATION · 🚀 CORP EXPLORER · BLUE NO-LOSS · RED FULL-LOOT</div></div></div>' +
+    routes.join('') + '</svg>' + regionPanels + home + nodes + fleetMarkers + explorerMarker + '<div class="universe-chart-title">MINISPACE UNIVERSE · 4 ISOLATED REGIONS</div>' +
+    '<div class="universe-chart-key">★ YOUR LOCATION · SOLID LINES = GATES · BLUE NO-LOSS · RED FULL-LOOT</div></div></div>' +
     '<details style="margin-top:10px"><summary style="cursor:pointer;color:#9fb6c4">ALL 49 FRONTIER SYSTEMS</summary><div style="max-height:180px;overflow:auto;margin-top:8px">' + list + '</div></details>' +
-    '<p class="universe-map-note">Tap a system to set or clear your saved destination. The amber route and highlighted tear show your next gate; fly there to continue. Gold ⛏ markers are mining fleet pings. The teal 🚀 marker shows the Corp Explorer live system and mission status.</p>';
+    '<p class="universe-map-note">Four isolated regions, each with its own High-Sec entrance. Follow the gate lines deeper, explore optional side-pocket branches, and use the return gate to retrace your route. Return to High-Sec to enter another region.</p>';
   if (!host.dataset.navigationBound) {
     host.addEventListener('click', function(event) {
       const fleet = event.target.closest('button[data-fleet-system]');
