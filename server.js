@@ -427,7 +427,14 @@ wss.on('connection',ws=>{
       // Authenticate first, then resume only a session owned by this exact account.
       // Browser localStorage can survive an account switch, so a shared resume token
       // must never carry another pilot's name, ship or combat stats into this account.
-      const identity=await verifyPilotToken(m.accessToken);
+      const receivedToken = m.accessToken;
+      console.log('Pilot hello received:', {
+        hasAccessToken: typeof receivedToken === 'string' && receivedToken.length > 0,
+        accessTokenType: typeof receivedToken,
+        accessTokenLength: typeof receivedToken === 'string' ? receivedToken.length : 0,
+        messageKeys: Object.keys(m).filter(key => key !== 'accessToken')
+      });
+      const identity=await verifyPilotToken(receivedToken);
       if(identity&&identity.banned){
         send(ws,{type:'auth-status',authenticated:false,isGM:false,banned:true,reason:identity.banReason});
         try{ws.close(4003,'Pilot account banned');}catch(error){}
