@@ -5,11 +5,11 @@ const ITEM_PRICES = {
  scordite: 250,
  pyroxeres: 500,
  omber: 1000,
- debris_t1: 2500,
- debris_t2: 10000,
- debris_t3: 40000,
- debris_t4: 150000,
- debris_t5: 500000
+ debris_t1: 100,
+ debris_t2: 250,
+ debris_t3: 500,
+ debris_t4: 750,
+ debris_t5: 1000
 };
 
 // Ship values. Ships are no longer bought with Scrap Metals: these prices set the
