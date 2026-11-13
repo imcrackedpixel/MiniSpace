@@ -28,7 +28,7 @@ begin
   end if;
 
   insert into public.pilot_wallets(pilot_id,isk)
-  values(v_pilot,1000000)
+  values(v_pilot,0)
   on conflict(pilot_id) do nothing;
 
   select game_state_synced into v_synced
