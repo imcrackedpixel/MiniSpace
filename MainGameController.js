@@ -3440,27 +3440,14 @@ function updateGame() {
         saveGameSession();
       }
     }
-  } else if (!pub) {
-    const mg = mapManager && mapManager.missionEntryGate;
-    if (missionManager.activeMission && mg && Math.hypot(playerShip.x - mg.x, playerShip.y - mg.y) < mg.radius) window.jumpToMissionSystem();
-    else {
-      const frontierGates = mapManager ? (mapManager.frontierEntryGates || [mapManager.frontierEntryGate]) : [];
-      const frontierEntry = frontierGates.find(g => g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius);
-      if (frontierEntry) {
-        window.jumpToFrontierSystem(frontierEntry.destinationId || 'frontier_ashen');
-      } else {
-        const g = mapManager ? mapManager.publicGate : null;
-        if (g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius) window.jumpToPublicSpace(0);
-      }
-    }
   } else if (mapManager && String(mapManager.currentMapId).indexOf('frontier_') === 0) {
     const back=mapManager.frontierReturnGate;
     if(back&&Math.hypot(playerShip.x-back.x,playerShip.y-back.y)<back.radius) {
       const currentSystem=(window.MINISPACE_UNIVERSE_SYSTEMS||[]).find(s=>s.id===mapManager.currentMapId);
       const returnDestination=currentSystem&&currentSystem.parentId||'private_highsec';
       const plottedDestination=window._universeRouteDestination;
-      window._universeRouteDestination=null;
       if(returnDestination==='private_highsec') {
+        window._universeRouteDestination=null;
         window.jumpToPrivateSec();
         window.showCorpNotification('Returned to High-Sec through your region entrance.');
       } else {
@@ -3469,6 +3456,18 @@ function updateGame() {
       }
     } else for(const gate of (mapManager.frontierGates||[])) {
       if(Math.hypot(playerShip.x-gate.x,playerShip.y-gate.y)<gate.radius){window.jumpToFrontierSystem(gate.destinationId);break;}
+    }
+  } else if (!pub) {
+    const mg = mapManager && mapManager.missionEntryGate;
+    if (missionManager.activeMission && mg && Math.hypot(playerShip.x - mg.x, playerShip.y - mg.y) < mg.radius) window.jumpToMissionSystem();
+    else {
+      const frontierGates = mapManager ? (mapManager.frontierEntryGates || [mapManager.frontierEntryGate]) : [];
+      const frontierEntry = frontierGates.find(g => g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius);
+      if (frontierEntry) window.jumpToFrontierSystem(frontierEntry.destinationId || 'frontier_ashen');
+      else {
+        const g = mapManager ? mapManager.publicGate : null;
+        if (g && Math.hypot(playerShip.x - g.x, playerShip.y - g.y) < g.radius) window.jumpToPublicSpace(0);
+      }
     }
   } else {
     if (mapManager && mapManager.playerGates) {
