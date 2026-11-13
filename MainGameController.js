@@ -797,7 +797,6 @@ window.jumpToFrontierSystem = function(id) {
   const allowed = current === 'private_highsec' ? !!(system && system.regionRoot) :
     (isFrontierSpace() && (window.MINISPACE_UNIVERSE_SYSTEMS || []).some(s => s.id === current && s.links.includes(id)));
   if (!allowed) { window.showCorpNotification('Fly through a connected space gate to reach that system.'); return; }
-  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
   window.startMiniSpaceJumpEffect();
   const r = mapManager.jumpToFrontierSystem(playerShip, id); if (!r) { window.MINISPACE_JUMP_EFFECT = null; return; }
   asteroidBelt = r.asteroidBelt; debrisField = r.debrisField;
@@ -910,7 +909,6 @@ window.flyToFrontierGate = function(destinationId) {
     (currentSystem && nextHop === currentSystem.parentId ? mapManager.frontierReturnGate : (mapManager.frontierGates || []).find(g => g.destinationId === nextHop));
   if (!gate) { window.showCorpNotification('The next physical gate is unavailable.'); return; }
   window._universeRouteDestination = destinationId;
-  if (autoplayManager && autoplayManager.isAutoplay) window.toggleAutoplay();
   lockedTarget = null; targetMovePos = { x: gate.x, y: gate.y }; isDockingRequested = false;
   window.closeUniverse();
   window.showCorpNotification('ROUTE SET · ' + (destinationId === 'private_highsec' ? 'HIGH-SEC' : destinationId.replace('frontier_','').toUpperCase()) +
