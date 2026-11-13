@@ -447,8 +447,20 @@
   }
 
   let saveTimer = null;
+  let resetInProgress = false;
+  window.MINISPACE_RESET_CLOUD = async function () {
+    if (!session || !session.user || !session.user.id) throw new Error('Pilot login required to reset cloud progress.');
+    resetInProgress = true;
+    clearTimeout(saveTimer);
+    try {
+      await api('/rest/v1/rpc/market_reset_pilot_progress', { method: 'POST', body: '{}' });
+    } catch (error) {
+      resetInProgress = false;
+      throw error;
+    }
+  };
   window.MINISPACE_SAVE_CLOUD = function () {
-    if (!session || !session.user || !session.user.id) return;
+    if (resetInProgress || !session || !session.user || !session.user.id) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(async function () {
       try {
