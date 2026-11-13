@@ -126,7 +126,7 @@ function fmtISK(n) {
 // ===== TUNING =====
 const EXTRACTION_SECONDS = 10;
 const LOOT = {
-  debrisIsk: 1000000,   // worth of T3-T5 debris added to hangar per station kill
+  debrisIsk: 400000,    // worth of T3-T5 debris added to hangar per station kill
   explorerChance: 0.05, // Improved Explorer Frigate Design blueprint chance
   chipChance: 0.05      // Item Level Chip chance (5%)
 };
