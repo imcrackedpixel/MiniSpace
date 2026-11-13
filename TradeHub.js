@@ -25,21 +25,7 @@
         ctx.save();
         ctx.translate(this.x, this.y);
 
-        // Draw a persistent illuminated station silhouette first. It remains
-        // visible around transparent areas of the PNG and while the art loads.
-        ctx.save();
-        ctx.globalAlpha = 0.9;
-        ctx.shadowColor = '#36b99a';
-        ctx.shadowBlur = 42;
-        ctx.fillStyle = 'rgba(10, 48, 54, 0.42)';
-        ctx.strokeStyle = '#36b99a';
-        ctx.lineWidth = 16;
-        ctx.beginPath();
-        ctx.ellipse(0, 0, 860, 520, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-
+        // Draw only the station artwork; no oversized fallback ring or halo.
         if (tradeStationImage.complete && tradeStationImage.naturalWidth > 0) {
           ctx.drawImage(tradeStationImage, -900, -600, 1800, 1200);
         } else {
