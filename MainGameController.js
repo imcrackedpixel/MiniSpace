@@ -836,7 +836,19 @@ window.onCorpExplorerPanicHotDrop = function(bot) {
   playerShip.vx = 0; playerShip.vy = 0;
   playerShip.angle = Math.atan2(bot.ship.y - playerShip.y, bot.ship.x - playerShip.x);
   playerShip.docked = false;
+  // Brief arrival shield prevents instant spawn-kills, including hostile player fire.
+  playerShip._miniTacticalShieldUntil = Date.now() + 4000;
+  if (typeof playerShip.takeDamage === 'function' && !playerShip._miniTacticalShieldWrapped) {
+    const originalTakeDamage = playerShip.takeDamage.bind(playerShip);
+    playerShip.takeDamage = function() {
+      if (Date.now() < (this._miniTacticalShieldUntil || 0)) return;
+      return originalTakeDamage.apply(null, arguments);
+    };
+    playerShip._miniTacticalShieldWrapped = true;
+  }
   targetMovePos = null; lockedTarget = null; isDockingRequested = false; gateCooldown = 180;
+  const remotePilots = window.MinispaceOnline && window.MinispaceOnline.state && window.MinispaceOnline.state.remotePlayers;
+  const pilotsInSystem = remotePilots ? Object.values(remotePilots).filter(p => p && p.mapId === destinationId).length : 0;
   mission.playerReinforced = true;
   if (mission.counterDropRisk && !mission.counterDropSpawned && publicNpcManager &&
       typeof publicNpcManager.spawnTacticalCounterDrop === 'function') {
@@ -847,7 +859,8 @@ window.onCorpExplorerPanicHotDrop = function(bot) {
     publicNpcManager.addCapitalDropEffect(destinationId, playerShip.x, playerShip.y);
   }
   if (typeof saveGameSession === 'function') saveGameSession();
-  window.showCorpNotification('TACTICAL REINFORCEMENT · Corp Explorer Panic Button active · you have been pulled into ' + ((arrival.system && arrival.system.name) || 'the fleet system') + '.');
+  window.showCorpNotification('TACTICAL REINFORCEMENT · pulled into ' + ((arrival.system && arrival.system.name) || 'the fleet system') +
+    (pilotsInSystem ? ' · ' + pilotsInSystem + ' other pilot(s) detected' : '') + ' · 4-second arrival shield.');
 };
 
 window.openUniverse = function() {
