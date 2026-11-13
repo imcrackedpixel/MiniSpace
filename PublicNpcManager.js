@@ -159,6 +159,7 @@ class PublicNpcManager {
       window.addEventListener('minispace-frontier-npc-state', e => this.applyFrontierNpcState(e && e.detail));
       window.addEventListener('minispace-frontier-npc-killed', e => this.applyFrontierNpcKilled(e && e.detail));
       window.addEventListener('minispace-frontier-npc-respawn', e => this.applyFrontierNpcRespawn(e && e.detail));
+      window.addEventListener('minispace-frontier-station-state', e => this.applyFrontierStationState(e && e.detail));
     }
   }
 
@@ -212,8 +213,80 @@ class PublicNpcManager {
 
   frontierState(systemId) {
     return this._frontierStates[systemId] || (this._frontierStates[systemId] = {
-      spawned: false, guardDefs: [], guardRespawns: Object.create(null), clearNotified: false
+      spawned: false, guardDefs: [], guardRespawns: Object.create(null),
+      stationHp: null, stationMaxHp: 0, wavesSpawned: [], stationDestroyed: false, destroyNotified: false
     });
+  }
+
+  applyFrontierStationState(message) {
+    if (!message || !String(message.mapId || '').startsWith('frontier_')) return;
+    const state = this.frontierState(message.mapId);
+    const maxHp = Math.max(1, Number(message.maxHp) || state.stationMaxHp || 1);
+    const hp = Number(message.hp);
+    if (!Number.isFinite(hp)) return;
+    state.stationMaxHp = maxHp;
+    state.stationHp = state.stationHp == null ? Math.max(0, Math.min(maxHp, hp)) : Math.min(state.stationHp, Math.max(0, Math.min(maxHp, hp)));
+    state.stationDestroyed = state.stationHp <= 0;
+    if (Array.isArray(message.wavesSpawned)) message.wavesSpawned.forEach(w => {
+      const n = Number(w);
+      if (Number.isInteger(n) && n >= 0 && n < 3 && !state.wavesSpawned.includes(n)) state.wavesSpawned.push(n);
+    });
+    const station = window.MINISPACE_FRONTIER_STATION;
+    if (station && mapManager && mapManager.currentMapId === message.mapId) {
+      station.maxStructure = state.stationMaxHp;
+      station.structure = state.stationHp;
+      this.checkFrontierStationWaves(message.mapId, station);
+    }
+  }
+
+  onFrontierStationDamaged(systemId, station) {
+    const state = this.frontierState(systemId);
+    state.stationMaxHp = Math.max(1, Number(station.maxStructure) || state.stationMaxHp || 1);
+    state.stationHp = Math.max(0, Math.min(state.stationMaxHp, Number(station.structure) || 0));
+    state.stationDestroyed = state.stationHp <= 0;
+    this.checkFrontierStationWaves(systemId, station);
+    if (window.MinispaceOnline && typeof window.MinispaceOnline.send === 'function') {
+      window.MinispaceOnline.send({type:'frontier-station-state',mapId:systemId,hp:state.stationHp,maxHp:state.stationMaxHp,wavesSpawned:state.wavesSpawned.slice()});
+    }
+    if (state.stationDestroyed && !state.destroyNotified) {
+      state.destroyNotified = true;
+      if (typeof window.showCorpNotification === 'function') window.showCorpNotification('FRONTIER STATION DESTROYED · SYSTEM STRONGHOLD ELIMINATED');
+    }
+  }
+
+  checkFrontierStationWaves(systemId, station) {
+    if (!station || !(station.maxStructure > 0)) return;
+    const state = this.frontierState(systemId);
+    const fraction = Math.max(0, Number(station.structure) || 0) / station.maxStructure;
+    [0.75, 0.50, 0.25].forEach((threshold, waveIndex) => {
+      if (fraction <= threshold && !state.wavesSpawned.includes(waveIndex)) {
+        state.wavesSpawned.push(waveIndex);
+        const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
+        if (system) this.spawnFrontierStationWave(system, station, waveIndex);
+      }
+    });
+  }
+
+  spawnFrontierStationWave(system, station, waveIndex) {
+    const id = system.id;
+    const base = system.ring <= 2 ? ['combatFrigate','frigate','frigate'] :
+      (system.ring <= 6 ? ['siegeCruiser','combatFrigate','combatFrigate','frigate'] :
+      ['siegeBattleship','siegeCruiser','combatFrigate','carrier']);
+    const plan = base.concat(waveIndex >= 1 ? ['combatFrigate'] : [], waveIndex >= 2 ? ['siegeCruiser'] : []);
+    let seed = 0;
+    const seedText = id + '_siege_' + waveIndex;
+    for (let k = 0; k < seedText.length; k++) seed = (seed * 33 + seedText.charCodeAt(k)) >>> 0;
+    const seeded = index => { let value = (seed + (index + 1) * 1013904223) >>> 0; value = (value * 1664525 + 1013904223) >>> 0; return value / 4294967296; };
+    plan.forEach((type, i) => {
+      const angle = (i / plan.length) * Math.PI * 2 + seeded(i * 3) * 0.35;
+      const radius = 1050 + seeded(i * 3 + 1) * 500;
+      const cfg = PIRATE_TYPES[type];
+      if (!cfg) return;
+      this.addPirate(cfg, station.x + Math.cos(angle) * radius, station.y + Math.sin(angle) * radius,
+        'station_wave_' + id + '_' + waveIndex + '_' + i,
+        {mapId:id,stationWave:true,role:'patrol',hpScale:system.ring>=7?0.72:0.62,dmg:system.ring>=7?0.28:0.18,rarity:rollPirateRarity(seeded(i*7+3))});
+    });
+    if (typeof window.showCorpNotification === 'function') window.showCorpNotification('STATION DEFENCE WAVE ' + (waveIndex + 1) + ' · ' + plan.length + ' ships undocked');
   }
 
   applyFrontierNpcState(message) {
@@ -265,41 +338,24 @@ class PublicNpcManager {
   }
 
   initFrontierSystem(system, station) {
-    if (!system || !system.id) return;
+    if (!system || !system.id || !station) return;
     const id = system.id, state = this.frontierState(id);
-    if (state.spawned) return;
-    const cx = station && Number.isFinite(station.x) ? station.x : 4500;
-    const cy = station && Number.isFinite(station.y) ? station.y : 4500;
-    let plan;
-    if (system.ring <= 2) plan = ['combatFrigate','combatFrigate','frigate','frigate','frigate'];
-    else if (system.ring <= 6) plan = ['siegeCruiser','combatFrigate','combatFrigate','frigate','frigate','frigate'];
-    else plan = ['siegeBattleship','siegeCruiser','combatFrigate','combatFrigate','combatFrigate','carrier'];
-    const hpScale = system.ring >= 9 ? 0.42 : (system.ring >= 7 ? 0.48 : 0.6);
-    let seed = 0;
-    for (let k = 0; k < id.length; k++) seed = (seed * 33 + id.charCodeAt(k)) >>> 0;
-    const seeded = index => {
-      let value = (seed + (index + 1) * 1013904223) >>> 0;
-      value = (value * 1664525 + 1013904223) >>> 0;
-      return value / 4294967296;
+    const maxHp = 45000 + Math.max(1, Number(system.ring) || 1) * 12000;
+    if (!(state.stationMaxHp > 0)) state.stationMaxHp = maxHp;
+    if (state.stationHp == null) state.stationHp = state.stationMaxHp;
+    state.stationHp = Math.max(0, Math.min(state.stationMaxHp, Number(state.stationHp)));
+    state.stationDestroyed = state.stationHp <= 0;
+    station.isFrontierStation = true;
+    station.maxStructure = state.stationMaxHp;
+    station.structure = state.stationHp;
+    station.takeDamage = rawDamage => {
+      const damage = Math.max(0, Number(rawDamage) || 0);
+      if (!damage || station.structure <= 0) return;
+      station.structure = Math.max(0, station.structure - damage);
+      this.onFrontierStationDamaged(id, station);
     };
-    state.guardDefs = plan.map((type, i) => {
-      const angle = (i / plan.length) * Math.PI * 2 + seeded(i * 2) * 0.3;
-      const radius = 720 + seeded(i * 2 + 1) * 650;
-      return {
-        id: 'station_guard_' + id + '_' + i, type: type,
-        x: cx + Math.cos(angle) * radius, y: cy + Math.sin(angle) * radius,
-        hpScale: hpScale, dmg: system.ring >= 7 ? 0.22 : 0.14,
-        elite: system.ring >= 9 && i === 0,
-        rarity: rollPirateRarity(seeded(i * 7 + 3))
-      };
-    });
     state.spawned = true;
-    state.guardDefs.forEach(def => {
-      const respawnAt = Number(state.guardRespawns[def.id]) || 0;
-      if (respawnAt > Date.now()) return;
-      if (respawnAt) delete state.guardRespawns[def.id];
-      this.spawnFrontierGuard(system, def, station);
-    });
+    this.checkFrontierStationWaves(id, station);
   }
 
   scheduleFrontierGuardRespawn(npc) {
@@ -320,29 +376,8 @@ class PublicNpcManager {
   }
 
   updateFrontierRespawn(systemId) {
-    const state = this._frontierStates[systemId];
-    if (!state || !state.spawned) return;
-    const system = (window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === systemId);
-    if (!system) return;
-    const now = Date.now();
-    let respawned = 0;
-    Object.keys(state.guardRespawns || {}).forEach(npcId => {
-      if (Number(state.guardRespawns[npcId]) > now) return;
-      delete state.guardRespawns[npcId];
-      const def = (state.guardDefs || []).find(d => d.id === npcId);
-      if (def && this.spawnFrontierGuard(system, def, window.MINISPACE_FRONTIER_STATION)) respawned++;
-    });
-    if (respawned && typeof window.showCorpNotification === 'function') {
-      window.showCorpNotification(respawned + ' station guard' + (respawned === 1 ? '' : 's') + ' respawned · docking locked again.');
-    }
-    const alive = this.hasLivingStationGuards(systemId);
-    if (!alive && Object.keys(state.guardRespawns || {}).length && !state.clearNotified) {
-      state.clearNotified = true;
-      if (typeof window.showCorpNotification === 'function') {
-        window.showCorpNotification('Station guards cleared. Docking unlocked · patrols return in 3–5 minutes.');
-      }
-    }
-    if (alive) state.clearNotified = false;
+    const station = window.MINISPACE_FRONTIER_STATION;
+    if (station && mapManager && mapManager.currentMapId === systemId) this.checkFrontierStationWaves(systemId, station);
   }
 
   addPirate(cfg, x, y, id, opts) {
@@ -391,6 +426,7 @@ class PublicNpcManager {
       id: id,
       mapId: opts.mapId || null,
       stationGuard: !!opts.stationGuard,
+      stationWave: !!opts.stationWave,
       role: opts.role || null,
       cfg: cfg,
       elite: !!opts.elite,
@@ -897,6 +933,19 @@ class PublicNpcManager {
       ctx.fillRect(window.centralStationBoss.x - 40, window.centralStationBoss.y - 75, 80, 6);
       ctx.fillStyle = '#f85149';
       ctx.fillRect(window.centralStationBoss.x - 40, window.centralStationBoss.y - 75, 80 * frac, 6);
+      ctx.restore();
+    }
+
+    if (isFrontier && window.MINISPACE_FRONTIER_STATION && window.MINISPACE_FRONTIER_STATION.structure > 0) {
+      const station = window.MINISPACE_FRONTIER_STATION;
+      const frac = Math.max(0, Math.min(1, station.structure / station.maxStructure));
+      ctx.save();
+      ctx.textAlign = 'center'; ctx.font = 'bold 18px system-ui, sans-serif';
+      ctx.fillStyle = '#ff6b6b'; ctx.shadowColor = '#ff3030'; ctx.shadowBlur = 10;
+      ctx.fillText('HOSTILE STRONGHOLD · ' + Math.ceil(station.structure).toLocaleString() + ' / ' + Math.ceil(station.maxStructure).toLocaleString(), station.x, station.y - 520);
+      ctx.shadowBlur = 0; ctx.fillStyle = '#24151a'; ctx.fillRect(station.x - 260, station.y - 495, 520, 18);
+      ctx.fillStyle = '#ef4444'; ctx.fillRect(station.x - 260, station.y - 495, 520 * frac, 18);
+      ctx.strokeStyle = '#fecaca'; ctx.lineWidth = 2; ctx.strokeRect(station.x - 260, station.y - 495, 520, 18);
       ctx.restore();
     }
 
