@@ -37,6 +37,22 @@ function ensureOreCargo(ship) {
   }
   return ship.cargoByOre;
 }
+function ensureModuleCargo(ship) {
+  if (!ship) return [];
+  if (!Array.isArray(ship.moduleCargo)) ship.moduleCargo = [];
+  return ship.moduleCargo;
+}
+function addModuleToCargo(ship, drop) {
+  if (!ship || !drop) return false;
+  const modules = ensureModuleCargo(ship), ore = ensureOreCargo(ship);
+  const used = Object.keys(ore).reduce((sum, key) => sum + Math.max(0, Number(ore[key]) || 0), 0) + modules.length;
+  if (used >= Math.max(0, Number(ship.maxCargo) || 0)) return false;
+  modules.push(Object.assign({}, drop, { cargoType: 'module' }));
+  ship.cargo = used + 1;
+  if (ship === playerShip) refreshCargoCounter(true);
+  return true;
+}
+window.addModuleToCargo = addModuleToCargo;
 function addOreToCargo(ship, key, amount) {
   if (!ship || !(amount > 0)) return 0;
   key = Object.prototype.hasOwnProperty.call(GAME_ITEM_LABELS, key) ? key : 'veldspar';
@@ -599,19 +615,19 @@ function autoUseChip() {
 
 function rewardBossKill() {
   const tiers = ['debris_t3', 'debris_t4', 'debris_t5'];
-  let remaining = LOOT.debrisIsk;
-  let itemsGained = [];
-
-  while (remaining > 0) {
-    const key = tiers[Math.floor(Math.random() * tiers.length)];
-    const price = itemPrices[key];
+  let remaining = LOOT.debrisIsk, itemsGained = [], cargoFull = false;
+  while (remaining > 0 && !cargoFull) {
+    const key = tiers[Math.floor(Math.random() * tiers.length)], price = itemPrices[key];
     const chunk = Math.min(remaining, 60000 + Math.random() * 90000);
     const qty = Math.max(1, Math.ceil(chunk / price));
-    const value = Math.min(remaining, qty * price);
-    playerData.stationOre[key] = (playerData.stationOre[key] || 0) + qty;
-    remaining -= value;
-    itemsGained.push({ label: itemLabel(key), qty: qty });
+    const loaded = addOreToCargo(playerShip, key, qty);
+    if (loaded > 0) {
+      remaining -= Math.min(remaining, loaded * price);
+      itemsGained.push({ label: itemLabel(key), qty: loaded });
+    }
+    if (loaded < qty) cargoFull = true;
   }
+  if (remaining > 0 && typeof window.showCorpNotification === 'function') window.showCorpNotification('CARGO LIMIT · Some station-boss salvage was left behind.');
 
   const aggregated = {};
   itemsGained.forEach(item => {
@@ -746,13 +762,22 @@ window.jumpToFrontierSystem = function(id) {
   if (publicNpcManager) publicNpcManager.initFrontierSystem(r.system, mainStation);
   const destination = window._universeRouteDestination;
   if (destination) {
-    if (destination === id) { window._universeRouteDestination = null; window._universeTargetNextHop = null; window.showCorpNotification('Arrived at destination: ' + r.system.name + '.'); }
-    else {
+    if (destination === id) {
+      window._universeRouteDestination = null;
+      window._universeTargetNextHop = null;
+      window.showCorpNotification('Arrived at destination: ' + r.system.name + '.');
+    } else {
       const path = window.findFrontierRoute(id, destination), next = path && path[1];
       window._universeTargetNextHop = next || null;
-      // Keep the plotted destination as navigation guidance only. The pilot
-      // must fly to each highlighted tear and choose when to jump.
-      if (!next) window._universeRouteDestination = null;
+      const nextGate = next === r.system.parentId ? mapManager.frontierReturnGate : (mapManager.frontierGates || []).find(g => g.destinationId === next);
+      if (nextGate) {
+        targetMovePos = { x: nextGate.x, y: nextGate.y };
+        window.showCorpNotification('ROUTE CONTINUING · flying to ' + (next === 'private_highsec' ? 'HIGH-SEC' : ((window.MINISPACE_UNIVERSE_SYSTEMS || []).find(s => s.id === next) || {}).name || next) + ' gate.');
+      } else {
+        targetMovePos = null;
+        window._universeRouteDestination = null;
+        window._universeTargetNextHop = null;
+      }
     }
   }
   window.showCorpNotification('Warp complete: ' + r.system.name + ' · ' +
@@ -990,10 +1015,19 @@ window.openUniverse = function() {
     const branch = Number(system.mapBranch) || 0;
     const pocketDepth = Number(system.mapPocketDepth) || 0;
     let x, y;
-    if (region === 0) { x = 105 + depth * 82 + (branch ? 8 : 0); y = branch ? 130 + (branch - 1) * 80 + pocketDepth * 42 : 72; }
-    else if (region === 1) { x = 425 + depth * 58 + (branch ? 8 : 0); y = branch ? 135 + (branch - 1) * 90 + pocketDepth * 44 : 210; }
-    else if (region === 2) { x = 655 - depth * 82 - (branch ? 8 : 0); y = branch ? 350 - (branch - 1) * 80 - pocketDepth * 42 : 408; }
-    else { x = 335 - depth * 58 - (branch ? 8 : 0); y = branch ? 370 - (branch - 1) * 90 - pocketDepth * 44 : 210; }
+    if (region === 0) { // TOP: side branches extend UP.
+      x = 145 + depth * 78;
+      y = branch ? 150 - (branch - 1) * 34 - pocketDepth * 30 : 215;
+    } else if (region === 1) { // RIGHT: side branches extend RIGHT.
+      x = branch ? 570 + (branch - 1) * 42 + pocketDepth * 34 : 500;
+      y = 80 + depth * 66;
+    } else if (region === 2) { // BOTTOM: side branches extend DOWN.
+      x = 145 + depth * 78;
+      y = branch ? 375 + (branch - 1) * 34 + pocketDepth * 30 : 345;
+    } else { // LEFT: side branches extend LEFT.
+      x = branch ? 230 - (branch - 1) * 42 - pocketDepth * 34 : 300;
+      y = 80 + depth * 66;
+    }
     systemPositions.set(system.id, [x, y]);
   }));
   // DOTLAN-style chart spacing: spread the connected graph over a larger canvas.
@@ -1223,15 +1257,18 @@ window.jumpToPrivateSec = function() {
 
 function emptyCargoIntoStation() {
   if (!playerShip) return;
-  const cargoMap = ensureOreCargo(playerShip);
-  for (const key of Object.keys(cargoMap)) {
+  const cargoMap = ensureOreCargo(playerShip), oreKeys = Object.keys(cargoMap);
+  for (const key of oreKeys) {
     const amount = Math.floor(Number(cargoMap[key]) || 0);
-    if (amount > 0 && Object.prototype.hasOwnProperty.call(playerData.stationOre, key)) {
-      playerData.stationOre[key] = (playerData.stationOre[key] || 0) + amount;
-    }
+    if (amount > 0 && Object.prototype.hasOwnProperty.call(playerData.stationOre, key)) playerData.stationOre[key] = (playerData.stationOre[key] || 0) + amount;
   }
+  const modules = ensureModuleCargo(playerShip), moduleCount = modules.length;
+  if (!Array.isArray(playerData.moduleDrops)) playerData.moduleDrops = [];
+  if (moduleCount) playerData.moduleDrops.push.apply(playerData.moduleDrops, modules.splice(0));
   playerShip.cargoByOre = {};
   playerShip.cargo = 0;
+  refreshCargoCounter(true);
+  if (moduleCount || oreKeys.length) window.showCorpNotification('Cargo unloaded into station hangar.');
 }
 
 var autoUndockTimer = 0;
@@ -3076,8 +3113,9 @@ function updateHUD() {
 function refreshCargoCounter(changed){
  const s=playerShip,el=document.getElementById('cargo-text');if(!s)return;
  const cargo=ensureOreCargo(s);
- const amount=Object.keys(cargo).reduce((sum,key)=>sum+Math.max(0,Number(cargo[key])||0),0);
- // Keep the headline total derived from the item-by-item cargo manifest.
+ const modules=ensureModuleCargo(s);
+ const amount=Object.keys(cargo).reduce((sum,key)=>sum+Math.max(0,Number(cargo[key])||0),0)+modules.length;
+ // Modules occupy one cargo unit each alongside ore and salvage.
  s.cargo=Math.floor(amount);
  if(!el)return;
  const capacity=Math.floor(Number(s.maxCargo)||0);
@@ -3092,9 +3130,10 @@ function cargoIconMarkup(key){
 function updateCargoReadout(){
  const panel=document.getElementById('space-cargo-readout'),list=document.getElementById('space-cargo-items');
  if(!panel||!list||!playerShip)return;
- const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0);
- panel.style.display=keys.length&&!window._miniSpaceHudCollapsed?'block':'none';
- list.innerHTML=keys.map(k=>'<div class="cargo-item-row"><span>'+cargoIconMarkup(k)+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('');
+ const cargo=ensureOreCargo(playerShip),keys=Object.keys(cargo).filter(k=>Number(cargo[k])>0),modules=ensureModuleCargo(playerShip);
+ panel.style.display=(keys.length||modules.length)&&!window._miniSpaceHudCollapsed?'block':'none';
+ list.innerHTML=keys.map(k=>'<div class="cargo-item-row"><span>'+cargoIconMarkup(k)+itemLabel(k)+'</span><b>'+Math.floor(cargo[k]).toLocaleString()+'</b></div>').join('')+
+   modules.map(d=>'<div class="cargo-item-row"><span>⬡ '+String(d.name||'Module Loot').replace(/[<>&"]/g,'')+'</span><b>1</b></div>').join('');
 }
 window.setNearbySpaceTab=function(tab){if(!['tears','pirates','ore','players'].includes(tab))return;window._miniSpaceNearbyTab=tab;document.querySelectorAll('#nearby-space-tabs .nearby-tab').forEach(function(btn){btn.classList.toggle('active',btn.dataset.nearbyTab===tab);});updateNearbySpacePanel();};
 function updateNearbySpacePanel(){
