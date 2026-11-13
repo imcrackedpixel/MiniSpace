@@ -799,7 +799,20 @@ class PublicNpcManager {
       ship: shipObj,
       className: cfg.name,
       combat: !!COMBAT_HULLS[cfg.name],
-      bounty: cfg.marketVal * 0.1,
+      bounty: ({
+        'Mining Frigate': 10000,
+        'Combat Frigate': 10000,
+        'Exploration Frigate': 10000,
+        'Improved Explorer Frigate': 10000,
+        'Explorer Cruiser': 75000,
+        'Siege Cruiser': 75000,
+        'Mining Barge': 75000,
+        'Command Ship': 500000,
+        'Siege Battleship': 500000,
+        'Carrier': 1000000,
+        'Capital': 1000000,
+        'Mining Capital': 2000000
+      })[cfg.name] || 10000,
       maxHp: hp,
       dpsScale: scale,                       // multiplies the damage this pirate deals
       autoAggro: autoAggro,                  // hunts the player from the moment they enter
