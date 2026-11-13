@@ -119,6 +119,9 @@ class SessionManager {
             parsed.playerCargoByOre && typeof parsed.playerCargoByOre === 'object'
               ? Object.assign({}, parsed.playerCargoByOre)
               : null;
+          restored.moduleCargo = Array.isArray(parsed.playerModuleCargo)
+            ? parsed.playerModuleCargo.map(item => Object.assign({}, item))
+            : [];
 
           // Restore the saved flight position and movement state.
           if (Number.isFinite(parsed.shipX)) restored.x = parsed.shipX;
@@ -185,6 +188,9 @@ class SessionManager {
                 : playerShip.cargoByOre) || {}
             )
           : {},
+        playerModuleCargo: playerShip && Array.isArray(playerShip.moduleCargo)
+          ? playerShip.moduleCargo.map(item => Object.assign({}, item))
+          : [],
 
         // Save flight position and movement state.
         shipX: playerShip ? playerShip.x : null,
